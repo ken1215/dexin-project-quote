@@ -73,15 +73,63 @@ body {
   .td  { @apply border border-ink-200 px-2 py-1 text-[13px]; }
 }
 
-/* ── 列印：只印報價單，介面全部隱藏 ── */
+/* ── 列印：只印工程標單，介面全部隱藏 ──────────────────────────
+   底色是這份版面的骨架（表頭列淺藍、合計列深藍、佐證方框），
+   瀏覽器列印預設會把背景色與背景圖整個丟掉，所以 html/body 與
+   「所有」元素都要宣告 print-color-adjust: exact（-webkit- 前綴
+   給 Chrome/Edge/Safari，無前綴給 Firefox/標準），否則美化白做。 */
 @media print {
-  @page { size: A4; margin: 12mm 10mm; }
-  body { background: #fff; font-size: 12px; }
+  @page { size: A4; margin: 14mm 12mm 16mm; }
+
+  html, body {
+    background: #fff !important;
+    font-size: 11.5px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  *, *::before, *::after {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
   .no-print { display: none !important; }
   .print-only { display: block !important; }
-  .print-page { page-break-after: always; }
-  .print-page:last-child { page-break-after: auto; }
-  .print-page table { font-size: 11.5px; }
-  .print-page th, .print-page td { border: 1px solid #666 !important; padding: 3px 5px; }
+
+  /* 一個 .print-sheet ＝ 一張 A4；螢幕上的模擬紙張樣式（外距、陰影、
+     細框、自帶留白）在這裡全部拆掉，實體留白交給 @page margin。
+     min-height 讓頁尾頁碼壓在版心底部；留 258mm（版心約 267mm）
+     的安全餘裕，避免捨入誤差擠出一張空白頁。 */
+  .print-sheet {
+    width: auto !important;
+    max-width: none !important;
+    min-height: 258mm;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    break-after: page;
+    page-break-after: always;
+  }
+  .print-sheet:last-child { break-after: auto; page-break-after: auto; }
+
+  /* 表格跨頁時重複表頭，並避免單列被切成兩半 */
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+  tr, img { break-inside: avoid; page-break-inside: avoid; }
+
+  /* 框線一律細線（0.5pt），不要粗黑框——這份文件會被影印與傳真 */
+  table { border-collapse: collapse; }
+  .print-sheet table { font-size: 10.5px; }
+  .print-sheet th, .print-sheet td { border-width: 0.5pt; padding: 3px 5px; }
+
+  /* 全份唯一的滿版重色塊：合計列 */
+  .total-row td {
+    background-color: var(--color-deep) !important;
+    border-color: var(--color-deep) !important;
+    color: #fff !important;
+  }
+
+  a { color: inherit; text-decoration: none; }
 }
 .print-only { display: none; }

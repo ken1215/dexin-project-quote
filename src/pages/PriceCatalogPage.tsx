@@ -39,6 +39,21 @@ const EMPTY_NEW: NewItemForm = {
   std_price: '', evidence_id: '', evidence_note: '',
 }
 
+/** item_usage RPC 的回傳形狀：這個品項被幾張報價單、幾行明細用過 */
+interface ItemUsage {
+  quote_count: number
+  line_count: number
+}
+
+/** 批次刪除面板用：單一品項被引用的報價單數與明細行數 */
+interface BulkUsage {
+  quotes: number
+  lines: number
+}
+
+/** 批次刪除單次上限——太長的 in 清單會塞爆網址，超過就請主管分批 */
+const MAX_BULK_DELETE = 200
+
 const baseEdit = (it: PriceItem): RowEdit => ({
   std_price: String(it.std_price),
   evidence_id: it.evidence_id ?? '',
@@ -128,6 +143,21 @@ export default function PriceCatalogPage() {
   const [newItem, setNewItem] = useState<NewItemForm>(EMPTY_NEW)
   const [newBusy, setNewBusy] = useState(false)
 
+  // ── 刪除品項（RLS 只有主管刪得掉，同仁會刪到 0 筆） ────────
+  const [delAsk, setDelAsk] = useState<string | null>(null)
+  const [delUsage, setDelUsage] = useState<ItemUsage | null>(null)
+  const [delUsageLoading, setDelUsageLoading] = useState(false)
+  const [delBusy, setDelBusy] = useState(false)
+  const [delErr, setDelErr] = useState<string | null>(null)
+
+  // ── 批次刪除 ────────────────────────────────────────────────
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkAsk, setBulkAsk] = useState(false)
+  const [bulkUsage, setBulkUsage] = useState<Record<string, BulkUsage> | null>(null)
+  const [bulkUsageLoading, setBulkUsageLoading] = useState(false)
+  const [bulkUsageOpen, setBulkUsageOpen] = useState(false)
+  const [bulkBusy, setBulkBusy] = useState(false)
+
   const loadFloors = useCallback(async () => {
     const { data, error } = await supabase.from('price_floors').select('item_id,floor_price,note')
     if (error) { setFloorErr(`底價讀取失敗：${error.message}`); return }
@@ -165,6 +195,18 @@ export default function PriceCatalogPage() {
       return true
     })
   }, [items, filterCat, search, onlyNoEvidence, onlyNeedsArea, onlyFewSamples])
+
+  // ── 選取（批次刪除用）──────────────────────────────────────
+  // 以 items 反查，reload 後已消失的品項會自動退出選取集合
+  const selectedItems = useMemo(() => items.filter((i) => selected.has(i.id)), [items, selected])
+  const selectedIds = useMemo(() => selectedItems.map((i) => i.id), [selectedItems])
+  const usedSelected = useMemo(
+    () => (bulkUsage ? selectedItems.filter((i) => bulkUsage[i.id]) : []),
+    [bulkUsage, selectedItems],
+  )
+  const allShownSelected = shown.length > 0 && shown.every((i) => selected.has(i.id))
+  const someShownSelected = shown.some((i) => selected.has(i.id))
+  const overBulkLimit = selectedIds.length > MAX_BULK_DELETE
 
   const editOf = (it: PriceItem): RowEdit => edits[it.id] ?? baseEdit(it)
 
@@ -322,6 +364,106 @@ export default function PriceCatalogPage() {
     setMsg(`已新增品項 ${id}`)
   }
 
+  // ── 勾選 ────────────────────────────────────────────────────
+  const toggleOne = (id: string, on: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (on) next.add(id)
+      else next.delete(id)
+      return next
+    })
+    setBulkAsk(false)
+  }
+
+  /** 表頭全選只作用在「目前篩選後可見」的列，不會掃到被篩掉的品項 */
+  const toggleAllShown = (on: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      shown.forEach((i) => { if (on) next.add(i.id); else next.delete(i.id) })
+      return next
+    })
+    setBulkAsk(false)
+  }
+
+  // ── 單筆刪除 ────────────────────────────────────────────────
+  const openDelete = async (it: PriceItem) => {
+    if (delAsk === it.id) { setDelAsk(null); setDelUsage(null); return }
+    setDelAsk(it.id); setDelUsage(null); setDelErr(null); setDelUsageLoading(true)
+    const { data, error } = await supabase.rpc('item_usage', { p_item_id: it.id })
+    setDelUsageLoading(false)
+    if (error) { setDelErr(`「${it.name}」使用情形查詢失敗：${error.message}`); return }
+    // count 是 bigint，PostgREST 可能給字串，一律 Number() 正規化
+    const row = ((data ?? []) as ItemUsage[])[0]
+    setDelUsage({
+      quote_count: Number(row?.quote_count ?? 0),
+      line_count: Number(row?.line_count ?? 0),
+    })
+  }
+
+  const runDelete = async (it: PriceItem) => {
+    setDelBusy(true); setDelErr(null); setErr(null); setMsg(null)
+    const { data, error } = await supabase.from('price_items').delete().eq('id', it.id).select('id')
+    setDelBusy(false)
+    if (error) { setDelErr(`刪除失敗：${error.message}`); return }
+    // RLS 擋下時不會報錯，只會回 0 筆——這裡要講清楚，不能靜默當成成功
+    const removed = ((data ?? []) as { id: string }[]).length
+    if (removed === 0) {
+      setDelErr(`「${it.name}」沒有被刪除（回傳 0 筆）——只有主管能刪除品項，請確認權限後再試。`)
+      return
+    }
+    setDelAsk(null); setDelUsage(null)
+    setEdits((prev) => { const n = { ...prev }; delete n[it.id]; return n })
+    setSelected((prev) => { const n = new Set(prev); n.delete(it.id); return n })
+    await reload()
+    setMsg(`已刪除品項「${it.name}」（${it.id}）`)
+  }
+
+  // ── 批次刪除 ────────────────────────────────────────────────
+  const openBulkDelete = async () => {
+    if (bulkAsk) { setBulkAsk(false); return }
+    if (!selectedIds.length) return
+    setBulkAsk(true); setBulkUsage(null); setBulkUsageOpen(false); setDelErr(null)
+    if (selectedIds.length > MAX_BULK_DELETE) return
+    setBulkUsageLoading(true)
+    // 一次把所有選取品項的引用撈回來、在前端分組，省下 N-1 次 item_usage 往返
+    const { data, error } = await supabase
+      .from('quote_lines').select('item_id,quote_id').in('item_id', selectedIds)
+    setBulkUsageLoading(false)
+    if (error) { setDelErr(`使用情形查詢失敗：${error.message}`); return }
+    const rows = (data ?? []) as { item_id: string | null; quote_id: string }[]
+    const seen: Record<string, Set<string>> = {}
+    const acc: Record<string, BulkUsage> = {}
+    rows.forEach((r) => {
+      if (!r.item_id) return
+      const q = seen[r.item_id] ?? new Set<string>()
+      q.add(r.quote_id)
+      seen[r.item_id] = q
+      const cur = acc[r.item_id] ?? { quotes: 0, lines: 0 }
+      acc[r.item_id] = { quotes: q.size, lines: cur.lines + 1 }
+    })
+    setBulkUsage(acc)
+  }
+
+  const runBulkDelete = async () => {
+    const ids = selectedIds
+    if (!ids.length || ids.length > MAX_BULK_DELETE) return
+    setBulkBusy(true); setDelErr(null); setErr(null); setMsg(null)
+    const { data, error } = await supabase.from('price_items').delete().in('id', ids).select('id')
+    setBulkBusy(false)
+    if (error) { setDelErr(`批次刪除失敗：${error.message}`); return }
+    const removed = ((data ?? []) as { id: string }[]).length
+    setBulkAsk(false); setBulkUsage(null); setBulkUsageOpen(false)
+    setDelAsk(null); setDelUsage(null)
+    setSelected(new Set())
+    setEdits({})
+    await reload()
+    if (removed < ids.length) {
+      setDelErr(`只刪掉 ${removed} / ${ids.length} 項，其餘 ${ids.length - removed} 項未被刪除`
+        + '——通常是沒有主管權限或被資料庫約束擋下，請確認後再試一次。')
+    }
+    setMsg(`已刪除 ${removed} 項品項`)
+  }
+
   if (loading) {
     return <div className="p-10 text-center text-ink-500">單價庫載入中…</div>
   }
@@ -341,9 +483,9 @@ export default function PriceCatalogPage() {
         <Stat label="待轉 m² 的裝修項" value={String(stats.needsArea)} sub="歷史以「式」報價" />
       </div>
 
-      {(err || floorErr) && (
+      {(err || floorErr || delErr) && (
         <div className="rounded-md border border-warn/30 bg-warn-bg px-3 py-2 text-sm text-warn">
-          {err}{err && floorErr ? '　' : ''}{floorErr}
+          {[err, floorErr, delErr].filter((t) => Boolean(t)).join('　')}
         </div>
       )}
       {msg && (
@@ -514,6 +656,23 @@ export default function PriceCatalogPage() {
           <div className="text-[15px] font-semibold text-deep">標準單價維護</div>
           <span className="text-xs text-ink-500">底價欄僅主管可見</span>
           <div className="ml-auto flex items-center gap-3">
+            {selectedIds.length > 0 && (
+              <>
+                <span className="text-sm text-ink-500">已選取 {selectedIds.length} 項</span>
+                <button
+                  className="btn" disabled={bulkBusy || delBusy}
+                  onClick={() => { setSelected(new Set()); setBulkAsk(false) }}
+                >
+                  清除選取
+                </button>
+                <button
+                  className="btn btn-danger" disabled={bulkBusy || delBusy}
+                  onClick={() => void openBulkDelete()}
+                >
+                  刪除選取的 {selectedIds.length} 項
+                </button>
+              </>
+            )}
             {dirtyItems.length > 0 && (
               <span className="text-sm text-alert">尚有 {dirtyItems.length} 筆未儲存</span>
             )}
@@ -528,10 +687,86 @@ export default function PriceCatalogPage() {
           </div>
         </div>
 
+        {bulkAsk && selectedIds.length > 0 && (
+          <div className="mb-3 rounded-md border border-warn/40 bg-warn-bg px-3 py-2.5 text-sm">
+            <div className="font-semibold text-warn">
+              確認要刪除選取的 <span className="num">{selectedIds.length}</span> 項品項嗎？
+            </div>
+
+            {overBulkLimit ? (
+              <div className="mt-2 text-ink-900">
+                一次最多刪除 <span className="num">{MAX_BULK_DELETE}</span> 項，目前選取
+                <span className="num mx-1">{selectedIds.length}</span>
+                項，請先縮小篩選範圍分批處理。
+              </div>
+            ) : (
+              <>
+                {bulkUsageLoading && <div className="mt-2 text-ink-500">使用情形查詢中…</div>}
+                {!bulkUsageLoading && bulkUsage && (
+                  <div className="mt-2 text-ink-900">
+                    {usedSelected.length === 0 ? (
+                      <>這 <span className="num">{selectedIds.length}</span> 項都尚未被任何報價單使用，可安全刪除。</>
+                    ) : (
+                      <>
+                        其中 <span className="num font-semibold">{usedSelected.length}</span> 項已被報價單使用。
+                        刪除<span className="font-semibold">不會</span>更動那些報價單的內容與金額
+                        （單價已存為快照），只會失去與單價庫的連結。
+                        <button
+                          type="button" className="ml-2 text-bright underline"
+                          onClick={() => setBulkUsageOpen((v) => !v)}
+                        >
+                          {bulkUsageOpen ? '收合明細' : '看是哪幾項'}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+                {bulkUsageOpen && usedSelected.length > 0 && (
+                  <ul className="mt-2 max-h-48 overflow-y-auto rounded border border-ink-200 bg-white px-3 py-2 text-[13px] text-ink-700">
+                    {usedSelected.map((i) => {
+                      const u = bulkUsage?.[i.id]
+                      return (
+                        <li key={i.id}>
+                          {i.name}{i.spec ? `／${i.spec}` : ''}
+                          <span className="num ml-2 text-ink-500">
+                            {u?.quotes ?? 0} 張報價單・{u?.lines ?? 0} 行明細
+                          </span>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+                <div className="mt-2 text-ink-700">若只是暫時不用，建議改用「停用」而不是刪除。</div>
+              </>
+            )}
+
+            <div className="mt-2 flex gap-2">
+              <button
+                className="btn btn-danger"
+                disabled={bulkBusy || bulkUsageLoading || overBulkLimit}
+                onClick={() => void runBulkDelete()}
+              >
+                {bulkBusy ? '刪除中…' : `確認刪除 ${selectedIds.length} 項`}
+              </button>
+              <button className="btn" disabled={bulkBusy} onClick={() => setBulkAsk(false)}>取消</button>
+            </div>
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
               <tr>
+                <th className="th w-8">
+                  <input
+                    type="checkbox"
+                    aria-label="全選目前篩選結果"
+                    checked={allShownSelected}
+                    disabled={shown.length === 0}
+                    ref={(el) => { if (el) el.indeterminate = !allShownSelected && someShownSelected }}
+                    onChange={(ev) => toggleAllShown(ev.target.checked)}
+                  />
+                </th>
                 <th className="th text-left">品名</th>
                 <th className="th text-left">規格</th>
                 <th className="th">單位</th>
@@ -543,11 +778,12 @@ export default function PriceCatalogPage() {
                 <th className="th text-left">佐證</th>
                 <th className="th">啟用</th>
                 <th className="th">軌跡</th>
+                <th className="th">刪除</th>
               </tr>
             </thead>
             <tbody>
               {shown.length === 0 && (
-                <tr><td className="td text-center text-ink-500" colSpan={11}>沒有符合條件的品項</td></tr>
+                <tr><td className="td text-center text-ink-500" colSpan={13}>沒有符合條件的品項</td></tr>
               )}
               {shown.map((it) => {
                 const e = editOf(it)
@@ -561,6 +797,14 @@ export default function PriceCatalogPage() {
                 return (
                   <Fragment key={it.id}>
                     <tr className={dirty ? 'bg-light/40' : undefined}>
+                      <td className="td text-center">
+                        <input
+                          type="checkbox"
+                          aria-label={`選取 ${it.name}`}
+                          checked={selected.has(it.id)}
+                          onChange={(ev) => toggleOne(it.id, ev.target.checked)}
+                        />
+                      </td>
                       <td className="td">
                         <div className="text-ink-900">{it.name}</div>
                         <div className="text-[11px] text-ink-500">
@@ -637,11 +881,68 @@ export default function PriceCatalogPage() {
                           軌跡
                         </button>
                       </td>
+                      <td className="td text-center">
+                        <button
+                          type="button"
+                          className="btn btn-danger px-2 py-0.5 text-[11px]"
+                          disabled={delBusy || bulkBusy}
+                          onClick={() => void openDelete(it)}
+                        >
+                          刪除
+                        </button>
+                      </td>
                     </tr>
+
+                    {delAsk === it.id && (
+                      <tr className="bg-warn-bg">
+                        <td className="td" colSpan={13}>
+                          <div className="text-sm font-semibold text-warn">確認刪除此品項？</div>
+                          <div className="mt-1 grid gap-x-4 gap-y-0.5 text-[13px] text-ink-900 md:grid-cols-4">
+                            <div>品名：{it.name}</div>
+                            <div>規格：{it.spec || '—'}</div>
+                            <div>單位：{it.unit}</div>
+                            <div>目前標準單價：<span className="num">{money(it.std_price)}</span></div>
+                          </div>
+                          <div className="mt-2 text-[13px] text-ink-900">
+                            {delUsageLoading && <span className="text-ink-500">使用情形查詢中…</span>}
+                            {!delUsageLoading && delUsage && (
+                              delUsage.line_count === 0 && delUsage.quote_count === 0
+                                ? <>此品項尚未被任何報價單使用，可安全刪除。</>
+                                : (
+                                  <>
+                                    此品項已被 <span className="num font-semibold">{delUsage.quote_count}</span> 張報價單、
+                                    <span className="num font-semibold">{delUsage.line_count}</span> 行明細使用。
+                                    刪除<span className="font-semibold">不會</span>更動那些報價單的內容與金額
+                                    （單價已存為快照），只會失去與單價庫的連結。
+                                  </>
+                                )
+                            )}
+                          </div>
+                          <div className="mt-1 text-[13px] text-ink-700">
+                            若只是暫時不用，建議改用「停用」而不是刪除。
+                          </div>
+                          <div className="mt-2 flex gap-2">
+                            <button
+                              className="btn btn-danger"
+                              disabled={delBusy || delUsageLoading}
+                              onClick={() => void runDelete(it)}
+                            >
+                              {delBusy ? '刪除中…' : '確認刪除'}
+                            </button>
+                            <button
+                              className="btn" disabled={delBusy}
+                              onClick={() => { setDelAsk(null); setDelUsage(null) }}
+                            >
+                              取消
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
 
                     {evOpen === it.id && (
                       <tr className="bg-ink-50">
-                        <td className="td" colSpan={11}>
+                        <td className="td" colSpan={13}>
                           <div className="grid gap-3 md:grid-cols-3">
                             <div>
                               <label className="label" htmlFor={`ev-${it.id}`}>佐證來源</label>
@@ -685,7 +986,7 @@ export default function PriceCatalogPage() {
 
                     {histOpen === it.id && (
                       <tr className="bg-ink-50">
-                        <td className="td" colSpan={11}>
+                        <td className="td" colSpan={13}>
                           <div className="mb-1 text-xs font-semibold text-deep">調價軌跡（最近 20 筆）</div>
                           {histErr && <div className="text-xs text-warn">{histErr}</div>}
                           {histLoading && <div className="text-xs text-ink-500">載入中…</div>}

@@ -1,19 +1,81 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useRefData } from '../context/RefDataContext'
 import { calcTotals, lineAmount, money } from '../lib/calc'
-import type { DraftSection, Quote, QuoteLine, QuoteSection, QuoteStatus } from '../types'
+import {
+  EVIDENCE_LABEL,
+  type DraftSection, type EvidenceKind, type Quote, type QuoteLine,
+  type QuoteSection, type QuoteStatus,
+} from '../types'
+
+/* ═══════════════════════════════════════════════════════════════
+   立德新股份有限公司 → 聯新國際醫院　工程標單（列印／轉 PDF 版）
+   版面依聯新國際醫療集團 CIS：深藍 #0054A7、亮藍 #008CD6、
+   CIS 綠 #00A94F、淺藍 #D3EDFB，墨色 5 階，金額一律 tabular-nums。
+   用色克制——整份文件只有「合計」列是滿版深藍，其餘靠淺藍底與細線。
+   ═══════════════════════════════════════════════════════════════ */
 
 /** 大項項次用中文數字 */
 const CN = ['壹', '貳', '參', '肆', '伍', '陸', '柒', '捌', '玖', '拾']
 const cnNo = (i: number): string => CN[i] ?? String(i + 1)
 
-/** 右上角狀態標記——只有這三種狀態要印在紙上 */
-const STAMP: Partial<Record<QuoteStatus, string>> = {
-  draft: '草稿',
-  submitted: '待核可',
-  closed: '定案版',
+/** 右上角狀態印章：外框式，不填色（填色會蓋住底下的表頭資訊） */
+const STAMP: Record<QuoteStatus, { label: string; cls: string }> = {
+  draft: { label: '草　稿', cls: 'border-ink-500 text-ink-500' },
+  submitted: { label: '待核可', cls: 'border-alert text-alert' },
+  approved: { label: '已核可', cls: 'border-green text-green' },
+  negotiating: { label: '議價中', cls: 'border-bright text-bright' },
+  closed: { label: '定案版', cls: 'border-deep text-deep' },
+  rejected: { label: '已退回', cls: 'border-warn text-warn' },
+}
+
+/** 佐證來源類別的標籤配色 */
+const EV_TAG: Record<EvidenceKind, string> = {
+  index: 'border-bright text-bright',
+  law: 'border-green text-green',
+  market: 'border-alert text-alert',
+  history: 'border-ink-500 text-ink-500',
+}
+
+/** 工率依據轉中文——estimate 一律另外註明是估計值，不包裝成官方數據 */
+const BASIS_LABEL: Record<string, string> = {
+  history: '自家歷史成交',
+  standard: '官方工料分析',
+  estimate: '業界經驗估計',
+}
+const CONF_TAG: Record<string, { label: string; cls: string }> = {
+  high: { label: '高', cls: 'border-green text-green' },
+  medium: { label: '中', cls: 'border-ink-500 text-ink-500' },
+  low: { label: '低', cls: 'border-alert text-alert' },
+}
+
+/** labor_productivity 一列（本頁自用形狀，未進 types.ts 的共用型別） */
+interface LaborProductivity {
+  id: string
+  trade: string
+  work_item: string
+  unit: string
+  output_per_manday: number
+  crew: string
+  basis: string
+  source: string
+  confidence: string
+  note: string
+}
+
+/** 工率分析表的一列（已把同一工率的數量合併） */
+interface ProdRow {
+  id: string
+  work_item: string
+  unit: string
+  qty: number
+  output: number
+  manDays: number
+  unitWage: number
+  wage: number
+  basis: string
+  confidence: string
 }
 
 /** 0.05 → 「5」；0.045 → 「4.5」 */
@@ -28,43 +90,137 @@ function toText(v: unknown, fallback: string): string {
   return fallback
 }
 
-/** 報價單頁首（總表頁與各明細頁共用） */
-function SheetHeader({ quote }: { quote: Quote }) {
-  const cell = 'border border-ink-200 px-2 py-1 text-[13px]'
+/** 去掉小數尾巴的 0：3.00 → 3；0.65 → 0.65 */
+function trim2(n: number): string {
+  return String(Math.round(n * 100) / 100)
+}
+
+/* ── 版面共用 class ───────────────────────────────────────────── */
+
+/** 螢幕上模擬一張 A4；列印時的留白交給 @page margin（見 index.css） */
+const SHEET =
+  'print-sheet mx-auto mb-8 flex w-full max-w-[210mm] flex-col bg-white ' +
+  'px-[12mm] pt-[14mm] pb-[16mm] min-h-[297mm] shadow-md ring-1 ring-ink-200'
+
+const TH = 'border border-ink-200 bg-light px-2 py-1.5 text-[11.5px] font-bold text-ink-700'
+const TD = 'border border-ink-200 px-2 py-1 text-[12px] text-ink-900'
+const TD_MUTED = 'border border-ink-200 px-2 py-1 text-[11px] text-ink-700'
+
+/* ── 一張紙：頁首 + 內容 + 頁尾頁碼 ───────────────────────────── */
+
+function Sheet(
+  { quote, stamp, catalogVersion, feeRate, busRate, page, total, children }: {
+    quote: Quote
+    stamp: { label: string; cls: string }
+    catalogVersion: string
+    feeRate: number
+    busRate: number
+    page: number
+    total: number
+    children: ReactNode
+  },
+) {
   return (
-    <>
-      <div className="text-center">
-        <div className="text-xl font-bold tracking-widest text-ink-900">立德新股份有限公司</div>
-        <div className="mt-1 text-base tracking-[0.4em] text-ink-900">工程標單</div>
-      </div>
-      <table className="mt-3 w-full border-collapse">
-        <tbody>
-          <tr>
-            <td className={cell}>客戶名稱：聯新國際醫院</td>
-            <td className={cell}>報價日期：{quote.quote_date || '—'}</td>
-          </tr>
-          <tr>
-            <td className={cell}>工程地點：{quote.project || '—'}</td>
-            <td className={cell}>聯絡人：{quote.contact || '—'}</td>
-          </tr>
-          <tr>
-            <td className={cell}>申請單位：{quote.dept || '—'}</td>
-            <td className={cell}>單號：{quote.quote_no || '—'}</td>
-          </tr>
-        </tbody>
-      </table>
-    </>
+    <section className={SHEET}>
+      <SheetHeader
+        quote={quote}
+        stamp={stamp}
+        catalogVersion={catalogVersion}
+        feeRate={feeRate}
+        busRate={busRate}
+      />
+      <div className="flex-1">{children}</div>
+      <footer className="mt-6 border-t border-ink-200 pt-1.5 text-center text-[10px] tracking-[0.2em] text-ink-500">
+        第 {page} 頁 / 共 {total} 頁
+      </footer>
+    </section>
   )
 }
+
+/** 表頭資訊的一格：標籤小字 ink-500、值 ink-900 */
+function Field({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline gap-2 border-b border-ink-200 pb-[3px]">
+      <span className="w-[5.5em] shrink-0 text-[10px] tracking-wide text-ink-500">{label}</span>
+      <span className="text-[12px] text-ink-900">{value || '—'}</span>
+    </div>
+  )
+}
+
+/** 每一頁都要出現的頁首 */
+function SheetHeader(
+  { quote, stamp, catalogVersion, feeRate, busRate }: {
+    quote: Quote
+    stamp: { label: string; cls: string }
+    catalogVersion: string
+    feeRate: number
+    busRate: number
+  },
+) {
+  return (
+    <header>
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <div className="text-[19px] font-bold leading-tight tracking-[0.16em] text-deep">
+            立德新股份有限公司
+          </div>
+          <div className="mt-[3px] text-[10.5px] tracking-[0.14em] text-ink-500">
+            德新物業 · 工務處
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="rounded-sm border border-deep px-3 py-[3px] text-[13px] font-semibold tracking-[0.3em] text-deep">
+            工程標單
+          </span>
+          <span className="text-[11px] text-ink-700">
+            單號　<span className="num text-ink-900">{quote.quote_no || '—'}</span>
+          </span>
+        </div>
+      </div>
+
+      {/* 深藍粗線 + 淺藍細線，做出雙線層次 */}
+      <div className="mt-2 h-[2px] w-full bg-deep" />
+      <div className="mt-[2px] h-[1px] w-full bg-light" />
+
+      <div className="mt-3 flex items-start gap-4">
+        <div className="grid flex-1 grid-cols-2 gap-x-6 gap-y-[5px]">
+          <Field label="客戶名稱" value="聯新國際醫院" />
+          <Field label="報價日期" value={quote.quote_date} />
+          <Field label="工程地點" value={quote.project} />
+          <Field label="聯絡人" value={quote.contact} />
+          <Field label="申請單位" value={quote.dept} />
+          <Field label="單價庫版本" value={catalogVersion} />
+          <Field label="工程管理費" value={`${pct(feeRate)}%`} />
+          <Field label="營業稅率" value={`${pct(busRate)}%`} />
+        </div>
+        <div
+          className={
+            'mt-1 shrink-0 rotate-[-8deg] rounded-lg border-2 px-3 py-[5px] text-center ' +
+            'text-[14px] font-bold tracking-[0.18em] opacity-80 ' + stamp.cls
+          }
+        >
+          {stamp.label}
+        </div>
+      </div>
+    </header>
+  )
+}
+
+/* ── 主元件 ───────────────────────────────────────────────────── */
 
 export default function PrintPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { items, settings, mgmtFeeRate, taxRate, loading: refLoading } = useRefData()
+  const {
+    items, settings, evidenceOf, mgmtFeeRate, taxRate, laborBase, loading: refLoading,
+  } = useRefData()
 
   const [quote, setQuote] = useState<Quote | null>(null)
   const [sections, setSections] = useState<QuoteSection[]>([])
   const [lines, setLines] = useState<QuoteLine[]>([])
+  /** price_items.id → labor_productivity.id */
+  const [prodOf, setProdOf] = useState<Record<string, string>>({})
+  const [prods, setProds] = useState<LaborProductivity[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -80,9 +236,32 @@ export default function PrintPage() {
     const firstErr = [q, s, l].find((r) => r.error)?.error
     if (firstErr) { setError(firstErr.message); setLoading(false); return }
     if (!q.data) { setError('查無此報價單'); setLoading(false); return }
+    const rows = (l.data ?? []) as QuoteLine[]
     setQuote(q.data as Quote)
     setSections((s.data ?? []) as QuoteSection[])
-    setLines((l.data ?? []) as QuoteLine[])
+    setLines(rows)
+
+    /* 工率：先一次拿到本單品項的 productivity_id，再一次 .in() 撈工率表。
+       兩支查詢就結束，不做 N+1；工率表為空或尚未建置時整區不渲染。 */
+    const itemIds = [...new Set(
+      rows.map((r) => r.item_id).filter((v): v is string => Boolean(v)),
+    )]
+    let map: Record<string, string> = {}
+    let lp: LaborProductivity[] = []
+    if (itemIds.length) {
+      const pi = await supabase.from('price_items').select('id,productivity_id').in('id', itemIds)
+      const pairs = (pi.data ?? []) as { id: string; productivity_id: string | null }[]
+      map = Object.fromEntries(
+        pairs.filter((p) => p.productivity_id).map((p) => [p.id, String(p.productivity_id)]),
+      )
+      const pids = [...new Set(Object.values(map))]
+      if (pids.length) {
+        const r = await supabase.from('labor_productivity').select('*').in('id', pids)
+        lp = (r.data ?? []) as LaborProductivity[]
+      }
+    }
+    setProdOf(map)
+    setProds(lp)
     setLoading(false)
   }, [id])
 
@@ -126,7 +305,7 @@ export default function PrintPage() {
   /** 佐證附註：本單用到的品項中有 evidence_note 者，去重後最多 8 條 */
   const evidenceNotes = useMemo(() => {
     const seen = new Set<string>()
-    const out: { name: string; note: string }[] = []
+    const out: { name: string; note: string; kind: EvidenceKind | null }[] = []
     for (const l of lines) {
       if (!l.item_id) continue
       const it = items.find((x) => x.id === l.item_id)
@@ -134,11 +313,43 @@ export default function PrintPage() {
       const key = it.name + '｜' + it.evidence_note
       if (seen.has(key)) continue
       seen.add(key)
-      out.push({ name: it.name, note: it.evidence_note })
+      out.push({ name: it.name, note: it.evidence_note, kind: evidenceOf(it.evidence_id)?.kind ?? null })
       if (out.length >= 8) break
     }
     return out
-  }, [lines, items])
+  }, [lines, items, evidenceOf])
+
+  /** 工率分析：同一筆工率的數量合併成一列 */
+  const prodRows: ProdRow[] = useMemo(() => {
+    if (!prods.length) return []
+    const byId = new Map(prods.map((p) => [p.id, p]))
+    const qtyOf = new Map<string, number>()
+    for (const l of lines) {
+      const pid = l.item_id ? prodOf[l.item_id] : undefined
+      if (!pid || !byId.has(pid)) continue
+      qtyOf.set(pid, (qtyOf.get(pid) ?? 0) + (Number(l.qty) || 0))
+    }
+    const out: ProdRow[] = []
+    for (const [pid, qty] of qtyOf) {
+      const p = byId.get(pid)
+      const output = Number(p?.output_per_manday) || 0
+      if (!p || output <= 0) continue
+      const manDays = qty / output
+      out.push({
+        id: p.id,
+        work_item: p.work_item,
+        unit: p.unit,
+        qty,
+        output,
+        manDays,
+        unitWage: Math.round(laborBase / output),
+        wage: Math.round(manDays * laborBase),
+        basis: p.basis,
+        confidence: p.confidence,
+      })
+    }
+    return out
+  }, [prods, prodOf, lines, laborBase])
 
   const catalogVersion = toText(settings['catalog_version'], '（未設定）')
 
@@ -155,149 +366,264 @@ export default function PrintPage() {
   }
 
   const stamp = STAMP[quote.status]
-  const page =
-    'print-page mx-auto mb-6 w-full max-w-[210mm] bg-white p-[10mm] ' +
-    'shadow-sm ring-1 ring-ink-200 print:mb-0 print:p-0 print:shadow-none print:ring-0'
+  /** 總表 1 頁 + 各大項明細各 1 頁 + 有工率資料時再 1 頁 */
+  const totalPages = 1 + draftSections.length + (prodRows.length ? 1 : 0)
+  const sheetProps = { quote, stamp, catalogVersion, feeRate, busRate, total: totalPages }
 
   return (
     <div className="min-h-screen bg-ink-50 py-6 print:bg-white print:py-0">
-      <div className="no-print mx-auto mb-4 flex w-full max-w-[210mm] flex-wrap items-center gap-2 px-2">
-        <button type="button" className="btn btn-primary" onClick={() => window.print()}>列印</button>
+      {/* ── 螢幕工具列 ── */}
+      <div className="no-print mx-auto mb-5 flex w-full max-w-[210mm] flex-wrap items-center gap-2 px-2">
+        <button type="button" className="btn btn-primary" onClick={() => window.print()}>
+          列印 / 轉 PDF
+        </button>
         <button type="button" className="btn" onClick={() => navigate(-1)}>返回</button>
-        <span className="ml-auto text-xs text-ink-500">
-          單號 {quote.quote_no || '—'}　狀態：{stamp ?? quote.status}　單價庫 {catalogVersion}
+        <span className="ml-auto flex items-center gap-2 text-xs text-ink-500">
+          單號 <span className="num text-ink-900">{quote.quote_no || '—'}</span>
+          <span className={'rounded-full border px-2 py-[1px] text-[11px] ' + stamp.cls}>
+            {stamp.label.replace('　', '')}
+          </span>
+          <span>單價庫 {catalogVersion}</span>
         </span>
       </div>
 
       {/* ── 總表頁 ── */}
-      <div className={page}>
-        <div className="relative">
-          {stamp && (
-            <div className="absolute right-0 top-0 rounded border-2 border-warn px-3 py-1 text-sm font-bold tracking-widest text-warn">
-              {stamp}
-            </div>
-          )}
-          <SheetHeader quote={quote} />
-        </div>
-
-        <table className="mt-3 w-full border-collapse">
+      <Sheet {...sheetProps} page={1}>
+        <table className="mt-4 w-full border-collapse">
           <thead>
             <tr>
-              <th className="th w-[8%]">項次</th>
-              <th className="th">工程項目及說明</th>
-              <th className="th w-[8%]">單位</th>
-              <th className="th w-[8%]">數量</th>
-              <th className="th w-[15%]">單價</th>
-              <th className="th w-[16%]">複價</th>
+              <th className={TH + ' w-[8%]'}>項次</th>
+              <th className={TH}>工程項目及說明</th>
+              <th className={TH + ' w-[8%]'}>單位</th>
+              <th className={TH + ' w-[8%]'}>數量</th>
+              <th className={TH + ' w-[16%]'}>單價</th>
+              <th className={TH + ' w-[17%]'}>複價</th>
             </tr>
           </thead>
           <tbody>
             {totals.sections.map((s, i) => (
               <tr key={s.key}>
-                <td className="td text-center">{cnNo(i)}</td>
-                <td className="td">{s.title}</td>
-                <td className="td text-center">LOT</td>
-                <td className="td num">1</td>
-                <td className="td num">{money(s.subtotal)}</td>
-                <td className="td num">{money(s.subtotal)}</td>
+                <td className={TD + ' text-center'}>{cnNo(i)}</td>
+                <td className={TD}>{s.title}</td>
+                <td className={TD + ' text-center'}>LOT</td>
+                <td className={TD + ' num'}>1</td>
+                <td className={TD + ' num'}>{money(s.subtotal)}</td>
+                <td className={TD + ' num'}>{money(s.subtotal)}</td>
               </tr>
             ))}
             <tr>
-              <td className="td text-center">{cnNo(totals.sections.length)}</td>
-              <td className="td">工程管理費（{pct(feeRate)}%）</td>
-              <td className="td text-center">LOT</td>
-              <td className="td num">1</td>
-              <td className="td num">{money(totals.mgmt)}</td>
-              <td className="td num">{money(totals.mgmt)}</td>
+              <td className={TD + ' text-center'}>{cnNo(totals.sections.length)}</td>
+              <td className={TD}>工程管理費（{pct(feeRate)}%）</td>
+              <td className={TD + ' text-center'}>LOT</td>
+              <td className={TD + ' num'}>1</td>
+              <td className={TD + ' num'}>{money(totals.mgmt)}</td>
+              <td className={TD + ' num'}>{money(totals.mgmt)}</td>
             </tr>
             <tr>
-              <td className="td text-center" colSpan={5}>小計</td>
-              <td className="td num">{money(totals.sub)}</td>
+              <td className={TD + ' text-right font-semibold text-ink-700'} colSpan={5}>小計</td>
+              <td className={TD + ' num font-semibold'}>{money(totals.sub)}</td>
             </tr>
             <tr>
-              <td className="td text-center" colSpan={5}>營業稅 {pct(busRate)}%</td>
-              <td className="td num">{money(totals.tax)}</td>
+              <td className={TD + ' text-right font-semibold text-ink-700'} colSpan={5}>
+                營業稅 {pct(busRate)}%
+              </td>
+              <td className={TD + ' num font-semibold'}>{money(totals.tax)}</td>
             </tr>
-            <tr>
-              <td className="td text-center font-bold" colSpan={5}>合計</td>
-              <td className="td num font-bold">{money(totals.total)}</td>
+            {/* 全份文件唯一的滿版重色塊 */}
+            <tr className="total-row">
+              <td
+                className="border border-deep bg-deep px-2 py-[7px] text-right text-[15px] font-bold tracking-[0.3em] text-white"
+                colSpan={5}
+              >
+                合計
+              </td>
+              <td className="num border border-deep bg-deep px-2 py-[7px] text-[15px] font-bold text-white">
+                {money(totals.total)}
+              </td>
             </tr>
           </tbody>
         </table>
 
-        <div className="mt-3 space-y-2 text-[12px] leading-relaxed text-ink-700">
-          <p>本報價依單價庫 {catalogVersion} 計算。★ 標示者為非標準單價之臨時項目。</p>
-          {evidenceNotes.length > 0 && (
-            <div>
-              <div className="font-semibold text-ink-900">佐證附註</div>
-              <ol className="mt-1 list-decimal space-y-0.5 pl-5">
-                {evidenceNotes.map((e) => (
-                  <li key={e.name + e.note}>※ {e.name}：{e.note}</li>
-                ))}
-              </ol>
+        <p className="mt-2 text-[11px] text-ink-500">
+          本標單依單價庫 {catalogVersion} 計算，金額單位新臺幣元。★ 標示者為非標準單價之臨時項目，理由詳見明細頁。
+        </p>
+
+        {/* ── 佐證附註 ── */}
+        {evidenceNotes.length > 0 && (
+          <div className="mt-4 border-l-4 border-deep bg-light/50 px-4 py-3">
+            <div className="text-[12.5px] font-bold tracking-wide text-deep">單價依據</div>
+            <ol className="mt-2 space-y-1">
+              {evidenceNotes.map((e, i) => (
+                <li key={e.name + e.note} className="flex gap-2 text-[11.5px] leading-relaxed text-ink-700">
+                  <span className="num w-4 shrink-0 text-ink-500">{i + 1}.</span>
+                  {e.kind && (
+                    <span
+                      className={
+                        'shrink-0 self-start rounded-sm border px-1.5 py-[1px] text-[10px] ' +
+                        EV_TAG[e.kind]
+                      }
+                    >
+                      {EVIDENCE_LABEL[e.kind]}
+                    </span>
+                  )}
+                  <span>
+                    <span className="font-semibold text-ink-900">{e.name}</span>：{e.note}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+
+        {/* ── 簽核欄 ── */}
+        <div className="mt-10 grid grid-cols-3 gap-8">
+          {['製表', '工務處主管核可', '日期'].map((t) => (
+            <div key={t}>
+              <div className="text-[10px] tracking-wide text-ink-500">{t}</div>
+              <div className="mt-8 border-b border-ink-700" />
             </div>
-          )}
+          ))}
         </div>
+      </Sheet>
 
-        <div className="mt-8 flex flex-wrap gap-x-10 gap-y-3 text-[13px] text-ink-700">
-          <span>製表：____________</span>
-          <span>工務處主管核可：____________</span>
-          <span>日期：____________</span>
-        </div>
-      </div>
-
-      {/* ── 明細頁：每個大項一頁 ── */}
+      {/* ── 明細頁：每個工程大項一頁 ── */}
       {draftSections.map((sec, si) => {
         const subtotal = sec.lines.reduce((a, l) => a + lineAmount(l.unit_price, l.qty), 0)
         return (
-          <div className={page} key={sec.key}>
-            <SheetHeader quote={quote} />
-            <table className="mt-3 w-full border-collapse">
+          <Sheet {...sheetProps} page={si + 2} key={sec.key}>
+            <table className="mt-4 w-full border-collapse">
               <thead>
                 <tr>
-                  <th className="th w-[8%]">項次</th>
-                  <th className="th">工程項目及說明</th>
-                  <th className="th w-[7%]">單位</th>
-                  <th className="th w-[8%]">數量</th>
-                  <th className="th w-[13%]">單價</th>
-                  <th className="th w-[14%]">複價</th>
-                  <th className="th w-[18%]">備註</th>
+                  <th className={TH + ' w-[7%]'}>項次</th>
+                  <th className={TH}>工程項目及說明</th>
+                  <th className={TH + ' w-[7%]'}>單位</th>
+                  <th className={TH + ' w-[8%]'}>數量</th>
+                  <th className={TH + ' w-[13%]'}>單價</th>
+                  <th className={TH + ' w-[14%]'}>複價</th>
+                  <th className={TH + ' w-[18%]'}>備註</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td className="td text-center font-bold">{cnNo(si)}</td>
-                  <td className="td font-bold" colSpan={6}>{sec.title}</td>
+                  <td className="border border-ink-200 bg-light px-2 py-1 text-center text-[12px] font-bold text-deep">
+                    {cnNo(si)}
+                  </td>
+                  <td
+                    className="border border-ink-200 bg-light px-2 py-1 text-[12px] font-bold tracking-wide text-deep"
+                    colSpan={6}
+                  >
+                    {sec.title}
+                  </td>
                 </tr>
                 {sec.lines.length === 0 && (
                   <tr>
-                    <td className="td text-center text-ink-500" colSpan={7}>本大項無項目</td>
+                    <td className={TD + ' text-center text-ink-500'} colSpan={7}>本大項無項目</td>
                   </tr>
                 )}
-                {sec.lines.map((l, li) => (
-                  <tr key={l.key}>
-                    <td className="td text-center">{l.is_custom ? '★' : ''}{li + 1}</td>
-                    <td className="td">
-                      {l.name}
-                      {l.spec && <span className="text-ink-500">　{l.spec}</span>}
-                    </td>
-                    <td className="td text-center">{l.unit}</td>
-                    <td className="td num">{l.qty}</td>
-                    <td className="td num">{money(l.unit_price)}</td>
-                    <td className="td num">{money(lineAmount(l.unit_price, l.qty))}</td>
-                    <td className="td text-[12px]">{l.is_custom ? l.reason : l.note}</td>
-                  </tr>
-                ))}
+                {sec.lines.map((l, li) => {
+                  const tone = l.is_custom ? ' text-warn' : ''
+                  return (
+                    <tr key={l.key}>
+                      <td className={TD + ' text-center' + tone}>
+                        {l.is_custom ? '★' : ''}{li + 1}
+                      </td>
+                      <td className={TD + tone}>
+                        {l.name}
+                        {l.spec && (
+                          <span className={l.is_custom ? 'text-warn/70' : 'text-ink-500'}>　{l.spec}</span>
+                        )}
+                      </td>
+                      <td className={TD + ' text-center' + tone}>{l.unit}</td>
+                      <td className={TD + ' num' + tone}>{l.qty}</td>
+                      <td className={TD + ' num' + tone}>{money(l.unit_price)}</td>
+                      <td className={TD + ' num' + tone}>{money(lineAmount(l.unit_price, l.qty))}</td>
+                      <td className={TD_MUTED + (l.is_custom ? ' text-warn' : '')}>
+                        {l.is_custom ? l.reason : l.note}
+                      </td>
+                    </tr>
+                  )
+                })}
                 <tr>
-                  <td className="td text-center font-semibold" colSpan={5}>小計</td>
-                  <td className="td num font-semibold">{money(subtotal)}</td>
-                  <td className="td" />
+                  <td
+                    className={TD + ' border-t-deep text-right font-bold text-ink-700'}
+                    colSpan={5}
+                  >
+                    小計
+                  </td>
+                  <td className={TD + ' num border-t-deep font-bold'}>{money(subtotal)}</td>
+                  <td className={TD + ' border-t-deep'} />
                 </tr>
               </tbody>
             </table>
-          </div>
+          </Sheet>
         )
       })}
+
+      {/* ── 工率分析：一筆工率都對不到就整區不渲染 ── */}
+      {prodRows.length > 0 && (
+        <Sheet {...sheetProps} page={totalPages}>
+          <h2 className="mt-4 border-b-2 border-deep pb-1 text-[14px] font-bold tracking-wide text-deep">
+            工率分析（單價合理性說明）
+          </h2>
+          <table className="mt-3 w-full border-collapse">
+            <thead>
+              <tr>
+                <th className={TH}>工項</th>
+                <th className={TH + ' w-[7%]'}>單位</th>
+                <th className={TH + ' w-[8%]'}>數量</th>
+                <th className={TH + ' w-[13%]'}>工率（每工日產出）</th>
+                <th className={TH + ' w-[9%]'}>所需工數</th>
+                <th className={TH + ' w-[10%]'}>工資單價</th>
+                <th className={TH + ' w-[12%]'}>應攤工資</th>
+                <th className={TH + ' w-[22%]'}>依據</th>
+              </tr>
+            </thead>
+            <tbody>
+              {prodRows.map((r) => {
+                const conf = CONF_TAG[r.confidence]
+                return (
+                  <tr key={r.id}>
+                    <td className={TD}>{r.work_item}</td>
+                    <td className={TD + ' text-center'}>{r.unit}</td>
+                    <td className={TD + ' num'}>{trim2(r.qty)}</td>
+                    <td className={TD + ' num'}>{trim2(r.output)} {r.unit} / 工日</td>
+                    <td className={TD + ' num'}>{r.manDays.toFixed(2)}</td>
+                    <td className={TD + ' num'}>{money(r.unitWage)}</td>
+                    <td className={TD + ' num'}>{money(r.wage)}</td>
+                    <td className={TD_MUTED}>
+                      <span className="inline-flex flex-wrap items-center gap-1">
+                        <span>{BASIS_LABEL[r.basis] ?? '—'}</span>
+                        {conf && (
+                          <span className={'rounded-sm border px-1 py-[1px] text-[10px] ' + conf.cls}>
+                            {conf.label}
+                          </span>
+                        )}
+                      </span>
+                      {r.basis === 'estimate' && (
+                        <span className="text-alert">（估計值，待實績校正）</span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+              <tr>
+                <td className={TD + ' border-t-deep text-right font-bold text-ink-700'} colSpan={6}>
+                  應攤工資合計
+                </td>
+                <td className={TD + ' num border-t-deep font-bold'}>
+                  {money(prodRows.reduce((a, r) => a + r.wage, 0))}
+                </td>
+                <td className={TD + ' border-t-deep'} />
+              </tr>
+            </tbody>
+          </table>
+          <p className="mt-3 text-[10.5px] leading-relaxed text-ink-500">
+            工率係一名技術工於正常工時（8 小時）之產出基準。技術工日薪 NT${money(laborBase)}，
+            依勞動部基本工資（時薪 196 元 × 8 小時 = 1,568 元）為法定下限，
+            並依勞動基準法第 24、39 條計算延時與假日加成。
+          </p>
+        </Sheet>
+      )}
     </div>
   )
 }
