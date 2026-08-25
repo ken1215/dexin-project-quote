@@ -1,196 +1,333 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import type { Profile, Role } from '../types'
+import type { Role } from '../types'
 
-/** profiles 資料表比共用 Profile 型別多一個建立時間欄位，僅在本頁使用，不動 types.ts */
-interface ProfileRow extends Profile {
+interface AccountRow {
+  id: string
+  email: string
+  full_name: string
+  role: Role
+  active: boolean
   created_at: string
+  last_sign_in_at: string | null
 }
 
-const ROLE_LABEL: Record<Role, string> = { staff: '同仁', manager: '主管' }
-
-function formatDate(iso: string): string {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+/** 呼叫 admin-users Edge Function（service_role 只存在於伺服器端，前端拿不到） */
+async function callAdmin<T>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('登入狀態已過期，請重新登入')
+  const { data, error } = await supabase.functions.invoke('admin-users', {
+    body: { action, ...payload },
+  })
+  if (error) {
+    // Edge Function 回非 2xx 時錯誤訊息藏在 context 裡，挖出來給人看
+    const ctx = (error as { context?: Response }).context
+    if (ctx && typeof ctx.json === 'function') {
+      try {
+        const body = await ctx.json()
+        throw new Error(body?.error ?? error.message)
+      } catch (e) {
+        if (e instanceof Error && e.message !== error.message) throw e
+      }
+    }
+    throw new Error(error.message)
+  }
+  if (data && typeof data === 'object' && 'error' in data) throw new Error(String(data.error))
+  return data as T
 }
+
+const fmtDate = (s: string | null) => (s ? s.slice(0, 10) : '—')
 
 export default function UsersPage() {
-  const { profile: me } = useAuth()
-  const [rows, setRows] = useState<ProfileRow[]>([])
+  const { profile } = useAuth()
+  const [rows, setRows] = useState<AccountRow[]>([])
+  const [draft, setDraft] = useState<Record<string, Partial<AccountRow>>>({})
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [busy, setBusy] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
-  const original = useRef<Map<string, ProfileRow>>(new Map())
+  const [ok, setOk] = useState<string | null>(null)
+
+  // 新增帳號表單
+  const [showNew, setShowNew] = useState(false)
+  const [nf, setNf] = useState({ email: '', password: '', full_name: '', role: 'staff' as Role })
+
+  // 重設密碼 / 刪除確認
+  const [pwFor, setPwFor] = useState<AccountRow | null>(null)
+  const [newPw, setNewPw] = useState('')
+  const [delFor, setDelFor] = useState<AccountRow | null>(null)
 
   const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    setNotice(null)
-    const { data, error: err } = await supabase
-      .from('profiles')
-      .select('*')
-      .order('created_at', { ascending: true })
-    if (err) {
-      setError(err.message)
-      setLoading(false)
-      return
+    setLoading(true); setError(null)
+    try {
+      const { users } = await callAdmin<{ users: AccountRow[] }>('list')
+      setRows(users.sort((a, b) => a.created_at.localeCompare(b.created_at)))
+      setDraft({})
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
     }
-    const list = (data ?? []) as ProfileRow[]
-    setRows(list)
-    original.current = new Map(list.map((r) => [r.id, r]))
     setLoading(false)
   }, [])
 
   useEffect(() => { void load() }, [load])
 
-  function patchRow(id: string, patch: Partial<Pick<ProfileRow, 'full_name' | 'role' | 'active'>>) {
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)))
+  const flash = (msg: string) => { setOk(msg); setError(null); setTimeout(() => setOk(null), 4000) }
+  const fail = (e: unknown) => { setError(e instanceof Error ? e.message : String(e)); setOk(null) }
+
+  const val = <K extends keyof AccountRow>(r: AccountRow, k: K): AccountRow[K] =>
+    (draft[r.id]?.[k] ?? r[k]) as AccountRow[K]
+  const edit = (id: string, patch: Partial<AccountRow>) =>
+    setDraft((d) => ({ ...d, [id]: { ...d[id], ...patch } }))
+
+  const dirtyIds = Object.keys(draft).filter((id) => {
+    const r = rows.find((x) => x.id === id); if (!r) return false
+    const p = draft[id]
+    return (p.full_name !== undefined && p.full_name !== r.full_name)
+      || (p.role !== undefined && p.role !== r.role)
+      || (p.active !== undefined && p.active !== r.active)
+  })
+
+  async function saveProfiles() {
+    setBusy('save'); setError(null)
+    try {
+      for (const id of dirtyIds) {
+        const r = rows.find((x) => x.id === id)!
+        const { error } = await supabase.from('profiles').update({
+          full_name: val(r, 'full_name'), role: val(r, 'role'), active: val(r, 'active'),
+        }).eq('id', id)
+        if (error) throw error
+      }
+      flash(`已儲存 ${dirtyIds.length} 筆`)
+      await load()
+    } catch (e) { fail(e) }
+    setBusy('')
   }
 
-  function isDirty(row: ProfileRow): boolean {
-    const orig = original.current.get(row.id)
-    if (!orig) return false
-    return orig.full_name !== row.full_name || orig.role !== row.role || orig.active !== row.active
+  async function createUser() {
+    setBusy('create')
+    try {
+      await callAdmin('create', nf)
+      flash(`已建立帳號 ${nf.email}`)
+      setShowNew(false); setNf({ email: '', password: '', full_name: '', role: 'staff' })
+      await load()
+    } catch (e) { fail(e) }
+    setBusy('')
   }
 
-  const dirtyRows = rows.filter(isDirty)
-
-  async function handleSave() {
-    if (dirtyRows.length === 0) return
-    setSaving(true)
-    setError(null)
-    setNotice(null)
-    const results = await Promise.all(
-      dirtyRows.map((r) =>
-        supabase
-          .from('profiles')
-          .update({ full_name: r.full_name, role: r.role, active: r.active })
-          .eq('id', r.id),
-      ),
-    )
-    const failed = results.find((r) => r.error)
-    if (failed?.error) {
-      setError(failed.error.message)
-      setSaving(false)
-      return
-    }
-    setSaving(false)
-    setNotice(`已儲存 ${dirtyRows.length} 筆異動。`)
-    await load()
+  async function resetPw() {
+    if (!pwFor) return
+    setBusy('pw')
+    try {
+      await callAdmin('reset_password', { id: pwFor.id, password: newPw })
+      flash(`已重設 ${pwFor.email} 的密碼，請告知本人並提醒他登入後自行更改`)
+      setPwFor(null); setNewPw('')
+    } catch (e) { fail(e) }
+    setBusy('')
   }
+
+  async function removeUser() {
+    if (!delFor) return
+    setBusy('del')
+    try {
+      await callAdmin('delete', { id: delFor.id })
+      flash(`已刪除帳號 ${delFor.email}`)
+      setDelFor(null)
+      await load()
+    } catch (e) { fail(e) }
+    setBusy('')
+  }
+
+  const isSelf = (r: AccountRow) => r.id === profile?.id
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="space-y-4">
       <div className="card">
-        <div className="card-title">人員權限</div>
-        <p className="text-sm text-ink-700">
-          新帳號請由主管在 Supabase Dashboard → Authentication → Users → Add user 建立（或請同仁自行註冊）。
-          建立後預設為「同仁」，需在本頁改成「主管」才有維護單價的權限。
+        <h2 className="card-title">帳號管理</h2>
+        <p className="text-ink-500">
+          在這裡直接建立、停用、刪除帳號與重設密碼，不需要進 Supabase 後台。
+          新帳號預設為「同仁」，要維護單價得改成「主管」。
         </p>
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr>
+                <th className="th text-left">角色</th>
+                <th className="th text-left">可以做什麼</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="td whitespace-nowrap font-semibold">同仁</td>
+                <td className="td">
+                  開單、選標準品項填數量、送主管核可、列印報價單。
+                  <span className="text-warn">看不到底價，不能改標準單價。</span>
+                  非標準品要走「臨時項目」並填理由。
+                </td>
+              </tr>
+              <tr>
+                <td className="td whitespace-nowrap font-semibold">主管</td>
+                <td className="td">
+                  同仁全部功能 ＋ 維護標準單價與底價 ＋ 物價指數與工資係數 ＋ 議價回應 ＋ 核可／退回 ＋ 帳號管理。
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      <div className="card overflow-x-auto">
-        <div className="card-title">帳號清單</div>
+      {error && <div className="rounded-md border border-warn/30 bg-warn-bg px-3 py-2 text-warn">{error}</div>}
+      {ok && <div className="rounded-md border border-green/30 bg-green/10 px-3 py-2 text-green">{ok}</div>}
 
-        {loading && <p className="text-sm text-ink-500">載入中…</p>}
-        {error && <p className="mb-3 text-sm text-warn">錯誤：{error}</p>}
-        {notice && <p className="mb-3 text-sm text-green">{notice}</p>}
+      <div className="card">
+        <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-ink-200 pb-2">
+          <h2 className="text-[15px] font-semibold text-deep">帳號清單</h2>
+          <span className="tag">{rows.length} 個帳號</span>
+          <div className="ml-auto flex gap-2">
+            <button className="btn" onClick={() => setShowNew((v) => !v)}>
+              {showNew ? '取消新增' : '＋ 新增帳號'}
+            </button>
+            <button className="btn btn-primary" disabled={!dirtyIds.length || busy === 'save'}
+              onClick={() => void saveProfiles()}>
+              {busy === 'save' ? '儲存中…' : dirtyIds.length ? `儲存 ${dirtyIds.length} 筆變更` : '儲存變更'}
+            </button>
+          </div>
+        </div>
 
-        {!loading && (
-          <>
-            <table className="w-full border-collapse text-sm">
+        {showNew && (
+          <div className="mb-4 rounded-md border border-bright/40 bg-light/40 p-3">
+            <div className="grid gap-3 md:grid-cols-4">
+              <div>
+                <label className="label">Email（登入帳號）</label>
+                <input className="field" value={nf.email} autoComplete="off"
+                  onChange={(e) => setNf({ ...nf, email: e.target.value })} placeholder="someone@example.com" />
+              </div>
+              <div>
+                <label className="label">姓名</label>
+                <input className="field" value={nf.full_name}
+                  onChange={(e) => setNf({ ...nf, full_name: e.target.value })} placeholder="王小明" />
+              </div>
+              <div>
+                <label className="label">初始密碼（至少 8 碼）</label>
+                <input className="field" value={nf.password} autoComplete="new-password"
+                  onChange={(e) => setNf({ ...nf, password: e.target.value })} placeholder="請本人登入後自行更改" />
+              </div>
+              <div>
+                <label className="label">角色</label>
+                <select className="field" value={nf.role}
+                  onChange={(e) => setNf({ ...nf, role: e.target.value as Role })}>
+                  <option value="staff">同仁</option>
+                  <option value="manager">主管</option>
+                </select>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              <button className="btn btn-primary" disabled={busy === 'create'} onClick={() => void createUser()}>
+                {busy === 'create' ? '建立中…' : '建立帳號'}
+              </button>
+              <span className="text-xs text-ink-500">
+                帳號建立後即可使用，不需收信驗證。初始密碼請當面或以其他管道告知本人。
+              </span>
+            </div>
+          </div>
+        )}
+
+        {loading ? (
+          <div className="py-8 text-center text-ink-500">載入中…</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
               <thead>
                 <tr>
+                  <th className="th text-left">Email</th>
                   <th className="th text-left">姓名</th>
-                  <th className="th text-left">角色</th>
-                  <th className="th text-left">啟用</th>
-                  <th className="th text-left">建立時間</th>
+                  <th className="th">角色</th>
+                  <th className="th">啟用</th>
+                  <th className="th">建立日</th>
+                  <th className="th">最後登入</th>
+                  <th className="th">操作</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => {
-                  const isSelf = row.id === me?.id
-                  return (
-                    <tr key={row.id} className={isDirty(row) ? 'bg-light/40' : undefined}>
-                      <td className="td">
-                        <input
-                          className="field"
-                          value={row.full_name}
-                          onChange={(e) => patchRow(row.id, { full_name: e.target.value })}
-                        />
-                      </td>
-                      <td className="td">
-                        <select
-                          className="field"
-                          value={row.role}
-                          disabled={isSelf}
-                          title={isSelf ? '不能將自己的帳號降級，請請其他主管操作' : undefined}
-                          onChange={(e) => patchRow(row.id, { role: e.target.value as Role })}
-                        >
-                          <option value="staff">{ROLE_LABEL.staff}</option>
-                          <option value="manager">{ROLE_LABEL.manager}</option>
-                        </select>
-                      </td>
-                      <td className="td">
-                        <input
-                          type="checkbox"
-                          checked={row.active}
-                          disabled={isSelf}
-                          title={isSelf ? '不能停用自己的帳號，以免被鎖在系統外' : undefined}
-                          onChange={(e) => patchRow(row.id, { active: e.target.checked })}
-                        />
-                      </td>
-                      <td className="td">{formatDate(row.created_at)}</td>
-                    </tr>
-                  )
-                })}
-                {rows.length === 0 && (
-                  <tr>
-                    <td className="td text-center text-ink-500" colSpan={4}>目前沒有帳號資料。</td>
+                {rows.map((r) => (
+                  <tr key={r.id} className={val(r, 'active') ? '' : 'opacity-50'}>
+                    <td className="td">
+                      {r.email}
+                      {isSelf(r) && <span className="tag ml-1.5">你自己</span>}
+                    </td>
+                    <td className="td p-1">
+                      <input className="field" value={val(r, 'full_name')}
+                        onChange={(e) => edit(r.id, { full_name: e.target.value })} />
+                    </td>
+                    <td className="td p-1">
+                      <select className="field" value={val(r, 'role')} disabled={isSelf(r)}
+                        title={isSelf(r) ? '不能改自己的角色，避免把自己鎖在門外' : ''}
+                        onChange={(e) => edit(r.id, { role: e.target.value as Role })}>
+                        <option value="staff">同仁</option>
+                        <option value="manager">主管</option>
+                      </select>
+                    </td>
+                    <td className="td text-center">
+                      <input type="checkbox" checked={val(r, 'active')} disabled={isSelf(r)}
+                        title={isSelf(r) ? '不能停用自己' : ''}
+                        onChange={(e) => edit(r.id, { active: e.target.checked })} />
+                    </td>
+                    <td className="td num">{fmtDate(r.created_at)}</td>
+                    <td className="td num">{fmtDate(r.last_sign_in_at)}</td>
+                    <td className="td whitespace-nowrap">
+                      <button className="btn px-2 py-0.5 text-xs" onClick={() => { setPwFor(r); setNewPw('') }}>
+                        重設密碼
+                      </button>
+                      <button className="btn btn-danger ml-1 px-2 py-0.5 text-xs" disabled={isSelf(r)}
+                        title={isSelf(r) ? '不能刪除自己' : ''} onClick={() => setDelFor(r)}>
+                        刪除
+                      </button>
+                    </td>
                   </tr>
-                )}
+                ))}
               </tbody>
             </table>
-
-            <div className="mt-4 flex items-center gap-3">
-              <button
-                className="btn btn-primary"
-                disabled={dirtyRows.length === 0 || saving}
-                onClick={() => void handleSave()}
-              >
-                {saving ? '儲存中…' : `儲存${dirtyRows.length > 0 ? `（${dirtyRows.length} 筆異動）` : ''}`}
-              </button>
-              <button className="btn" disabled={saving} onClick={() => void load()}>重新整理</button>
-            </div>
-          </>
+          </div>
         )}
+
+        <p className="mt-3 text-xs text-ink-500">
+          離職人員建議用「停用」而不是「刪除」——刪除會讓他開過的報價單失去建立人紀錄，
+          系統會擋下這種刪除並提示你改用停用。
+        </p>
       </div>
 
-      <div className="card overflow-x-auto">
-        <div className="card-title">角色差異對照表</div>
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr>
-              <th className="th text-left">角色</th>
-              <th className="th text-left">可執行功能</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td className="td font-medium text-ink-900">同仁</td>
-              <td className="td">開單、選標準品項填數量、送審、列印；看不到底價、不能改單價。</td>
-            </tr>
-            <tr>
-              <td className="td font-medium text-ink-900">主管</td>
-              <td className="td">全部同仁功能＋維護標準單價與底價、物價指數、議價回應、核可退回、人員權限。</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      {pwFor && (
+        <div className="card border-bright/40">
+          <h2 className="card-title">重設密碼：{pwFor.email}</h2>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[240px]">
+              <label className="label">新密碼（至少 8 碼）</label>
+              <input className="field" value={newPw} autoComplete="new-password"
+                onChange={(e) => setNewPw(e.target.value)} />
+            </div>
+            <button className="btn btn-primary" disabled={newPw.length < 8 || busy === 'pw'}
+              onClick={() => void resetPw()}>
+              {busy === 'pw' ? '處理中…' : '確認重設'}
+            </button>
+            <button className="btn" onClick={() => { setPwFor(null); setNewPw('') }}>取消</button>
+          </div>
+        </div>
+      )}
+
+      {delFor && (
+        <div className="card border-warn/40 bg-warn-bg">
+          <h2 className="card-title text-warn">確認刪除帳號</h2>
+          <p className="mb-3">
+            即將永久刪除 <b>{delFor.email}</b>（{delFor.full_name || '未命名'}）。此動作無法復原。
+            若此人只是離職、資料還要留存，請改用「停用」。
+          </p>
+          <div className="flex gap-2">
+            <button className="btn btn-danger" disabled={busy === 'del'} onClick={() => void removeUser()}>
+              {busy === 'del' ? '刪除中…' : '確認刪除'}
+            </button>
+            <button className="btn" onClick={() => setDelFor(null)}>取消</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
