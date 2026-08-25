@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useRefData } from '../context/RefDataContext'
 import { indexedPrice, money } from '../lib/calc'
@@ -53,6 +53,29 @@ interface BulkUsage {
 
 /** 批次刪除單次上限——太長的 in 清單會塞爆網址，超過就請主管分批 */
 const MAX_BULK_DELETE = 200
+
+/** 單價表的欄數——群組標題列與所有展開面板都靠它跨滿整列 */
+const COL_COUNT = 13
+
+/** 一個工程大類的分組結果（統計一律以「目前篩選後可見的列」為母體） */
+interface CatGroup {
+  id: string
+  name: string
+  rows: PriceItem[]
+  active: number
+  inactive: number
+  /** 有佐證的 active 品項 ÷ active 品項；該組沒有啟用品項時為 null */
+  coverage: number | null
+  needsArea: number
+}
+
+/** 佐證覆蓋率的燈號：< 30% 紅、< 60% 橘、其餘灰 */
+const coverageClass = (cov: number | null): string => {
+  if (cov === null) return 'text-ink-500'
+  if (cov < 30) return 'text-warn'
+  if (cov < 60) return 'text-alert'
+  return 'text-ink-500'
+}
 
 const baseEdit = (it: PriceItem): RowEdit => ({
   std_price: String(it.std_price),
@@ -117,6 +140,13 @@ export default function PriceCatalogPage() {
   const [onlyNoEvidence, setOnlyNoEvidence] = useState(false)
   const [onlyNeedsArea, setOnlyNeedsArea] = useState(false)
   const [onlyFewSamples, setOnlyFewSamples] = useState(false)
+
+  // ── 分類分組的展開狀態（預設全收合；有篩選時自動展開命中的組） ──
+  const [openCats, setOpenCats] = useState<Set<string>>(new Set())
+  // 記住「這次的 openCats 變動是使用者手動觸發的」，避免被下方 effect 立刻蓋回去
+  const userTouchedRef = useRef(false)
+  // 上一次 effect 實際套用的篩選簽章，用來分辨「篩選真的變了」與「只是重繪」
+  const lastFilterSigRef = useRef<string | null>(null)
 
   // ── 底價（RLS 只有主管讀得到） ──────────────────────────────
   const [floors, setFloors] = useState<Record<string, PriceFloor>>({})
@@ -195,6 +225,86 @@ export default function PriceCatalogPage() {
       return true
     })
   }, [items, filterCat, search, onlyNoEvidence, onlyNeedsArea, onlyFewSamples])
+
+  /** 有沒有任何作用中的篩選條件——決定群組要不要自動展開 */
+  const filterActive = Boolean(filterCat) || search.trim() !== ''
+    || onlyNoEvidence || onlyNeedsArea || onlyFewSamples
+
+  // ── 依工程大類分組（順序照 categories 的 sort，空的分類不渲染）──
+  const groups = useMemo<CatGroup[]>(() => {
+    const bucket = new Map<string, PriceItem[]>()
+    shown.forEach((i) => {
+      const list = bucket.get(i.category_id)
+      if (list) list.push(i)
+      else bucket.set(i.category_id, [i])
+    })
+    const build = (id: string, name: string, rows: PriceItem[]): CatGroup => {
+      const act = rows.filter((i) => i.active)
+      const withEv = act.filter((i) => i.evidence_id).length
+      return {
+        id,
+        name,
+        rows,
+        active: act.length,
+        inactive: rows.length - act.length,
+        coverage: act.length ? Math.round((withEv / act.length) * 100) : null,
+        needsArea: rows.filter((i) => i.needs_area).length,
+      }
+    }
+    // categories 已由 RefDataContext 依 sort 排序
+    const out = categories
+      .filter((c) => bucket.has(c.id))
+      .map((c) => build(c.id, c.name, bucket.get(c.id) ?? []))
+    // 分類表查不到的 category_id（資料異常）也要露出來，不能靜默漏掉品項
+    const known = new Set(categories.map((c) => c.id))
+    bucket.forEach((rows, id) => {
+      if (!known.has(id)) out.push(build(id, `未知分類（${id}）`, rows))
+    })
+    return out
+  }, [shown, categories])
+
+  /** 只用分類 id 清單當 effect 的依賴，reload 造成的物件換身分不會誤觸發展開／收合 */
+  const groupKey = useMemo(() => groups.map((g) => g.id).join('|'), [groups])
+
+  // 篩選條件一變：有篩選就展開所有命中的組，篩選清空就全部收合。
+  // 「篩選簽章」沒變卻又跑進來（例如使用者剛手動摺疊造成的重繪），就放過使用者的操作不覆寫；
+  // 簽章真的變了才重算，所以手動摺疊不會吃掉下一次真正的篩選變化。
+  useEffect(() => {
+    const sig = `${filterActive ? '1' : '0'}｜${groupKey}`
+    if (userTouchedRef.current && sig === lastFilterSigRef.current) {
+      userTouchedRef.current = false
+      return
+    }
+    userTouchedRef.current = false
+    lastFilterSigRef.current = sig
+    const ids = groupKey ? groupKey.split('|') : []
+    setOpenCats((prev) => {
+      const next = filterActive ? new Set(ids) : new Set<string>()
+      let same = prev.size === next.size
+      next.forEach((id) => { if (!prev.has(id)) same = false })
+      return same ? prev : next
+    })
+  }, [filterActive, groupKey])
+
+  const toggleCat = (id: string) => {
+    userTouchedRef.current = true
+    setOpenCats((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const expandAllCats = () => {
+    userTouchedRef.current = true
+    setOpenCats(new Set(groups.map((g) => g.id)))
+  }
+
+  const collapseAllCats = () => {
+    userTouchedRef.current = true
+    setOpenCats(new Set())
+  }
 
   // ── 選取（批次刪除用）──────────────────────────────────────
   // 以 items 反查，reload 後已消失的品項會自動退出選取集合
@@ -370,6 +480,16 @@ export default function PriceCatalogPage() {
       const next = new Set(prev)
       if (on) next.add(id)
       else next.delete(id)
+      return next
+    })
+    setBulkAsk(false)
+  }
+
+  /** 群組全選只作用在該組目前可見的列；跨群組的勾選會累積不互相清掉 */
+  const toggleGroup = (g: CatGroup, on: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      g.rows.forEach((i) => { if (on) next.add(i.id); else next.delete(i.id) })
       return next
     })
     setBulkAsk(false)
@@ -655,6 +775,20 @@ export default function PriceCatalogPage() {
         <div className="mb-3 flex flex-wrap items-center gap-3 border-b border-ink-200 pb-2">
           <div className="text-[15px] font-semibold text-deep">標準單價維護</div>
           <span className="text-xs text-ink-500">底價欄僅主管可見</span>
+          <button
+            className="btn px-2 py-0.5 text-[11px]"
+            disabled={groups.length === 0}
+            onClick={expandAllCats}
+          >
+            全部展開
+          </button>
+          <button
+            className="btn px-2 py-0.5 text-[11px]"
+            disabled={groups.length === 0}
+            onClick={collapseAllCats}
+          >
+            全部收合
+          </button>
           <div className="ml-auto flex items-center gap-3">
             {selectedIds.length > 0 && (
               <>
@@ -781,257 +915,316 @@ export default function PriceCatalogPage() {
                 <th className="th">刪除</th>
               </tr>
             </thead>
-            <tbody>
-              {shown.length === 0 && (
-                <tr><td className="td text-center text-ink-500" colSpan={13}>沒有符合條件的品項</td></tr>
-              )}
-              {shown.map((it) => {
-                const e = editOf(it)
-                const dirty = isDirty(it)
-                const idx = indexOf(it.index_id)
-                const suggested = it.index_id ? indexedPrice(it, idx) : null
-                const cur = Number(e.std_price)
-                const src = evidenceOf(e.evidence_id || null)
-                const floor = floors[it.id]
-                const floorVal = floorEdits[it.id] ?? (floor ? String(floor.floor_price) : '')
-                return (
-                  <Fragment key={it.id}>
-                    <tr className={dirty ? 'bg-light/40' : undefined}>
-                      <td className="td text-center">
+            {groups.length === 0 && (
+              <tbody>
+                <tr>
+                  <td className="td text-center text-ink-500" colSpan={COL_COUNT}>沒有符合條件的品項</td>
+                </tr>
+              </tbody>
+            )}
+            {groups.map((g) => {
+              const open = openCats.has(g.id)
+              // 全選狀態只看該組目前可見的列——別組已勾的品項不會被算進來也不會被清掉
+              const allSel = g.rows.length > 0 && g.rows.every((i) => selected.has(i.id))
+              const someSel = g.rows.some((i) => selected.has(i.id))
+              return (
+                <tbody key={g.id}>
+                  <tr
+                    className="cursor-pointer bg-light/60 hover:bg-light"
+                    tabIndex={0}
+                    aria-expanded={open}
+                    onClick={() => toggleCat(g.id)}
+                    onKeyDown={(ev) => {
+                      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggleCat(g.id) }
+                    }}
+                  >
+                    <td className="td" colSpan={COL_COUNT}>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="text-deep" aria-hidden="true">{open ? '▾' : '▸'}</span>
+                        <span className="text-[14px] font-semibold text-deep">{g.name}</span>
+                        <span className="text-xs text-ink-700">
+                          品項 <span className="num">{g.rows.length}</span>
+                        </span>
+                        <span className="text-xs text-ink-700">
+                          啟用 <span className="num">{g.active}</span>
+                        </span>
+                        {g.inactive > 0 && (
+                          <span className="text-xs text-ink-500">
+                            停用 <span className="num">{g.inactive}</span>
+                          </span>
+                        )}
+                        <span
+                          className={'text-xs ' + coverageClass(g.coverage)}
+                          title="該分類目前顯示範圍內：有佐證的啟用品項 ÷ 啟用品項"
+                        >
+                          佐證 <span className="num">{g.coverage === null ? '—' : `${g.coverage}%`}</span>
+                        </span>
+                        {g.needsArea > 0 && (
+                          <span className="tag bg-alert/15 text-alert">
+                            待轉 m² <span className="num">{g.needsArea}</span>
+                          </span>
+                        )}
                         <input
                           type="checkbox"
-                          aria-label={`選取 ${it.name}`}
-                          checked={selected.has(it.id)}
-                          onChange={(ev) => toggleOne(it.id, ev.target.checked)}
+                          className="ml-auto"
+                          aria-label={`全選「${g.name}」目前顯示的 ${g.rows.length} 項`}
+                          checked={allSel}
+                          ref={(el) => { if (el) el.indeterminate = !allSel && someSel }}
+                          onClick={(ev) => ev.stopPropagation()}
+                          onChange={(ev) => toggleGroup(g, ev.target.checked)}
                         />
-                      </td>
-                      <td className="td">
-                        <div className="text-ink-900">{it.name}</div>
-                        <div className="text-[11px] text-ink-500">
-                          {categoryOf(it.category_id)?.name ?? it.category_id}
-                          {it.needs_area && <span className="ml-1 text-alert">・待轉 m²</span>}
-                        </div>
-                      </td>
-                      <td className="td text-ink-700">{it.spec || '—'}</td>
-                      <td className="td text-center">{it.unit}</td>
-                      <td className="td text-center text-ink-700">{COST_LABEL[it.cost_type]}</td>
-                      <td className="td num">
-                        <input
-                          type="number" className="field num w-24 px-1.5 py-1" value={e.std_price}
-                          aria-label={`${it.name} 標準單價`}
-                          onChange={(ev) => patch(it, { std_price: ev.target.value })}
-                        />
-                      </td>
-                      <td className="td num">
-                        <input
-                          type="number" className="field num w-24 px-1.5 py-1" value={floorVal}
-                          aria-label={`${it.name} 底價`}
-                          disabled={floorBusy === it.id}
-                          onChange={(ev) => setFloorEdits((p) => ({ ...p, [it.id]: ev.target.value }))}
-                          onBlur={() => void saveFloor(it)}
-                        />
-                      </td>
-                      <td className="td text-[11px] text-ink-500">
-                        {it.samples === 0 ? '無歷史資料' : (
-                          <>
-                            {m(it.price_min)}–{m(it.price_max)}　中位 {m(it.price_median)}
-                            　最近 {it.last_seen || '—'} 報 {m(it.last_price)}　({it.samples} 筆)
-                          </>
-                        )}
-                      </td>
-                      <td className="td text-[11px]">
-                        {!it.index_id ? <span className="text-ink-500">—</span> : (
-                          <>
-                            <div className="text-ink-700">
-                              {idx?.name ?? it.index_id}
-                              <span className="num ml-1">×{(Number(it.index_coeff) * 100).toFixed(0)}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                  {open && g.rows.map((it) => {
+                    const e = editOf(it)
+                    const dirty = isDirty(it)
+                    const idx = indexOf(it.index_id)
+                    const suggested = it.index_id ? indexedPrice(it, idx) : null
+                    const cur = Number(e.std_price)
+                    const src = evidenceOf(e.evidence_id || null)
+                    const floor = floors[it.id]
+                    const floorVal = floorEdits[it.id] ?? (floor ? String(floor.floor_price) : '')
+                    return (
+                      <Fragment key={it.id}>
+                        <tr className={dirty ? 'bg-light/40' : undefined}>
+                          <td className="td text-center">
+                            <input
+                              type="checkbox"
+                              aria-label={`選取 ${it.name}`}
+                              checked={selected.has(it.id)}
+                              onChange={(ev) => toggleOne(it.id, ev.target.checked)}
+                            />
+                          </td>
+                          <td className="td">
+                            <div className="text-ink-900">{it.name}</div>
+                            <div className="text-[11px] text-ink-500">
+                              {categoryOf(it.category_id)?.name ?? it.category_id}
+                              {it.needs_area && <span className="ml-1 text-alert">・待轉 m²</span>}
                             </div>
-                            {suggested !== null && suggested !== cur && (
-                              <button
-                                type="button"
-                                className="mt-0.5 rounded border border-bright px-1.5 py-0.5 text-[11px] text-bright hover:bg-bright hover:text-white"
-                                onClick={() => patch(it, { std_price: String(suggested) })}
-                              >
-                                建議 {money(suggested)} {suggested > cur ? '↑' : '↓'}
-                              </button>
+                          </td>
+                          <td className="td text-ink-700">{it.spec || '—'}</td>
+                          <td className="td text-center">{it.unit}</td>
+                          <td className="td text-center text-ink-700">{COST_LABEL[it.cost_type]}</td>
+                          <td className="td num">
+                            <input
+                              type="number" className="field num w-24 px-1.5 py-1" value={e.std_price}
+                              aria-label={`${it.name} 標準單價`}
+                              onChange={(ev) => patch(it, { std_price: ev.target.value })}
+                            />
+                          </td>
+                          <td className="td num">
+                            <input
+                              type="number" className="field num w-24 px-1.5 py-1" value={floorVal}
+                              aria-label={`${it.name} 底價`}
+                              disabled={floorBusy === it.id}
+                              onChange={(ev) => setFloorEdits((p) => ({ ...p, [it.id]: ev.target.value }))}
+                              onBlur={() => void saveFloor(it)}
+                            />
+                          </td>
+                          <td className="td text-[11px] text-ink-500">
+                            {it.samples === 0 ? '無歷史資料' : (
+                              <>
+                                {m(it.price_min)}–{m(it.price_max)}　中位 {m(it.price_median)}
+                                　最近 {it.last_seen || '—'} 報 {m(it.last_price)}　({it.samples} 筆)
+                              </>
                             )}
-                          </>
+                          </td>
+                          <td className="td text-[11px]">
+                            {!it.index_id ? <span className="text-ink-500">—</span> : (
+                              <>
+                                <div className="text-ink-700">
+                                  {idx?.name ?? it.index_id}
+                                  <span className="num ml-1">×{(Number(it.index_coeff) * 100).toFixed(0)}%</span>
+                                </div>
+                                {suggested !== null && suggested !== cur && (
+                                  <button
+                                    type="button"
+                                    className="mt-0.5 rounded border border-bright px-1.5 py-0.5 text-[11px] text-bright hover:bg-bright hover:text-white"
+                                    onClick={() => patch(it, { std_price: String(suggested) })}
+                                  >
+                                    建議 {money(suggested)} {suggested > cur ? '↑' : '↓'}
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </td>
+                          <td className="td">
+                            <button
+                              type="button"
+                              title={e.evidence_note || src?.note || '點擊編輯佐證'}
+                              onClick={() => setEvOpen((v) => (v === it.id ? null : it.id))}
+                            >
+                              {src
+                                ? <span className={`tag ${EVIDENCE_TAG[src.kind]}`}>{EVIDENCE_LABEL[src.kind]}</span>
+                                : <span className="tag bg-warn-bg text-warn">待補</span>}
+                            </button>
+                          </td>
+                          <td className="td text-center">
+                            <input
+                              type="checkbox" checked={e.active}
+                              aria-label={`${it.name} 啟用`}
+                              onChange={(ev) => patch(it, { active: ev.target.checked })}
+                            />
+                          </td>
+                          <td className="td text-center">
+                            <button type="button" className="btn px-2 py-0.5 text-[11px]" onClick={() => void openHistory(it)}>
+                              軌跡
+                            </button>
+                          </td>
+                          <td className="td text-center">
+                            <button
+                              type="button"
+                              className="btn btn-danger px-2 py-0.5 text-[11px]"
+                              disabled={delBusy || bulkBusy}
+                              onClick={() => void openDelete(it)}
+                            >
+                              刪除
+                            </button>
+                          </td>
+                        </tr>
+
+                        {delAsk === it.id && (
+                          <tr className="bg-warn-bg">
+                            <td className="td" colSpan={COL_COUNT}>
+                              <div className="text-sm font-semibold text-warn">確認刪除此品項？</div>
+                              <div className="mt-1 grid gap-x-4 gap-y-0.5 text-[13px] text-ink-900 md:grid-cols-4">
+                                <div>品名：{it.name}</div>
+                                <div>規格：{it.spec || '—'}</div>
+                                <div>單位：{it.unit}</div>
+                                <div>目前標準單價：<span className="num">{money(it.std_price)}</span></div>
+                              </div>
+                              <div className="mt-2 text-[13px] text-ink-900">
+                                {delUsageLoading && <span className="text-ink-500">使用情形查詢中…</span>}
+                                {!delUsageLoading && delUsage && (
+                                  delUsage.line_count === 0 && delUsage.quote_count === 0
+                                    ? <>此品項尚未被任何報價單使用，可安全刪除。</>
+                                    : (
+                                      <>
+                                        此品項已被 <span className="num font-semibold">{delUsage.quote_count}</span> 張報價單、
+                                        <span className="num font-semibold">{delUsage.line_count}</span> 行明細使用。
+                                        刪除<span className="font-semibold">不會</span>更動那些報價單的內容與金額
+                                        （單價已存為快照），只會失去與單價庫的連結。
+                                      </>
+                                    )
+                                )}
+                              </div>
+                              <div className="mt-1 text-[13px] text-ink-700">
+                                若只是暫時不用，建議改用「停用」而不是刪除。
+                              </div>
+                              <div className="mt-2 flex gap-2">
+                                <button
+                                  className="btn btn-danger"
+                                  disabled={delBusy || delUsageLoading}
+                                  onClick={() => void runDelete(it)}
+                                >
+                                  {delBusy ? '刪除中…' : '確認刪除'}
+                                </button>
+                                <button
+                                  className="btn" disabled={delBusy}
+                                  onClick={() => { setDelAsk(null); setDelUsage(null) }}
+                                >
+                                  取消
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
                         )}
-                      </td>
-                      <td className="td">
-                        <button
-                          type="button"
-                          title={e.evidence_note || src?.note || '點擊編輯佐證'}
-                          onClick={() => setEvOpen((v) => (v === it.id ? null : it.id))}
-                        >
-                          {src
-                            ? <span className={`tag ${EVIDENCE_TAG[src.kind]}`}>{EVIDENCE_LABEL[src.kind]}</span>
-                            : <span className="tag bg-warn-bg text-warn">待補</span>}
-                        </button>
-                      </td>
-                      <td className="td text-center">
-                        <input
-                          type="checkbox" checked={e.active}
-                          aria-label={`${it.name} 啟用`}
-                          onChange={(ev) => patch(it, { active: ev.target.checked })}
-                        />
-                      </td>
-                      <td className="td text-center">
-                        <button type="button" className="btn px-2 py-0.5 text-[11px]" onClick={() => void openHistory(it)}>
-                          軌跡
-                        </button>
-                      </td>
-                      <td className="td text-center">
-                        <button
-                          type="button"
-                          className="btn btn-danger px-2 py-0.5 text-[11px]"
-                          disabled={delBusy || bulkBusy}
-                          onClick={() => void openDelete(it)}
-                        >
-                          刪除
-                        </button>
-                      </td>
-                    </tr>
 
-                    {delAsk === it.id && (
-                      <tr className="bg-warn-bg">
-                        <td className="td" colSpan={13}>
-                          <div className="text-sm font-semibold text-warn">確認刪除此品項？</div>
-                          <div className="mt-1 grid gap-x-4 gap-y-0.5 text-[13px] text-ink-900 md:grid-cols-4">
-                            <div>品名：{it.name}</div>
-                            <div>規格：{it.spec || '—'}</div>
-                            <div>單位：{it.unit}</div>
-                            <div>目前標準單價：<span className="num">{money(it.std_price)}</span></div>
-                          </div>
-                          <div className="mt-2 text-[13px] text-ink-900">
-                            {delUsageLoading && <span className="text-ink-500">使用情形查詢中…</span>}
-                            {!delUsageLoading && delUsage && (
-                              delUsage.line_count === 0 && delUsage.quote_count === 0
-                                ? <>此品項尚未被任何報價單使用，可安全刪除。</>
-                                : (
-                                  <>
-                                    此品項已被 <span className="num font-semibold">{delUsage.quote_count}</span> 張報價單、
-                                    <span className="num font-semibold">{delUsage.line_count}</span> 行明細使用。
-                                    刪除<span className="font-semibold">不會</span>更動那些報價單的內容與金額
-                                    （單價已存為快照），只會失去與單價庫的連結。
-                                  </>
-                                )
-                            )}
-                          </div>
-                          <div className="mt-1 text-[13px] text-ink-700">
-                            若只是暫時不用，建議改用「停用」而不是刪除。
-                          </div>
-                          <div className="mt-2 flex gap-2">
-                            <button
-                              className="btn btn-danger"
-                              disabled={delBusy || delUsageLoading}
-                              onClick={() => void runDelete(it)}
-                            >
-                              {delBusy ? '刪除中…' : '確認刪除'}
-                            </button>
-                            <button
-                              className="btn" disabled={delBusy}
-                              onClick={() => { setDelAsk(null); setDelUsage(null) }}
-                            >
-                              取消
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-
-                    {evOpen === it.id && (
-                      <tr className="bg-ink-50">
-                        <td className="td" colSpan={13}>
-                          <div className="grid gap-3 md:grid-cols-3">
-                            <div>
-                              <label className="label" htmlFor={`ev-${it.id}`}>佐證來源</label>
-                              <select
-                                id={`ev-${it.id}`} className="field" value={e.evidence_id}
-                                onChange={(ev) => patch(it, { evidence_id: ev.target.value })}
-                              >
-                                <option value="">（無佐證）</option>
-                                {evidence.map((s) => (
-                                  <option key={s.id} value={s.id}>{EVIDENCE_LABEL[s.kind]}｜{s.name}</option>
-                                ))}
-                              </select>
-                              {src && (
-                                <div className="mt-1 text-[11px] text-ink-500">
-                                  發布機關：{src.publisher || '—'}
-                                  {src.url && (
-                                    <>
-                                      {'　'}
-                                      <a className="text-bright underline" href={src.url} target="_blank" rel="noreferrer">
-                                        來源連結
-                                      </a>
-                                    </>
+                        {evOpen === it.id && (
+                          <tr className="bg-ink-50">
+                            <td className="td" colSpan={COL_COUNT}>
+                              <div className="grid gap-3 md:grid-cols-3">
+                                <div>
+                                  <label className="label" htmlFor={`ev-${it.id}`}>佐證來源</label>
+                                  <select
+                                    id={`ev-${it.id}`} className="field" value={e.evidence_id}
+                                    onChange={(ev) => patch(it, { evidence_id: ev.target.value })}
+                                  >
+                                    <option value="">（無佐證）</option>
+                                    {evidence.map((s) => (
+                                      <option key={s.id} value={s.id}>{EVIDENCE_LABEL[s.kind]}｜{s.name}</option>
+                                    ))}
+                                  </select>
+                                  {src && (
+                                    <div className="mt-1 text-[11px] text-ink-500">
+                                      發布機關：{src.publisher || '—'}
+                                      {src.url && (
+                                        <>
+                                          {'　'}
+                                          <a className="text-bright underline" href={src.url} target="_blank" rel="noreferrer">
+                                            來源連結
+                                          </a>
+                                        </>
+                                      )}
+                                    </div>
                                   )}
                                 </div>
-                              )}
-                            </div>
-                            <div className="md:col-span-2">
-                              <label className="label" htmlFor={`evn-${it.id}`}>佐證說明（會印在報價單佐證欄）</label>
-                              <textarea
-                                id={`evn-${it.id}`} className="field h-20" value={e.evidence_note}
-                                onChange={(ev) => patch(it, { evidence_note: ev.target.value })}
-                              />
-                            </div>
-                          </div>
-                          <div className="mt-2 text-[11px] text-ink-500">
-                            修改後請按上方「儲存變更」寫入資料庫。
-                          </div>
-                        </td>
-                      </tr>
-                    )}
+                                <div className="md:col-span-2">
+                                  <label className="label" htmlFor={`evn-${it.id}`}>佐證說明（會印在報價單佐證欄）</label>
+                                  <textarea
+                                    id={`evn-${it.id}`} className="field h-20" value={e.evidence_note}
+                                    onChange={(ev) => patch(it, { evidence_note: ev.target.value })}
+                                  />
+                                </div>
+                              </div>
+                              <div className="mt-2 text-[11px] text-ink-500">
+                                修改後請按上方「儲存變更」寫入資料庫。
+                              </div>
+                            </td>
+                          </tr>
+                        )}
 
-                    {histOpen === it.id && (
-                      <tr className="bg-ink-50">
-                        <td className="td" colSpan={13}>
-                          <div className="mb-1 text-xs font-semibold text-deep">調價軌跡（最近 20 筆）</div>
-                          {histErr && <div className="text-xs text-warn">{histErr}</div>}
-                          {histLoading && <div className="text-xs text-ink-500">載入中…</div>}
-                          {!histLoading && !hist.length && !histErr && (
-                            <div className="text-xs text-ink-500">尚無調價紀錄</div>
-                          )}
-                          {!histLoading && hist.length > 0 && (
-                            <table className="w-full border-collapse">
-                              <thead>
-                                <tr>
-                                  <th className="th num">舊價</th>
-                                  <th className="th num">新價</th>
-                                  <th className="th num">幅度</th>
-                                  <th className="th text-left">時間</th>
-                                  <th className="th text-left">異動人</th>
-                                  <th className="th text-left">說明</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {hist.map((h) => {
-                                  const old = h.old_price === null ? null : Number(h.old_price)
-                                  const pct = old ? ((Number(h.new_price) - old) / old) * 100 : null
-                                  return (
-                                    <tr key={h.id}>
-                                      <td className="td num">{m(old)}</td>
-                                      <td className="td num">{money(Number(h.new_price))}</td>
-                                      <td className={'td num ' + (pct !== null && pct > 0 ? 'text-alert' : 'text-ink-700')}>
-                                        {pct === null ? '—' : `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`}
-                                      </td>
-                                      <td className="td">{new Date(h.changed_at).toLocaleString('zh-TW')}</td>
-                                      <td className="td">{(h.changed_by && histNames[h.changed_by]) || '—'}</td>
-                                      <td className="td">{h.reason || '—'}</td>
+                        {histOpen === it.id && (
+                          <tr className="bg-ink-50">
+                            <td className="td" colSpan={COL_COUNT}>
+                              <div className="mb-1 text-xs font-semibold text-deep">調價軌跡（最近 20 筆）</div>
+                              {histErr && <div className="text-xs text-warn">{histErr}</div>}
+                              {histLoading && <div className="text-xs text-ink-500">載入中…</div>}
+                              {!histLoading && !hist.length && !histErr && (
+                                <div className="text-xs text-ink-500">尚無調價紀錄</div>
+                              )}
+                              {!histLoading && hist.length > 0 && (
+                                <table className="w-full border-collapse">
+                                  <thead>
+                                    <tr>
+                                      <th className="th num">舊價</th>
+                                      <th className="th num">新價</th>
+                                      <th className="th num">幅度</th>
+                                      <th className="th text-left">時間</th>
+                                      <th className="th text-left">異動人</th>
+                                      <th className="th text-left">說明</th>
                                     </tr>
-                                  )
-                                })}
-                              </tbody>
-                            </table>
-                          )}
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                )
-              })}
-            </tbody>
+                                  </thead>
+                                  <tbody>
+                                    {hist.map((h) => {
+                                      const old = h.old_price === null ? null : Number(h.old_price)
+                                      const pct = old ? ((Number(h.new_price) - old) / old) * 100 : null
+                                      return (
+                                        <tr key={h.id}>
+                                          <td className="td num">{m(old)}</td>
+                                          <td className="td num">{money(Number(h.new_price))}</td>
+                                          <td className={'td num ' + (pct !== null && pct > 0 ? 'text-alert' : 'text-ink-700')}>
+                                            {pct === null ? '—' : `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`}
+                                          </td>
+                                          <td className="td">{new Date(h.changed_at).toLocaleString('zh-TW')}</td>
+                                          <td className="td">{(h.changed_by && histNames[h.changed_by]) || '—'}</td>
+                                          <td className="td">{h.reason || '—'}</td>
+                                        </tr>
+                                      )
+                                    })}
+                                  </tbody>
+                                </table>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    )
+                  })}
+                </tbody>
+              )
+            })}
           </table>
         </div>
       </div>

@@ -30,6 +30,10 @@ const STAMP: Record<QuoteStatus, { label: string; cls: string }> = {
   rejected: { label: '已退回', cls: 'border-warn text-warn' },
 }
 
+/** 會蓋報價專用章的狀態——全都是「主管已核可」之後的狀態。
+    draft / submitted / rejected 一律不蓋：沒核可的單蓋章是嚴重問題。 */
+const STAMPED_STATUS: readonly QuoteStatus[] = ['approved', 'negotiating', 'closed']
+
 /** 佐證來源類別的標籤配色 */
 const EV_TAG: Record<EvidenceKind, string> = {
   index: 'border-bright text-bright',
@@ -72,14 +76,23 @@ interface ProdRow {
   qty: number
   output: number
   manDays: number
-  /** 每單位工資成本（未加成） */
-  unitCost: number
-  /** 每單位報價工資（含加成係數） */
+  /** 每單位工資牌價（未折） */
+  unitList: number
+  /** 每單位折後工資單價（牌價 × 物管合約折數） */
   unitQuote: number
-  /** 應攤工資，用報價值 */
+  /** 應攤工資，用折後值 */
   wage: number
+  /** 本列因物管合約折讓的金額（正數） */
+  saving: number
   basis: string
   confidence: string
+}
+
+/** 折數寫成國人習慣的「幾折」：0.9 → 「9 折」、0.85 → 「8.5 折」；未打折（≧1）回傳 null */
+function discountLabel(d: number): string | null {
+  const n = Number(d)
+  if (!Number.isFinite(n) || n >= 1) return null
+  return `${Math.round(n * 1000) / 100} 折`
 }
 
 /** 0.05 → 「5」；0.045 → 「4.5」 */
@@ -92,6 +105,15 @@ function toText(v: unknown, fallback: string): string {
   if (typeof v === 'string' && v.trim()) return v
   if (typeof v === 'number') return String(v)
   return fallback
+}
+
+/** ISO 時間戳取日期部分（依本機時區，避免 UTC 直接切字串時差一天）；無法解析回傳空字串 */
+function dateOnly(v: string | null): string {
+  if (!v) return ''
+  const d = new Date(v)
+  if (Number.isNaN(d.getTime())) return ''
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
 
 /** 去掉小數尾巴的 0：3.00 → 3；0.65 → 0.65 */
@@ -216,7 +238,7 @@ export default function PrintPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const {
-    items, settings, evidenceOf, mgmtFeeRate, taxRate, laborBase, laborMarkup,
+    items, settings, evidenceOf, mgmtFeeRate, taxRate, laborBase, laborDiscount,
     loading: refLoading,
   } = useRefData()
 
@@ -228,6 +250,8 @@ export default function PrintPage() {
   const [prods, setProds] = useState<LaborProductivity[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  /** 報價專用章的 data URI；null＝不蓋（未核可、查無此設定、或載入失敗） */
+  const [stampSrc, setStampSrc] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     if (!id) { setError('缺少報價單編號'); setLoading(false); return }
@@ -271,6 +295,28 @@ export default function PrintPage() {
   }, [id])
 
   useEffect(() => { void load() }, [load])
+
+  /* 報價專用章（settings.quote_stamp，約 145KB 的 base64 PNG）。
+     RefDataContext 刻意把它排除在共用設定之外，所以在這裡自己抓——
+     而且只有「主管已核可之後」的狀態才發這支查詢，其餘狀態一個位元組都不下載。 */
+  const needStamp = Boolean(quote && STAMPED_STATUS.includes(quote.status))
+
+  useEffect(() => {
+    if (!needStamp) { setStampSrc(null); return }
+    let alive = true
+    void (async () => {
+      const { data, error: stampErr } = await supabase
+        .from('settings').select('value').eq('key', 'quote_stamp').maybeSingle()
+      if (!alive) return
+      // 抓不到就安靜地不蓋章：不設 error、不擋渲染，標單照樣印得出來
+      if (stampErr) { setStampSrc(null); return }
+      const value = (data as { value?: unknown } | null)?.value
+      setStampSrc(
+        typeof value === 'string' && value.startsWith('data:image/') ? value : null,
+      )
+    })()
+    return () => { alive = false }
+  }, [needStamp])
 
   /** 把 DB 形狀轉成 calcTotals 吃的 draft 形狀——金額公式只有 calc.ts 那一份 */
   const draftSections: DraftSection[] = useMemo(
@@ -347,15 +393,19 @@ export default function PrintPage() {
         qty,
         output,
         manDays,
-        unitCost: Math.round(laborBase / output),
-        unitQuote: Math.round((laborBase * laborMarkup) / output),
-        wage: Math.round(manDays * laborBase * laborMarkup),
+        unitList: Math.round(laborBase / output),
+        unitQuote: Math.round((laborBase * laborDiscount) / output),
+        wage: Math.round(manDays * laborBase * laborDiscount),
+        saving: Math.round(manDays * laborBase * (1 - laborDiscount)),
         basis: p.basis,
         confidence: p.confidence,
       })
     }
     return out
-  }, [prods, prodOf, lines, laborBase, laborMarkup])
+  }, [prods, prodOf, lines, laborBase, laborDiscount])
+
+  /** 物業管理合約替院方折讓掉的工資總額（正數；未設折扣時為 0） */
+  const laborSaving = prodRows.reduce((a, r) => a + r.saving, 0)
 
   const catalogVersion = toText(settings['catalog_version'], '（未設定）')
 
@@ -372,6 +422,9 @@ export default function PrintPage() {
   }
 
   const stamp = STAMP[quote.status]
+  /** 兩道條件都成立才蓋章：狀態在已核可之後 ＋ 印章圖真的拿到了 */
+  const showStamp = needStamp && Boolean(stampSrc)
+  const approvedDate = dateOnly(quote.approved_at)
   /** 總表 1 頁 + 各大項明細各 1 頁 + 有工率資料時再 1 頁 */
   const totalPages = 1 + draftSections.length + (prodRows.length ? 1 : 0)
   const sheetProps = { quote, stamp, catalogVersion, feeRate, busRate, total: totalPages }
@@ -481,14 +534,40 @@ export default function PrintPage() {
           </div>
         )}
 
-        {/* ── 簽核欄 ── */}
+        {/* ── 簽核欄 ──
+            要蓋章時把簽名格加高到 27mm（實體章 34×29.7mm 才容得下），
+            印章以 absolute 疊在「工務處主管核可」這一格內，下緣壓過簽名線。 */}
         <div className="mt-10 grid grid-cols-3 gap-8">
-          {['製表', '工務處主管核可', '日期'].map((t) => (
-            <div key={t}>
-              <div className="text-[10px] tracking-wide text-ink-500">{t}</div>
-              <div className="mt-8 border-b border-ink-700" />
-            </div>
-          ))}
+          {['製表', '工務處主管核可', '日期'].map((t) => {
+            const isApproval = t === '工務處主管核可'
+            return (
+              <div key={t}>
+                <div className="text-[10px] tracking-wide text-ink-500">{t}</div>
+                <div
+                  className={
+                    'relative border-b border-ink-700 ' + (showStamp ? 'h-[27mm]' : 'mt-8')
+                  }
+                >
+                  {isApproval && showStamp && stampSrc && (
+                    <img
+                      src={stampSrc}
+                      alt=""
+                      className={
+                        'pointer-events-none absolute left-1/2 -bottom-[4mm] w-[34mm] ' +
+                        'h-auto -translate-x-1/2 rotate-[-6deg] opacity-[0.88]'
+                      }
+                      onError={() => setStampSrc(null)}
+                    />
+                  )}
+                </div>
+                {isApproval && showStamp && approvedDate && (
+                  <div className="mt-[7mm] text-center text-[10px] text-ink-500">
+                    核可日期：<span className="num">{approvedDate}</span>
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       </Sheet>
 
@@ -579,11 +658,12 @@ export default function PrintPage() {
                 <th className={TH + ' w-[7%]'}>數量</th>
                 <th className={TH + ' w-[12%]'}>工率（每工日產出）</th>
                 <th className={TH + ' w-[8%]'}>所需工數</th>
-                {/* 不印工資成本——這份文件要交給醫院採購，
-                    把自家成本結構與利潤率印在上面等於邀請對方往成本押 */}
-                <th className={TH + ' w-[12%]'}>工資單價</th>
-                <th className={TH + ' w-[13%]'}>應攤工資</th>
-                <th className={TH + ' w-[24%]'}>依據</th>
+                {/* 牌價與折後單價並列——折讓是給院方看的好處，不是自家底牌，
+                    印出來才能讓物業管理合約的價值出現在每一張報價單上 */}
+                <th className={TH + ' w-[11%]'}>工資牌價/單位</th>
+                <th className={TH + ' w-[11%]'}>折後單價</th>
+                <th className={TH + ' w-[12%]'}>應攤工資</th>
+                <th className={TH + ' w-[18%]'}>依據</th>
               </tr>
             </thead>
             <tbody>
@@ -596,7 +676,8 @@ export default function PrintPage() {
                     <td className={TD + ' num'}>{trim2(r.qty)}</td>
                     <td className={TD + ' num'}>{trim2(r.output)} {r.unit} / 工日</td>
                     <td className={TD + ' num'}>{r.manDays.toFixed(2)}</td>
-                    <td className={TD + ' num'}>{money(r.unitQuote)}</td>
+                    <td className={TD + ' num text-ink-500'}>{money(r.unitList)}</td>
+                    <td className={TD + ' num text-deep'}>{money(r.unitQuote)}</td>
                     <td className={TD + ' num'}>{money(r.wage)}</td>
                     <td className={TD_MUTED}>
                       <span className="inline-flex flex-wrap items-center gap-1">
@@ -623,13 +704,27 @@ export default function PrintPage() {
                 </td>
                 <td className={TD + ' border-t-deep'} />
               </tr>
+              {/* 這一列是整份文件的賣點：物管合約替院方省下多少工資 */}
+              {laborSaving > 0 && (
+                <tr>
+                  <td className={TD + ' text-right font-bold text-green'} colSpan={7}>
+                    物業管理合約優惠折讓
+                  </td>
+                  <td className={TD + ' num font-bold text-green'}>-{money(laborSaving)}</td>
+                  <td className={TD} />
+                </tr>
+              )}
             </tbody>
           </table>
           <p className="mt-3 text-[10.5px] leading-relaxed text-ink-500">
             工率係一名技術工於正常工時（8 小時）之產出基準，工資單價 = 技術工日薪 ÷ 工率。
-            日薪水準參照臺北市政府工程預算參考單價之技術工單價，並以勞動部基本工資
-            （時薪 196 元 × 8 小時 = 1,568 元）為法定下限，另含勞保、健保、勞退雇主提繳等法定負擔。
-            夜間、休息日及例假日施作之加成依勞動基準法第 24、39 條計算。
+            技術工日薪牌價 NT${money(laborBase)}／工，係參照臺北市政府工程預算參考單價之技術工單價
+            （375 元／時 × 8 小時）；
+            {discountLabel(laborDiscount)
+              ? `因貴院已訂有物業管理合約，本報價之工資按牌價 ${discountLabel(laborDiscount)} 計價。`
+              : '本報價之工資按牌價計價。'}
+            法定下限為勞動部基本工資時薪 196 元 × 8 小時 = 1,568 元／工。
+            夜間、休息日及例假日之加成依勞動基準法第 24、39 條計算。
           </p>
         </Sheet>
       )}

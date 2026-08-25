@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useRefData } from '../context/RefDataContext'
-import { calcTotals, laborCost, laborPrice, lineAmount, money, validateQuote } from '../lib/calc'
+import { calcTotals, laborListPrice, laborPrice, lineAmount, money, validateQuote } from '../lib/calc'
 import type {
   DraftLine, DraftQuote, DraftSection, LaborRate,
   PriceItem, Quote, QuoteLine, QuoteSection, QuoteStatus,
@@ -16,6 +16,13 @@ const uid = (): string => crypto.randomUUID()
 
 /** 取本機日期（不要用 toISOString，那是 UTC 會差一天） */
 const today = (): string => new Date().toLocaleDateString('sv-SE')
+
+/** 折數寫成國人習慣的「幾折」：0.9 → 「9 折」、0.85 → 「8.5 折」；未打折（≧1）回傳 null */
+const discountLabel = (d: number): string | null => {
+  const n = Number(d)
+  if (!Number.isFinite(n) || n >= 1) return null
+  return `${Math.round(n * 1000) / 100} 折`
+}
 
 const blankSection = (): DraftSection => ({ key: uid(), title: '', lines: [] })
 
@@ -43,7 +50,7 @@ export default function QuoteEditorPage() {
   const navigate = useNavigate()
   const { profile, isManager } = useAuth()
   const {
-    categories, items, laborRates, laborBase, laborMarkup, mgmtFeeRate, taxRate,
+    categories, items, laborRates, laborBase, laborDiscount, mgmtFeeRate, taxRate,
     categoryOf, loading: refLoading, error: refError,
   } = useRefData()
 
@@ -194,14 +201,14 @@ export default function QuoteEditorPage() {
   const addItem = (item: PriceItem) => {
     const c = categoryOf(item.category_id)
     const title = (c?.section_title || c?.name || '其他工程').trim()
-    // 「成本 × 加成 × 時段」只適用於按「工」計價的工資項（技術工日薪）。
+    // 「牌價 × 物管合約折數 × 時段」只適用於按「工」計價的工資項（技術工日薪）。
     // 單價庫裡許多 cost_type='labor' 的品項是按 台/米/m²/座 的包裝勞務價
     // （例：鷹架 55,000/座、室內機安裝 3,300/台、管路標示 9/米），
     // 這些必須用品項自己的 std_price，套日薪公式會整個報錯價。
     const isLabor = item.cost_type === 'labor' && item.unit === '工'
     const rate = isLabor ? defaultRate : undefined
-    // 工資項報一律走「成本 × 加成 × 時段」，不能拿成本 laborBase 直接當報價
-    const price = isLabor ? laborPrice(laborBase, rate, laborMarkup) : Number(item.std_price) || 0
+    // 工資項一律走「牌價 × 物管合約折數 × 時段」，不能拿牌價 laborBase 直接當報價
+    const price = isLabor ? laborPrice(laborBase, rate, laborDiscount) : Number(item.std_price) || 0
 
     setDraft((d) => {
       let sections = d.sections
@@ -245,7 +252,7 @@ export default function QuoteEditorPage() {
     const r = rateById.get(rateId)
     patchLine(sk, lk, {
       labor_rate_id: r ? r.id : null,
-      unit_price: laborPrice(laborBase, r, laborMarkup),
+      unit_price: laborPrice(laborBase, r, laborDiscount),
     })
   }
 
@@ -657,7 +664,10 @@ export default function QuoteEditorPage() {
                                   <span className="text-[11px] text-ink-500">{rate.legal_basis}</span>
                                 )}
                                 <span className="text-[11px] text-ink-500">
-                                  成本 {money(laborCost(laborBase, rate))} × 加成 {laborMarkup}
+                                  牌價 {money(laborListPrice(laborBase, rate))}
+                                  {discountLabel(laborDiscount)
+                                    ? ` × 物管合約 ${discountLabel(laborDiscount)}`
+                                    : '（物管合約未設折扣）'}
                                 </span>
                               </div>
                             )}

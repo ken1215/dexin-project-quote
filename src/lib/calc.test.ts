@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert/strict'
 import {
-  calcTotals, concessionPct, indexedPrice, laborCost, laborPrice, lineAmount, validateQuote,
+  calcTotals, concessionPct, indexedPrice, laborListPrice, laborPrice, lineAmount, validateQuote,
 } from './calc.ts'
 import type { DraftQuote, DraftSection, LaborRate, MaterialIndex, PriceItem } from '../types.ts'
 
@@ -63,23 +63,25 @@ assert.equal(calcTotals([], 0.09, 0.05).total, 0)
 const rate = (id: string, m: number): LaborRate =>
   ({ id, name: id, multiplier: m, legal_basis: '', sort: 0, active: true })
 
-// 成本（未加成）：2,800 × 時段係數
-assert.equal(laborCost(2800, rate('weekday', 1)), 2800)
-assert.equal(laborCost(2800, rate('overtime', 1.34)), 3752)
-assert.equal(laborCost(2800, rate('restday', 1.67)), 4676)
-assert.equal(laborCost(2800, rate('holiday', 2)), 5600)
-assert.equal(laborCost(2800, null), 2800, '沒選時段就用基準日薪')
+// 牌價（未折扣）：3,000 × 時段係數
+assert.equal(laborListPrice(3000, rate('weekday', 1)), 3000)
+assert.equal(laborListPrice(3000, rate('overtime', 1.34)), 4020)
+assert.equal(laborListPrice(3000, rate('restday', 1.67)), 5010)
+assert.equal(laborListPrice(3000, rate('holiday', 2)), 6000)
+assert.equal(laborListPrice(3000, null), 3000, '沒選時段就用牌價日薪')
 
-// 報價 = 成本 × 加成係數 × 時段係數。2,800 是成本基準，不是報價值。
-assert.equal(laborPrice(2800, rate('weekday', 1), 1.15), 3220)
-assert.equal(laborPrice(2800, rate('holiday', 2), 1.15), 6440)
-assert.equal(laborPrice(2800, null, 1.15), 3220)
-assert.equal(laborPrice(2800, rate('weekday', 1)), 2800, '沒給係數時退回成本，不可意外加成')
+// 實際報價 = 牌價 × 物業合約 9 折 × 時段係數
+assert.equal(laborPrice(3000, rate('weekday', 1), 0.9), 2700)
+assert.equal(laborPrice(3000, rate('overtime', 1.34), 0.9), 3618)
+assert.equal(laborPrice(3000, rate('restday', 1.67), 0.9), 4509)
+assert.equal(laborPrice(3000, rate('holiday', 2), 0.9), 5400)
+assert.equal(laborPrice(3000, null, 0.9), 2700)
+assert.equal(laborPrice(3000, rate('weekday', 1)), 3000, '沒給折數時等於牌價，不可意外打折')
 
-// 加成後的平日報價要站得住：不低於法定下限，也不低於官方技術工參考單價
-assert.ok(laborPrice(2800, rate('weekday', 1), 1.15) >= 196 * 8, '高於法定下限 1,568')
-assert.ok(laborPrice(2800, rate('weekday', 1), 1.15) >= 3000,
-  '不低於臺北市 112 年度參考單價之技術工 3,000 元/工——低於這個數字就是自己砍自己')
+// 護欄：折後平日工資仍須高於法定下限（基本時薪 196 × 8h = 1,568）
+assert.ok(laborPrice(3000, rate('weekday', 1), 0.9) >= 196 * 8, '高於法定下限 1,568')
+// 護欄：折數不得低於 0.6，否則折後低於基本工資水準、也不像正常商業折讓
+assert.ok(laborPrice(3000, rate('weekday', 1), 0.6) >= 196 * 8, '折到 6 折仍高於法定下限')
 
 // ── 4. 指數連動建議價 ──────────────────────────────────────────
 const item = (o: Partial<PriceItem> = {}): PriceItem => ({

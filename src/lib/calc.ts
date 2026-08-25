@@ -36,19 +36,19 @@ export function calcTotals(
 }
 
 /**
- * 工資項的「報價」單價。
+ * 工資項的實際報價單價 = 牌價 × 物業合約折數 × 勞基法時段係數。
  *
- * 2,800 元/工 是**成本基準**（使用者 2026-08-25 定案），不是報價值——
- * 它落在臺北市政府 112 年度工程預算參考單價的普通工(2,240)與技術工(3,000)之間，
- * 也低於立德新自家歷史成交(3,000~5,000/工)。直接拿去報等於自己砍自己。
- * 所以報價 = 成本 × 加成係數 × 時段係數，加成係數由主管在「物價指數」頁維護。
+ * 牌價 3,000 元/工 對齊臺北市政府工程預算參考單價之技術工單價（375 元/時 × 8 小時）。
+ * 因院方已訂有物業管理合約、該批人力的薪資已由月費支應，故按牌價 9 折計價，
+ * 避免對同一客戶就同一段工時收第二次錢（與德新「自行承攬不得再收管理費」同一界線）。
+ * 折數由主管在「物價指數」頁維護。
  */
-export function laborPrice(baseDaily: number, rate?: LaborRate | null, markup = 1): number {
-  return Math.round(baseDaily * (Number(markup) || 1) * (rate ? Number(rate.multiplier) : 1))
+export function laborPrice(baseDaily: number, rate?: LaborRate | null, discount = 1): number {
+  return Math.round(baseDaily * (Number(discount) || 1) * (rate ? Number(rate.multiplier) : 1))
 }
 
-/** 工資成本（未加成），用於工率分析表上與報價並列對照 */
-export function laborCost(baseDaily: number, rate?: LaborRate | null): number {
+/** 工資牌價（未打折），與報價並列可讓院方看到物管合約折讓了多少 */
+export function laborListPrice(baseDaily: number, rate?: LaborRate | null): number {
   return Math.round(baseDaily * (rate ? Number(rate.multiplier) : 1))
 }
 

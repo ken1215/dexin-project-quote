@@ -18,10 +18,10 @@ interface RefData {
   /** 便利查詢 */
   mgmtFeeRate: number
   taxRate: number
-  /** 技術工日薪「成本」基準（2,800），不是報價值 */
+  /** 技術工日薪「牌價」（3,000，對齊臺北市政府工程預算參考單價） */
   laborBase: number
-  /** 工資報價加成係數：報價 = laborBase × laborMarkup × 時段係數 */
-  laborMarkup: number
+  /** 物業管理合約優惠折數：報價 = laborBase × laborDiscount × 時段係數 */
+  laborDiscount: number
   categoryOf: (id: string) => Category | undefined
   indexOf: (id: string | null) => MaterialIndex | undefined
   evidenceOf: (id: string | null) => EvidenceSource | undefined
@@ -55,7 +55,9 @@ export function RefDataProvider({ children }: { children: ReactNode }) {
       supabase.from('material_indices').select('*'),
       supabase.from('evidence_sources').select('*'),
       supabase.from('labor_rates').select('*').eq('active', true).order('sort'),
-      supabase.from('settings').select('*'),
+      // 排除 quote_stamp：那是 145KB 的印章圖，只有列印已核可的單才需要，
+      // 沒必要讓每個人每次開頁都下載一次。PrintPage 會在需要時自己抓。
+      supabase.from('settings').select('*').neq('key', 'quote_stamp'),
     ])
     const firstErr = [c, i, m, e, l, s].find((r) => r.error)?.error
     if (firstErr) { setError(firstErr.message); setLoading(false); return }
@@ -86,8 +88,8 @@ export function RefDataProvider({ children }: { children: ReactNode }) {
     categories, items, indices, evidence, laborRates, settings, loading, error, reload,
     mgmtFeeRate: num('mgmt_fee_rate', 0.09),
     taxRate: num('tax_rate', 0.05),
-    laborBase: num('labor_base_daily', 2800),
-    laborMarkup: num('labor_markup', 1.15),
+    laborBase: num('labor_base_daily', 3000),
+    laborDiscount: num('labor_discount', 0.9),
     categoryOf: (id) => categories.find((c) => c.id === id),
     indexOf: (id) => (id ? indices.find((x) => x.id === id) : undefined),
     evidenceOf: (id) => (id ? evidence.find((x) => x.id === id) : undefined),

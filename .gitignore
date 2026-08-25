@@ -32,3 +32,7 @@ dist-ssr
 
 # Supabase CLI 暫存
 supabase/.temp/
+
+# 報價專用章：含公司印章圖，repo 是 public 的絕不能進版控
+db/14_quote_stamp.sql
+stamp-preview.png
