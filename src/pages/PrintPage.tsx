@@ -353,21 +353,47 @@ export default function PrintPage() {
     [draftSections, feeRate, busRate],
   )
 
-  /** 佐證附註：本單用到的品項中有 evidence_note 者，去重後最多 8 條 */
+  /**
+   * 單價依據：**依來源歸類，一類一行**，不逐項印 evidence_note。
+   *
+   * evidence_note 是寫給自己看的推導過程（「組價 375 扣除明盒 13」「歷史成交 10 筆 100~150 元」），
+   * 逐條印出去有兩個問題：紙面囉嗦，而且把歷史成交低點攤給採購看等於邀請對方往下押。
+   * 這裡只講「依據哪個權威來源」與「涵蓋哪些品項」，該講的講清楚，不該給的不給。
+   */
   const evidenceNotes = useMemo(() => {
-    const seen = new Set<string>()
-    const out: { name: string; note: string; kind: EvidenceKind | null }[] = []
+    const byKind = new Map<EvidenceKind, { source: string; names: Set<string> }>()
     for (const l of lines) {
       if (!l.item_id) continue
       const it = items.find((x) => x.id === l.item_id)
-      if (!it || !it.evidence_note) continue
-      const key = it.name + '｜' + it.evidence_note
-      if (seen.has(key)) continue
-      seen.add(key)
-      out.push({ name: it.name, note: it.evidence_note, kind: evidenceOf(it.evidence_id)?.kind ?? null })
-      if (out.length >= 8) break
+      if (!it || !it.evidence_id) continue
+      const src = evidenceOf(it.evidence_id)
+      if (!src) continue
+      const g = byKind.get(src.kind) ?? { source: '', names: new Set<string>() }
+      // 同一類若有多個來源，取發布機關較權威者（官方指數／法規優先寫全名）
+      if (!g.source) g.source = src.publisher ? `${src.publisher}「${src.name}」` : src.name
+      g.names.add(it.name)
+      byKind.set(src.kind, g)
     }
-    return out
+    const ORDER: EvidenceKind[] = ['index', 'law', 'market', 'history']
+    const LEAD: Record<EvidenceKind, string> = {
+      index: '依',
+      law: '依',
+      market: '參照',
+      history: '依',
+    }
+    return ORDER.filter((k) => byKind.has(k)).map((kind) => {
+      const g = byKind.get(kind)!
+      const names = [...g.names]
+      // 品項多就只列前三項加「等 N 項」，紙面不要被品名淹沒
+      const label = names.length <= 3
+        ? names.join('、')
+        : `${names.slice(0, 3).join('、')} 等 ${names.length} 項`
+      return {
+        kind,
+        text: `${LEAD[kind]}${kind === 'history' ? '本公司歷年供應本院之實績單價' : g.source}計價`,
+        items: label,
+      }
+    })
   }, [lines, items, evidenceOf])
 
   /** 工率分析：同一筆工率的數量合併成一列 */
@@ -513,20 +539,19 @@ export default function PrintPage() {
             <div className="text-[12.5px] font-bold tracking-wide text-deep">單價依據</div>
             <ol className="mt-2 space-y-1">
               {evidenceNotes.map((e, i) => (
-                <li key={e.name + e.note} className="flex gap-2 text-[11.5px] leading-relaxed text-ink-700">
+                <li key={e.kind} className="flex gap-2 text-[11.5px] leading-relaxed text-ink-700">
                   <span className="num w-4 shrink-0 text-ink-500">{i + 1}.</span>
-                  {e.kind && (
-                    <span
-                      className={
-                        'shrink-0 self-start rounded-sm border px-1.5 py-[1px] text-[10px] ' +
-                        EV_TAG[e.kind]
-                      }
-                    >
-                      {EVIDENCE_LABEL[e.kind]}
-                    </span>
-                  )}
+                  <span
+                    className={
+                      'shrink-0 self-start rounded-sm border px-1.5 py-[1px] text-[10px] ' +
+                      EV_TAG[e.kind]
+                    }
+                  >
+                    {EVIDENCE_LABEL[e.kind]}
+                  </span>
                   <span>
-                    <span className="font-semibold text-ink-900">{e.name}</span>：{e.note}
+                    <span className="text-ink-900">{e.text}</span>
+                    <span className="text-ink-500">（{e.items}）</span>
                   </span>
                 </li>
               ))}
