@@ -17,7 +17,10 @@ export default function Layout() {
         <h1 className="text-[17px] font-semibold tracking-wide">
           德新物業(立德新)專案工程報價系統
         </h1>
-        {version && <span className="text-xs text-white/70">單價庫 {version}</span>}
+        {/* 單價庫版本是我方內部的標籤，醫院採購沒必要看到 */}
+        {version && !isProcurement && (
+          <span className="text-xs text-white/70">單價庫 {version}</span>
+        )}
 
         <nav className="ml-4 flex flex-wrap gap-1">
           {/* 醫院採購是對方的人：只給議價入口，其餘一概不顯示 */}
