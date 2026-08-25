@@ -1,0 +1,5794 @@
+{
+ "meta": {
+  "generated_from": 7,
+  "source_items": 438,
+  "rules": {
+   "mgmt_fee_rate": 0.05,
+   "tax_rate": 0.05,
+   "notes": "管理費率經全檔實測分佈：5%共53件、10%共5件(260818起之近期案)、9%共2件(1211)、異常2.2%共1件，樣本61件；本系統依主管指定採9%。營業稅一律5%。"
+  },
+  "max_date": "2026-08-25",
+  "price_window_from": "2025-08-25",
+  "notes": [
+   "資料來源為立德新報價單 PDF 文字抽取結果；工程管理費率以 5% 為主(42/48 案例)，另有 6 案採 9~10%，系統預設 5%。",
+   "日期資料夾 060708 疑為 260708 誤植，已按 2026-07-08 計入時序；OLD 資料夾無日期，視為最舊。",
+   "「五金另件/施工費/工資/運雜費/管銷費/清運」皆為以「式」計價的浮動項，std_price 取中位數，實際報價須依案調整。",
+   "規格不同者一律未合併(如 3.5mm² vs 2.0mm²、600/800/1000/1200CFM 送風機與風箱、各尺寸鍍鋅管與保溫棉)。",
+   "「網路短接線(72~74元/條)」與「跳接短線(182元/條)」價差達 2.5 倍，判定為不同料件未合併，請主管確認。",
+   "260825 創新教育中心報價單明細加總 3,565 與小計 2,965 不符(差額600)，來源端不一致，已照原文逐項登錄。",
+   "260223 世新藥局網路孔配置 PDF 為掃描圖檔無法抽取文字，該案品項未納入目錄。",
+   "單價 100~150 元區間的電纜線 3.5mm² 3C：歷史眾數 134 元，但最近兩案(260824/260825)已降為 100 元，std_price 仍採眾數 134，建議主管視採購時點下修。",
+   "無熔絲開關 1P20A 有「NFB(PC/135元)」與「士林(只/120元)」兩種寫法，因牌子與單位不同未合併。",
+   "【單位混用,已取出現最多者】五金另件(固定配件、耗材等)(式/支→式)；工資(工/式→式)；防火門水平推桿更新(工+料)(只/式→式)；Honeywell電動閥 3/4\"(個/組→組)；回風箱含濾網 800CFM(台/組→組)；PVC壓條(1M)(支/條→支)；跳接短線(條/組→條)；壓條(支/條→支)；插座(接地雙插附蓋)(個/只→個)；回風口附抽取式濾網 ABS600*600(台/組→台)",
+   "【離群值,未計入 min/max/std】五金另件(固定配件、耗材等)[500, 650, 6250, 6500, 7150]；工資[1000, 170000]；電纜線 3.5mm² 3C[22]；管銷費[38500]；防火區劃之防火填塞施作[492000]；五金料件(含銅閘閥、控制線、保溫材)[50000]；廢棄物清運[2000, 40800]",
+   "【每次報價都不同,std_price 取最近一次或中位數,務必逐案確認】磁力鎖 JC-0600P(2860~3750)；電源變壓器AD2-12 12V 2A(650~750)；廢棄物清運(6000~18000)",
+   "【一次性專案大項,已歸『其他/專案性項目』,單價不具通用性】天花板更新(PVC更新為矽酸鈣板\\耐燃二級以上材)、舊有管路設備拆除搬運、保溫工資(全案汰換,含穿樑穿牆處理)、新增保溫管墊材料、防火門新增(3扇)、門診、醫療、血液透析大樓張貼防火門標示與反光條、升降機梯廳牆面裝修材(防火漆噴塗)、鷹架搭設 長*寬*高 (180*120*900 CM)"
+  ],
+  "version": "v1",
+  "effective": "2026-08-25"
+ },
+ "categories": [
+  {
+   "id": "power",
+   "name": "配電工程"
+  },
+  {
+   "id": "network",
+   "name": "網路通訊工程"
+  },
+  {
+   "id": "hvac",
+   "name": "空調通風工程"
+  },
+  {
+   "id": "finish",
+   "name": "裝修工程"
+  },
+  {
+   "id": "access",
+   "name": "門禁保全工程"
+  },
+  {
+   "id": "fire",
+   "name": "消防與防火工程"
+  },
+  {
+   "id": "common",
+   "name": "共通費用(工資/耗材/清運/管銷)"
+  },
+  {
+   "id": "other",
+   "name": "其他/專案性項目"
+  }
+ ],
+ "items": [
+  {
+   "id": "pw-cable-3-5-3c",
+   "category": "power",
+   "name": "電纜線 3.5mm² 3C",
+   "spec": "3.5mm²*3C",
+   "unit": "米",
+   "cost_type": "material",
+   "std_price": 134,
+   "price_min": 100,
+   "price_max": 150,
+   "price_median": 134,
+   "samples": 10,
+   "last_seen": "260825",
+   "last_price": 100,
+   "aliases": [
+    "3.5 X 3C電纜線",
+    "Cable 3C 3.5mm",
+    "大山 PVC電纜線 3.5mm^2/3C",
+    "電纜線3.5mm*3C"
+   ],
+   "sources": [
+    {
+     "quote_id": "260825__報價單-神經醫學中心申請220V專用插座",
+     "date_dir": "260825",
+     "unit_price": 100,
+     "qty": 20
+    },
+    {
+     "quote_id": "加護中心申請220V專用插座",
+     "date_dir": "260824",
+     "unit_price": 100,
+     "qty": 20
+    },
+    {
+     "quote_id": "報價單-申請外籍移工檢體蒐集區新增硬體設備(網孔、電源) (1)-立德新",
+     "date_dir": "260729",
+     "unit_price": 134,
+     "qty": 20
+    },
+    {
+     "quote_id": "260520__報價單-停車塔E塔前增設220V電源線2-立德新",
+     "date_dir": "260520",
+     "unit_price": 150,
+     "qty": 80
+    },
+    {
+     "quote_id": "報價單-心肺治療室增設門禁工事",
+     "date_dir": "260320",
+     "unit_price": 112,
+     "qty": 10
+    },
+    {
+     "quote_id": "260320__報價單-插座請購 (門診大樓一樓領藥櫃檯旁智能販賣機使用)",
+     "date_dir": "260320",
+     "unit_price": 22,
+     "qty": 10
+    },
+    {
+     "quote_id": "260320__報價單-請購生化血液冰箱及血清冰箱改為緊急用電.pdf",
+     "date_dir": "260320",
+     "unit_price": 22,
+     "qty": 20
+    },
+    {
+     "quote_id": "報價單-88診新增UPS迴路插座-立德新",
+     "date_dir": "1219",
+     "unit_price": 134,
+     "qty": 60
+    }
+   ]
+  },
+  {
+   "id": "pw-trunking-pvc-1m",
+   "category": "power",
+   "name": "PVC壓條(1M)",
+   "spec": "1M",
+   "unit": "支",
+   "cost_type": "material",
+   "std_price": 30,
+   "price_min": 30,
+   "price_max": 30,
+   "price_median": 30,
+   "samples": 4,
+   "last_seen": "260825",
+   "last_price": 30,
+   "aliases": [
+    "PVC 壓條(1M)"
+   ],
+   "sources": [
+    {
+     "quote_id": "報價單-創新教育中心安裝專用迴路插座",
+     "date_dir": "260825",
+     "unit_price": 30,
+     "qty": 1
+    },
+    {
+     "quote_id": "260825__報價單-神經醫學中心申請220V專用插座",
+     "date_dir": "260825",
+     "unit_price": 30,
+     "qty": 20
+    },
+    {
+     "quote_id": "加護中心申請220V專用插座",
+     "date_dir": "260824",
+     "unit_price": 30,
+     "qty": 20
+    },
+    {
+     "quote_id": "260818__報價單-神經醫學中心新增網孔及拉線作業",
+     "date_dir": "260818",
+     "unit_price": 30,
+     "qty": 6
+    }
+   ]
+  },
+  {
+   "id": "pw-trunking-plain",
+   "category": "power",
+   "name": "壓條",
+   "spec": "",
+   "unit": "支",
+   "cost_type": "material",
+   "std_price": 65,
+   "price_min": 65,
+   "price_max": 65,
+   "price_median": 65,
+   "samples": 3,
+   "last_seen": "260223",
+   "last_price": 65,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260223__報價單-舒眠館新增網路線3F至 B2-追加工程",
+     "date_dir": "260223",
+     "unit_price": 65,
+     "qty": 3
+    },
+    {
+     "quote_id": "260209__報價單-舒眠館新增網路線3F至 B2-追加工程",
+     "date_dir": "260209",
+     "unit_price": 65,
+     "qty": 3
+    },
+    {
+     "quote_id": "1219__報價單-功能檢查室麻訪間新增電源插座二組-立德新",
+     "date_dir": "1219",
+     "unit_price": 65,
+     "qty": 4
+    }
+   ]
+  },
+  {
+   "id": "pw-junction-box-zhengya",
+   "category": "power",
+   "name": "接線盒(正亞)",
+   "spec": "",
+   "unit": "個",
+   "cost_type": "material",
+   "std_price": 87,
+   "price_min": 87,
+   "price_max": 87,
+   "price_median": 87,
+   "samples": 3,
+   "last_seen": "20260105",
+   "last_price": 87,
+   "aliases": [
+    "接線盒（正亞）"
+   ],
+   "sources": [
+    {
+     "quote_id": "20260105__報價單-申請門診大樓9樓全方位健康創新小組(再生、功能、睡眠醫學中心)之無線網路設置-_Copy",
+     "date_dir": "20260105",
+     "unit_price": 87,
+     "qty": 2
+    },
+    {
+     "quote_id": "報價單-申請9S自費醫療區（全方位健康創新小組）增設網路線孔與電話線孔",
+     "date_dir": "1229",
+     "unit_price": 87,
+     "qty": 12
+    },
+    {
+     "quote_id": "報價單-申請9S自費醫療區（全方位健康創新小組）增設網路線孔與電話線孔",
+     "date_dir": "1224",
+     "unit_price": 87,
+     "qty": 12
+    }
+   ]
+  },
+  {
+   "id": "pw-surface-box",
+   "category": "power",
+   "name": "明盒",
+   "spec": "",
+   "unit": "個",
+   "cost_type": "material",
+   "std_price": 13,
+   "price_min": 13,
+   "price_max": 28,
+   "price_median": 13,
+   "samples": 3,
+   "last_seen": "260729",
+   "last_price": 28,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-申請外籍移工檢體蒐集區新增硬體設備(網孔、電源) (1)-立德新",
+     "date_dir": "260729",
+     "unit_price": 28,
+     "qty": 1
+    },
+    {
+     "quote_id": "260223__報價單-舒眠館新增網路線3F至 B2-追加工程",
+     "date_dir": "260223",
+     "unit_price": 13,
+     "qty": 4
+    },
+    {
+     "quote_id": "260209__報價單-舒眠館新增網路線3F至 B2-追加工程",
+     "date_dir": "260209",
+     "unit_price": 13,
+     "qty": 4
+    }
+   ]
+  },
+  {
+   "id": "pw-outlet-2",
+   "category": "power",
+   "name": "明盒插座及標示",
+   "spec": "",
+   "unit": "個",
+   "cost_type": "material",
+   "std_price": 114,
+   "price_min": 114,
+   "price_max": 114,
+   "price_median": 114,
+   "samples": 3,
+   "last_seen": "260320",
+   "last_price": 114,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260320__報價單-插座請購 (門診大樓一樓領藥櫃檯旁智能販賣機使用)",
+     "date_dir": "260320",
+     "unit_price": 114,
+     "qty": 1
+    },
+    {
+     "quote_id": "260320__報價單-請購生化血液冰箱及血清冰箱改為緊急用電.pdf",
+     "date_dir": "260320",
+     "unit_price": 114,
+     "qty": 2
+    },
+    {
+     "quote_id": "1211__急診組合屋2F電源網路新增工程",
+     "date_dir": "1211",
+     "unit_price": 114,
+     "qty": 10
+    }
+   ]
+  },
+  {
+   "id": "pw-transformer-2",
+   "category": "power",
+   "name": "電源變壓器AD2-12 12V 2A",
+   "spec": "",
+   "unit": "只",
+   "cost_type": "material",
+   "std_price": 650,
+   "price_min": 650,
+   "price_max": 750,
+   "price_median": 750,
+   "samples": 3,
+   "last_seen": "260320",
+   "last_price": 650,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-心肺治療室增設門禁工事",
+     "date_dir": "260320",
+     "unit_price": 650,
+     "qty": 1
+    },
+    {
+     "quote_id": "OLD__報價單-6L7L日光室加裝門禁工事-立德新",
+     "date_dir": "OLD",
+     "unit_price": 750,
+     "qty": 2
+    },
+    {
+     "quote_id": "OLD__報價單-8S8L污物室增設門禁-立德新",
+     "date_dir": "OLD",
+     "unit_price": 750,
+     "qty": 2
+    }
+   ]
+  },
+  {
+   "id": "pw-cable-2-0-3c",
+   "category": "power",
+   "name": "電纜線 2.0mm² 3C",
+   "spec": "2.0mm²*3C",
+   "unit": "米",
+   "cost_type": "material",
+   "std_price": 76,
+   "price_min": 60,
+   "price_max": 76,
+   "price_median": 76,
+   "samples": 3,
+   "last_seen": "260825",
+   "last_price": 60,
+   "aliases": [
+    "正亞 電纜線2.0mm*3C",
+    "電纜線2.0mm*3C",
+    "電纜線2.0mm*3C(太平洋)"
+   ],
+   "sources": [
+    {
+     "quote_id": "報價單-創新教育中心安裝專用迴路插座",
+     "date_dir": "260825",
+     "unit_price": 60,
+     "qty": 10
+    },
+    {
+     "quote_id": "20260105__手術室11房液晶電視電源線插座",
+     "date_dir": "20260105",
+     "unit_price": 76,
+     "qty": 30
+    },
+    {
+     "quote_id": "1219__報價單-功能檢查室麻訪間新增電源插座二組-立德新",
+     "date_dir": "1219",
+     "unit_price": 76,
+     "qty": 20
+    }
+   ]
+  },
+  {
+   "id": "pw-trunking-1",
+   "category": "power",
+   "name": "1號壓條(米白色)",
+   "spec": "",
+   "unit": "支",
+   "cost_type": "material",
+   "std_price": 18,
+   "price_min": 18,
+   "price_max": 18,
+   "price_median": 18,
+   "samples": 2,
+   "last_seen": "260528",
+   "last_price": 18,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260528__報價單-6L電子紙配接電源工程 (2)-立德新",
+     "date_dir": "260528",
+     "unit_price": 18,
+     "qty": 20
+    },
+    {
+     "quote_id": "260528__報價單-6L電子紙配接電源工程 (2)-立德新",
+     "date_dir": "260528",
+     "unit_price": 18,
+     "qty": 50
+    }
+   ]
+  },
+  {
+   "id": "pw-pvc",
+   "category": "power",
+   "name": "PVC 管",
+   "spec": "",
+   "unit": "支",
+   "cost_type": "material",
+   "std_price": 81,
+   "price_min": 81,
+   "price_max": 150,
+   "price_median": 116,
+   "samples": 2,
+   "last_seen": "1211",
+   "last_price": 81,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "1211__急診組合屋2F電源網路新增工程",
+     "date_dir": "1211",
+     "unit_price": 150,
+     "qty": 12
+    },
+    {
+     "quote_id": "1211__急診組合屋2F電源網路新增工程",
+     "date_dir": "1211",
+     "unit_price": 81,
+     "qty": 6
+    }
+   ]
+  },
+  {
+   "id": "pw-cable-1-25-2",
+   "category": "power",
+   "name": "大山 PVC電纜線 1.25/3C",
+   "spec": "1.25/3C",
+   "unit": "米",
+   "cost_type": "material",
+   "std_price": 135,
+   "price_min": 135,
+   "price_max": 135,
+   "price_median": 135,
+   "samples": 2,
+   "last_seen": "OLD",
+   "last_price": 135,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "OLD__報價單-6L7L日光室加裝門禁工事-立德新",
+     "date_dir": "OLD",
+     "unit_price": 135,
+     "qty": 30
+    },
+    {
+     "quote_id": "OLD__報價單-8S8L污物室增設門禁-立德新",
+     "date_dir": "OLD",
+     "unit_price": 135,
+     "qty": 20
+    }
+   ]
+  },
+  {
+   "id": "pw-outlet-grounded-duplex",
+   "category": "power",
+   "name": "插座(接地雙插附蓋)",
+   "spec": "國際星光",
+   "unit": "個",
+   "cost_type": "material",
+   "std_price": 114,
+   "price_min": 114,
+   "price_max": 114,
+   "price_median": 114,
+   "samples": 2,
+   "last_seen": "20260105",
+   "last_price": 114,
+   "aliases": [
+    "國際星光 插座(接地雙插附蓋)"
+   ],
+   "sources": [
+    {
+     "quote_id": "20260105__手術室11房液晶電視電源線插座",
+     "date_dir": "20260105",
+     "unit_price": 114,
+     "qty": 2
+    },
+    {
+     "quote_id": "1219__報價單-功能檢查室麻訪間新增電源插座二組-立德新",
+     "date_dir": "1219",
+     "unit_price": 114,
+     "qty": 2
+    }
+   ]
+  },
+  {
+   "id": "pw-install-fee",
+   "category": "power",
+   "name": "施工費(暗架配線)",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "labor",
+   "std_price": 22500,
+   "price_min": 22500,
+   "price_max": 22500,
+   "price_median": 22500,
+   "samples": 2,
+   "last_seen": "260223",
+   "last_price": 22500,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260223__報價單-申請9S自費醫療區（全方位健康創新小組）增設網路線孔與電話線孔-追加工程",
+     "date_dir": "260223",
+     "unit_price": 22500,
+     "qty": 1
+    },
+    {
+     "quote_id": "260209__報價單-申請9S自費醫療區（全方位健康創新小組）增設網路線孔與電話線孔-追加工程",
+     "date_dir": "260209",
+     "unit_price": 22500,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "pw-outlet-250",
+   "category": "power",
+   "name": "星光250V 20A(T型插座)含明盒",
+   "spec": "",
+   "unit": "組",
+   "cost_type": "material",
+   "std_price": 375,
+   "price_min": 375,
+   "price_max": 375,
+   "price_median": 375,
+   "samples": 2,
+   "last_seen": "260825",
+   "last_price": 375,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260825__報價單-神經醫學中心申請220V專用插座",
+     "date_dir": "260825",
+     "unit_price": 375,
+     "qty": 1
+    },
+    {
+     "quote_id": "加護中心申請220V專用插座",
+     "date_dir": "260824",
+     "unit_price": 375,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "pw-switch-1p",
+   "category": "power",
+   "name": "無熔絲開關 NFB 1P20A",
+   "spec": "1P20A",
+   "unit": "PC",
+   "cost_type": "material",
+   "std_price": 135,
+   "price_min": 135,
+   "price_max": 135,
+   "price_median": 135,
+   "samples": 2,
+   "last_seen": "260825",
+   "last_price": 135,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260825__報價單-神經醫學中心申請220V專用插座",
+     "date_dir": "260825",
+     "unit_price": 135,
+     "qty": 1
+    },
+    {
+     "quote_id": "加護中心申請220V專用插座",
+     "date_dir": "260824",
+     "unit_price": 135,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "pw-switch-3p",
+   "category": "power",
+   "name": "電池組開關增設( 3P/100A )",
+   "spec": "3P/100A",
+   "unit": "式",
+   "cost_type": "material",
+   "std_price": 5000,
+   "price_min": 5000,
+   "price_max": 5000,
+   "price_median": 5000,
+   "samples": 2,
+   "last_seen": "260729",
+   "last_price": 5000,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260729__報價單-L11 30KVA UPS (1)-立德新",
+     "date_dir": "260729",
+     "unit_price": 5000,
+     "qty": 1
+    },
+    {
+     "quote_id": "260722__報價單-L11 30KVA UPS (1)-立德新.pdf",
+     "date_dir": "260722",
+     "unit_price": 5000,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "pw-cable-2-0mm-2",
+   "category": "power",
+   "name": "電纜線2.0mm*3C(大山100米)",
+   "spec": "2.0mm*3C",
+   "unit": "捲",
+   "cost_type": "material",
+   "std_price": 3375,
+   "price_min": 3375,
+   "price_max": 3375,
+   "price_median": 3375,
+   "samples": 2,
+   "last_seen": "260528",
+   "last_price": 3375,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260528__報價單-6L電子紙配接電源工程 (2)-立德新",
+     "date_dir": "260528",
+     "unit_price": 3375,
+     "qty": 1
+    },
+    {
+     "quote_id": "260528__報價單-6L電子紙配接電源工程 (2)-立德新",
+     "date_dir": "260528",
+     "unit_price": 3375,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "pw-cable-1-25mm",
+   "category": "power",
+   "name": "1.25mm²*3C CABLE",
+   "spec": "1.25mm²*3C",
+   "unit": "米",
+   "cost_type": "material",
+   "std_price": 52,
+   "price_min": 52,
+   "price_max": 52,
+   "price_median": 52,
+   "samples": 1,
+   "last_seen": "260504",
+   "last_price": 52,
+   "aliases": [
+    "1.25MM^2*3C CABLE"
+   ],
+   "sources": [
+    {
+     "quote_id": "260504__報價單-立德新-環南BF數位發展部",
+     "date_dir": "260504",
+     "unit_price": 52,
+     "qty": 50
+    }
+   ]
+  },
+  {
+   "id": "pw-outlet-110",
+   "category": "power",
+   "name": "110V雙連插座",
+   "spec": "",
+   "unit": "只",
+   "cost_type": "material",
+   "std_price": 171,
+   "price_min": 171,
+   "price_max": 171,
+   "price_median": 171,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 171,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "中壢聯新診所新增插頭",
+     "date_dir": "1219",
+     "unit_price": 171,
+     "qty": 5
+    }
+   ]
+  },
+  {
+   "id": "pw-cable-2-0mm-3",
+   "category": "power",
+   "name": "2.0mm²*4C CABLE",
+   "spec": "2.0mm²*4C",
+   "unit": "米",
+   "cost_type": "material",
+   "std_price": 75,
+   "price_min": 75,
+   "price_max": 75,
+   "price_median": 75,
+   "samples": 1,
+   "last_seen": "260504",
+   "last_price": 75,
+   "aliases": [
+    "2.0MM^2*4C CABLE"
+   ],
+   "sources": [
+    {
+     "quote_id": "260504__報價單-立德新-環南BF數位發展部",
+     "date_dir": "260504",
+     "unit_price": 75,
+     "qty": 50
+    }
+   ]
+  },
+  {
+   "id": "pw-conduit-3",
+   "category": "power",
+   "name": "3/4\" PVC配線管(4M)",
+   "spec": "3/4\"",
+   "unit": "支",
+   "cost_type": "material",
+   "std_price": 135,
+   "price_min": 135,
+   "price_max": 135,
+   "price_median": 135,
+   "samples": 1,
+   "last_seen": "260825",
+   "last_price": 135,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-創新教育中心安裝專用迴路插座",
+     "date_dir": "260825",
+     "unit_price": 135,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "pw-lamp-set",
+   "category": "power",
+   "name": "LED紅/綠指式燈組",
+   "spec": "",
+   "unit": "組",
+   "cost_type": "material",
+   "std_price": 1365,
+   "price_min": 1365,
+   "price_max": 1365,
+   "price_median": 1365,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 1365,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-B1F影像醫學更衣室指示燈工事",
+     "date_dir": "1219",
+     "unit_price": 1365,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "pw-outlet-4",
+   "category": "power",
+   "name": "塑膠插座明盒",
+   "spec": "",
+   "unit": "只",
+   "cost_type": "material",
+   "std_price": 31,
+   "price_min": 31,
+   "price_max": 31,
+   "price_median": 31,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 31,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "中壢聯新診所新增插頭",
+     "date_dir": "1219",
+     "unit_price": 31,
+     "qty": 5
+    }
+   ]
+  },
+  {
+   "id": "pw-trunking-5",
+   "category": "power",
+   "name": "壓條UD-5",
+   "spec": "",
+   "unit": "只",
+   "cost_type": "material",
+   "std_price": 78,
+   "price_min": 78,
+   "price_max": 78,
+   "price_median": 78,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 78,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "中壢聯新診所新增插頭",
+     "date_dir": "1219",
+     "unit_price": 78,
+     "qty": 10
+    }
+   ]
+  },
+  {
+   "id": "pw-switch-1p-2",
+   "category": "power",
+   "name": "士林1P 20A無熔絲開關",
+   "spec": "1P 20A",
+   "unit": "只",
+   "cost_type": "material",
+   "std_price": 120,
+   "price_min": 120,
+   "price_max": 120,
+   "price_median": 120,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 120,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "中壢聯新診所新增插頭",
+     "date_dir": "1219",
+     "unit_price": 120,
+     "qty": 2
+    }
+   ]
+  },
+  {
+   "id": "pw-cable-1-25",
+   "category": "power",
+   "name": "大山 PVC電纜線 1.25/4C",
+   "spec": "1.25/4C",
+   "unit": "米",
+   "cost_type": "material",
+   "std_price": 39,
+   "price_min": 39,
+   "price_max": 39,
+   "price_median": 39,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 39,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-B1F影像醫學更衣室指示燈工事",
+     "date_dir": "1219",
+     "unit_price": 39,
+     "qty": 30
+    }
+   ]
+  },
+  {
+   "id": "pw-junction-box",
+   "category": "power",
+   "name": "接線盒",
+   "spec": "",
+   "unit": "只",
+   "cost_type": "material",
+   "std_price": 65,
+   "price_min": 65,
+   "price_max": 65,
+   "price_median": 65,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 65,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-功能檢查室麻訪間新增電源插座二組-立德新",
+     "date_dir": "1219",
+     "unit_price": 65,
+     "qty": 2
+    }
+   ]
+  },
+  {
+   "id": "pw-panel",
+   "category": "power",
+   "name": "控制電盤阻立",
+   "spec": "",
+   "unit": "組",
+   "cost_type": "labor",
+   "std_price": 15400,
+   "price_min": 15400,
+   "price_max": 15400,
+   "price_median": 15400,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 15400,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 15400,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "pw-outlet",
+   "category": "power",
+   "name": "星光雙連插座含明盒及蓋板",
+   "spec": "",
+   "unit": "組",
+   "cost_type": "material",
+   "std_price": 300,
+   "price_min": 300,
+   "price_max": 300,
+   "price_median": 300,
+   "samples": 1,
+   "last_seen": "260825",
+   "last_price": 300,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-創新教育中心安裝專用迴路插座",
+     "date_dir": "260825",
+     "unit_price": 300,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "pw-switch",
+   "category": "power",
+   "name": "無熔絲開關",
+   "spec": "",
+   "unit": "只",
+   "cost_type": "material",
+   "std_price": 244,
+   "price_min": 244,
+   "price_max": 244,
+   "price_median": 244,
+   "samples": 1,
+   "last_seen": "260520",
+   "last_price": 244,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260520__報價單-停車塔E塔前增設220V電源線2-立德新",
+     "date_dir": "260520",
+     "unit_price": 244,
+     "qty": 2
+    }
+   ]
+  },
+  {
+   "id": "pw-flex-hose",
+   "category": "power",
+   "name": "軟管",
+   "spec": "",
+   "unit": "個",
+   "cost_type": "material",
+   "std_price": 65,
+   "price_min": 65,
+   "price_max": 65,
+   "price_median": 65,
+   "samples": 1,
+   "last_seen": "260520",
+   "last_price": 65,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260520__報價單-停車塔E塔前增設220V電源線2-立德新",
+     "date_dir": "260520",
+     "unit_price": 65,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "pw-power-supply-2",
+   "category": "power",
+   "name": "配置電源線",
+   "spec": "",
+   "unit": "米",
+   "cost_type": "material",
+   "std_price": 320,
+   "price_min": 320,
+   "price_max": 320,
+   "price_median": 320,
+   "samples": 1,
+   "last_seen": "260714",
+   "last_price": 320,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260714__立德新-急診室1F-變頻冷氣新增安裝",
+     "date_dir": "260714",
+     "unit_price": 320,
+     "qty": 90
+    }
+   ]
+  },
+  {
+   "id": "pw-power-supply",
+   "category": "power",
+   "name": "電源線路復原",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "labor",
+   "std_price": 20350,
+   "price_min": 20350,
+   "price_max": 20350,
+   "price_median": 20350,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 20350,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 20350,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "pw-outlet-3",
+   "category": "power",
+   "name": "電源轉接USB暗插座",
+   "spec": "",
+   "unit": "台",
+   "cost_type": "material",
+   "std_price": 809,
+   "price_min": 809,
+   "price_max": 809,
+   "price_median": 809,
+   "samples": 1,
+   "last_seen": "260528",
+   "last_price": 809,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260528__報價單-6L電子紙配接電源工程 (2)-立德新",
+     "date_dir": "260528",
+     "unit_price": 809,
+     "qty": 50
+    }
+   ]
+  },
+  {
+   "id": "pw-transformer-5",
+   "category": "power",
+   "name": "電源轉接USB變壓器(5V2A華碩)",
+   "spec": "",
+   "unit": "台",
+   "cost_type": "material",
+   "std_price": 270,
+   "price_min": 270,
+   "price_max": 270,
+   "price_median": 270,
+   "samples": 1,
+   "last_seen": "260528",
+   "last_price": 270,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260528__報價單-6L電子紙配接電源工程 (2)-立德新",
+     "date_dir": "260528",
+     "unit_price": 270,
+     "qty": 20
+    }
+   ]
+  },
+  {
+   "id": "pw-cable-2-0mm",
+   "category": "power",
+   "name": "電纜線2.0mm",
+   "spec": "2.0mm",
+   "unit": "米",
+   "cost_type": "material",
+   "std_price": 46,
+   "price_min": 46,
+   "price_max": 46,
+   "price_median": 46,
+   "samples": 1,
+   "last_seen": "1211",
+   "last_price": 46,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "1211__急診組合屋2F電源網路新增工程",
+     "date_dir": "1211",
+     "unit_price": 46,
+     "qty": 50
+    }
+   ]
+  },
+  {
+   "id": "nw-cable-cat6",
+   "category": "network",
+   "name": "訊號線(網路線) CAT-6",
+   "spec": "CAT-6",
+   "unit": "米",
+   "cost_type": "material",
+   "std_price": 22,
+   "price_min": 15,
+   "price_max": 30,
+   "price_median": 22,
+   "samples": 22,
+   "last_seen": "260818",
+   "last_price": 22,
+   "aliases": [
+    "CAT-6 訊號線(網路線)",
+    "CAT6 UTP 4對隔離雙絞網路線(大同)(40米2條)",
+    "網路線（CAT-6）",
+    "訊號線(網路線)",
+    "訊號線(網路線)(CAT-6 (48米*3))",
+    "訊號線(網路線)(CAT-6 70米*2條)",
+    "訊號線(網路線)（CAT-6 70米*12條）",
+    "訊號線(網路線)（CAT-6 80米*2條）",
+    "訊號線(網路線)（CAT-6）"
+   ],
+   "sources": [
+    {
+     "quote_id": "260818__報價單-神經醫學中心新增網孔及拉線作業",
+     "date_dir": "260818",
+     "unit_price": 22,
+     "qty": 80
+    },
+    {
+     "quote_id": "報價單-申請外籍移工檢體蒐集區新增硬體設備(網孔、電源) (1)-立德新",
+     "date_dir": "260729",
+     "unit_price": 30,
+     "qty": 50
+    },
+    {
+     "quote_id": "260223__報價單-申請產房待產室5新增網路線-立德新.pdf",
+     "date_dir": "260223",
+     "unit_price": 22,
+     "qty": 55
+    },
+    {
+     "quote_id": "260223__報價單-舒眠館新增網路線3F至 B2-追加工程",
+     "date_dir": "260223",
+     "unit_price": 22,
+     "qty": 144
+    },
+    {
+     "quote_id": "260223__報價單-財務處_增設拉線至第一個位置網路孔-立德新",
+     "date_dir": "260223",
+     "unit_price": 22,
+     "qty": 20
+    },
+    {
+     "quote_id": "報價單-501診拉網路線施工-立德新",
+     "date_dir": "260223",
+     "unit_price": 22,
+     "qty": 50
+    },
+    {
+     "quote_id": "報價單-世新藥局網路孔配置-立德新",
+     "date_dir": "260223",
+     "unit_price": 22,
+     "qty": 100
+    },
+    {
+     "quote_id": "260209__報價單-申請產房待產室5新增網路線-立德新.pdf",
+     "date_dir": "260209",
+     "unit_price": 22,
+     "qty": 55
+    }
+   ]
+  },
+  {
+   "id": "nw-patch-cord",
+   "category": "network",
+   "name": "網路短接線",
+   "spec": "",
+   "unit": "條",
+   "cost_type": "material",
+   "std_price": 72,
+   "price_min": 72,
+   "price_max": 74,
+   "price_median": 72,
+   "samples": 9,
+   "last_seen": "260223",
+   "last_price": 72,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-世新藥局網路孔配置-立德新",
+     "date_dir": "260223",
+     "unit_price": 72,
+     "qty": 2
+    },
+    {
+     "quote_id": "報價單-申請尊爵會館VIP室網路線連結-立德新",
+     "date_dir": "260202",
+     "unit_price": 72,
+     "qty": 1
+    },
+    {
+     "quote_id": "20260105__報價單-申請門診大樓9樓全方位健康創新小組(再生、功能、睡眠醫學中心)之無線網路設置-_Copy",
+     "date_dir": "20260105",
+     "unit_price": 72,
+     "qty": 2
+    },
+    {
+     "quote_id": "報價單-申請9S自費醫療區（全方位健康創新小組）增設網路線孔與電話線孔",
+     "date_dir": "1229",
+     "unit_price": 72,
+     "qty": 12
+    },
+    {
+     "quote_id": "報價單-申請9S自費醫療區（全方位健康創新小組）增設網路線孔與電話線孔",
+     "date_dir": "1224",
+     "unit_price": 72,
+     "qty": 12
+    },
+    {
+     "quote_id": "1219__報價單-人資處面談試新增網路孔-立德新.pdf",
+     "date_dir": "1219",
+     "unit_price": 74,
+     "qty": 1
+    },
+    {
+     "quote_id": "1219__報價單-申請第一攝影室新設網路孔乙座-立德新-重新報價",
+     "date_dir": "1219",
+     "unit_price": 74,
+     "qty": 1
+    },
+    {
+     "quote_id": "報價單-人資處面談試新增網路孔-立德新",
+     "date_dir": "1126",
+     "unit_price": 74,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "nw-info-panel",
+   "category": "network",
+   "name": "資訊面板",
+   "spec": "",
+   "unit": "片",
+   "cost_type": "material",
+   "std_price": 65,
+   "price_min": 65,
+   "price_max": 65,
+   "price_median": 65,
+   "samples": 8,
+   "last_seen": "260223",
+   "last_price": 65,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260223__報價單-申請產房待產室5新增網路線-立德新.pdf",
+     "date_dir": "260223",
+     "unit_price": 65,
+     "qty": 1
+    },
+    {
+     "quote_id": "260223__報價單-財務處_增設拉線至第一個位置網路孔-立德新",
+     "date_dir": "260223",
+     "unit_price": 65,
+     "qty": 1
+    },
+    {
+     "quote_id": "報價單-501診拉網路線施工-立德新",
+     "date_dir": "260223",
+     "unit_price": 65,
+     "qty": 1
+    },
+    {
+     "quote_id": "260209__報價單-申請產房待產室5新增網路線-立德新.pdf",
+     "date_dir": "260209",
+     "unit_price": 65,
+     "qty": 1
+    },
+    {
+     "quote_id": "260209__報價單-財務處_增設拉線至第一個位置網路孔-立德新",
+     "date_dir": "260209",
+     "unit_price": 65,
+     "qty": 1
+    },
+    {
+     "quote_id": "20260105__人資處面談室新增網路孔 202601.pdf",
+     "date_dir": "20260105",
+     "unit_price": 65,
+     "qty": 1
+    },
+    {
+     "quote_id": "1211__急診組合屋2F電源網路新增工程",
+     "date_dir": "1211",
+     "unit_price": 65,
+     "qty": 1
+    },
+    {
+     "quote_id": "1211__急診組合屋2F電源網路新增工程",
+     "date_dir": "1211",
+     "unit_price": 65,
+     "qty": 2
+    }
+   ]
+  },
+  {
+   "id": "nw-info-socket-cat6",
+   "category": "network",
+   "name": "資訊插座 8pin8c CAT-6",
+   "spec": "8pin8c CAT-6",
+   "unit": "只",
+   "cost_type": "material",
+   "std_price": 176,
+   "price_min": 176,
+   "price_max": 176,
+   "price_median": 176,
+   "samples": 7,
+   "last_seen": "260223",
+   "last_price": 176,
+   "aliases": [
+    "8pin8c CAT-6 資訊插座",
+    "資訊插座",
+    "資訊插座(8Pin8C CAT-6)",
+    "資訊插座(8pin8c CAT-6)",
+    "資訊插座（8pin8c CAT-6）"
+   ],
+   "sources": [
+    {
+     "quote_id": "260223__報價單-申請產房待產室5新增網路線-立德新.pdf",
+     "date_dir": "260223",
+     "unit_price": 176,
+     "qty": 1
+    },
+    {
+     "quote_id": "260223__報價單-財務處_增設拉線至第一個位置網路孔-立德新",
+     "date_dir": "260223",
+     "unit_price": 176,
+     "qty": 1
+    },
+    {
+     "quote_id": "報價單-501診拉網路線施工-立德新",
+     "date_dir": "260223",
+     "unit_price": 176,
+     "qty": 1
+    },
+    {
+     "quote_id": "260209__報價單-申請產房待產室5新增網路線-立德新.pdf",
+     "date_dir": "260209",
+     "unit_price": 176,
+     "qty": 1
+    },
+    {
+     "quote_id": "260209__報價單-財務處_增設拉線至第一個位置網路孔-立德新",
+     "date_dir": "260209",
+     "unit_price": 176,
+     "qty": 1
+    },
+    {
+     "quote_id": "20260105__人資處面談室新增網路孔 202601.pdf",
+     "date_dir": "20260105",
+     "unit_price": 176,
+     "qty": 1
+    },
+    {
+     "quote_id": "1211__急診組合屋2F電源網路新增工程",
+     "date_dir": "1211",
+     "unit_price": 176,
+     "qty": 9
+    }
+   ]
+  },
+  {
+   "id": "nw-jumper-cord",
+   "category": "network",
+   "name": "跳接短線",
+   "spec": "",
+   "unit": "條",
+   "cost_type": "material",
+   "std_price": 182,
+   "price_min": 142,
+   "price_max": 182,
+   "price_median": 182,
+   "samples": 7,
+   "last_seen": "260818",
+   "last_price": 142,
+   "aliases": [
+    "短接線"
+   ],
+   "sources": [
+    {
+     "quote_id": "260818__報價單-神經醫學中心新增網孔及拉線作業",
+     "date_dir": "260818",
+     "unit_price": 142,
+     "qty": 2
+    },
+    {
+     "quote_id": "260223__報價單-申請產房待產室5新增網路線-立德新.pdf",
+     "date_dir": "260223",
+     "unit_price": 182,
+     "qty": 1
+    },
+    {
+     "quote_id": "260223__報價單-財務處_增設拉線至第一個位置網路孔-立德新",
+     "date_dir": "260223",
+     "unit_price": 182,
+     "qty": 1
+    },
+    {
+     "quote_id": "260209__報價單-申請產房待產室5新增網路線-立德新.pdf",
+     "date_dir": "260209",
+     "unit_price": 182,
+     "qty": 1
+    },
+    {
+     "quote_id": "260209__報價單-財務處_增設拉線至第一個位置網路孔-立德新",
+     "date_dir": "260209",
+     "unit_price": 182,
+     "qty": 1
+    },
+    {
+     "quote_id": "20260105__人資處面談室新增網路孔 202601.pdf",
+     "date_dir": "20260105",
+     "unit_price": 182,
+     "qty": 4
+    },
+    {
+     "quote_id": "1211__急診組合屋2F電源網路新增工程",
+     "date_dir": "1211",
+     "unit_price": 182,
+     "qty": 18
+    }
+   ]
+  },
+  {
+   "id": "nw-net-socket-cat6",
+   "category": "network",
+   "name": "網路插座 國際NRF CAT-6",
+   "spec": "國際 NRF CAT-6",
+   "unit": "只",
+   "cost_type": "material",
+   "std_price": 211,
+   "price_min": 210,
+   "price_max": 211,
+   "price_median": 211,
+   "samples": 6,
+   "last_seen": "260729",
+   "last_price": 211,
+   "aliases": [
+    "網路插座",
+    "網路插座(國際NRF CAT-6)",
+    "網路插座（國際NRF CAT-6）"
+   ],
+   "sources": [
+    {
+     "quote_id": "報價單-申請外籍移工檢體蒐集區新增硬體設備(網孔、電源) (1)-立德新",
+     "date_dir": "260729",
+     "unit_price": 211,
+     "qty": 1
+    },
+    {
+     "quote_id": "260223__報價單-舒眠館新增網路線3F至 B2-追加工程",
+     "date_dir": "260223",
+     "unit_price": 211,
+     "qty": 5
+    },
+    {
+     "quote_id": "260209__報價單-舒眠館新增網路線3F至 B2-追加工程",
+     "date_dir": "260209",
+     "unit_price": 211,
+     "qty": 5
+    },
+    {
+     "quote_id": "20260105__報價單-申請門診大樓9樓全方位健康創新小組(再生、功能、睡眠醫學中心)之無線網路設置-_Copy",
+     "date_dir": "20260105",
+     "unit_price": 210,
+     "qty": 2
+    },
+    {
+     "quote_id": "報價單-申請9S自費醫療區（全方位健康創新小組）增設網路線孔與電話線孔",
+     "date_dir": "1229",
+     "unit_price": 211,
+     "qty": 12
+    },
+    {
+     "quote_id": "報價單-申請9S自費醫療區（全方位健康創新小組）增設網路線孔與電話線孔",
+     "date_dir": "1224",
+     "unit_price": 211,
+     "qty": 12
+    }
+   ]
+  },
+  {
+   "id": "nw-rj45-plug-6",
+   "category": "network",
+   "name": "CAT6 RJ45 網路水晶頭 (附護套)",
+   "spec": "CAT6",
+   "unit": "顆",
+   "cost_type": "material",
+   "std_price": 22,
+   "price_min": 22,
+   "price_max": 22,
+   "price_median": 22,
+   "samples": 1,
+   "last_seen": "260818",
+   "last_price": 22,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260818__報價單-神經醫學中心新增網孔及拉線作業",
+     "date_dir": "260818",
+     "unit_price": 22,
+     "qty": 2
+    }
+   ]
+  },
+  {
+   "id": "nw-info-socket",
+   "category": "network",
+   "name": "單孔壁面板 / 資訊插座(含明盒)",
+   "spec": "",
+   "unit": "組",
+   "cost_type": "material",
+   "std_price": 300,
+   "price_min": 300,
+   "price_max": 300,
+   "price_median": 300,
+   "samples": 1,
+   "last_seen": "260818",
+   "last_price": 300,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260818__報價單-神經醫學中心新增網孔及拉線作業",
+     "date_dir": "260818",
+     "unit_price": 300,
+     "qty": 2
+    }
+   ]
+  },
+  {
+   "id": "nw-rj45-crimp",
+   "category": "network",
+   "name": "網路接頭壓接",
+   "spec": "",
+   "unit": "點",
+   "cost_type": "labor",
+   "std_price": 300,
+   "price_min": 300,
+   "price_max": 300,
+   "price_median": 300,
+   "samples": 1,
+   "last_seen": "260818",
+   "last_price": 300,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260818__報價單-神經醫學中心新增網孔及拉線作業",
+     "date_dir": "260818",
+     "unit_price": 300,
+     "qty": 2
+    }
+   ]
+  },
+  {
+   "id": "nw-lan-cable",
+   "category": "network",
+   "name": "網路線路測試(網路測線器)",
+   "spec": "",
+   "unit": "點",
+   "cost_type": "labor",
+   "std_price": 300,
+   "price_min": 300,
+   "price_max": 300,
+   "price_median": 300,
+   "samples": 1,
+   "last_seen": "260818",
+   "last_price": 300,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260818__報價單-神經醫學中心新增網孔及拉線作業",
+     "date_dir": "260818",
+     "unit_price": 300,
+     "qty": 2
+    }
+   ]
+  },
+  {
+   "id": "nw-signal-cable",
+   "category": "network",
+   "name": "訊號線(網路線)",
+   "spec": "",
+   "unit": "箱",
+   "cost_type": "material",
+   "std_price": 9760,
+   "price_min": 9760,
+   "price_max": 9760,
+   "price_median": 9760,
+   "samples": 1,
+   "last_seen": "1211",
+   "last_price": 9760,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "1211__急診組合屋2F電源網路新增工程",
+     "date_dir": "1211",
+     "unit_price": 9760,
+     "qty": 2.5
+    }
+   ]
+  },
+  {
+   "id": "hv-motor-valve-honeywell-34",
+   "category": "hvac",
+   "name": "Honeywell電動閥 3/4\"",
+   "spec": "3/4\"",
+   "unit": "組",
+   "cost_type": "material",
+   "std_price": 3900,
+   "price_min": 3300,
+   "price_max": 3900,
+   "price_median": 3900,
+   "samples": 5,
+   "last_seen": "260818",
+   "last_price": 3900,
+   "aliases": [
+    "Honeywell電動閥3/4\"",
+    "Honeywell電動閥3/4英吋"
+   ],
+   "sources": [
+    {
+     "quote_id": "S9F醫學美容中心小型送風機汰換報價單",
+     "date_dir": "260818",
+     "unit_price": 3900,
+     "qty": 1
+    },
+    {
+     "quote_id": "260818__報價單-L7F護理站小型送風機汰換",
+     "date_dir": "260818",
+     "unit_price": 3900,
+     "qty": 2
+    },
+    {
+     "quote_id": "工務處醫工課課汰換小型送風機",
+     "date_dir": "260528",
+     "unit_price": 3300,
+     "qty": 1
+    },
+    {
+     "quote_id": "立德新-L6F病房及公共區小型送風機汰換工程",
+     "date_dir": "20260515",
+     "unit_price": 3900,
+     "qty": 14
+    },
+    {
+     "quote_id": "260504__報價單-立德新-環南BF數位發展部",
+     "date_dir": "260504",
+     "unit_price": 3300,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-insul-hose-10",
+   "category": "hvac",
+   "name": "保溫軟管 10\"",
+   "spec": "10\"",
+   "unit": "條",
+   "cost_type": "material",
+   "std_price": 2730,
+   "price_min": 2700,
+   "price_max": 3640,
+   "price_median": 2730,
+   "samples": 5,
+   "last_seen": "260818",
+   "last_price": 3640,
+   "aliases": [
+    "保溫軟管10\"",
+    "保溫軟管10英吋"
+   ],
+   "sources": [
+    {
+     "quote_id": "S9F醫學美容中心小型送風機汰換報價單",
+     "date_dir": "260818",
+     "unit_price": 2730,
+     "qty": 2
+    },
+    {
+     "quote_id": "260818__報價單-L7F護理站小型送風機汰換",
+     "date_dir": "260818",
+     "unit_price": 3640,
+     "qty": 3
+    },
+    {
+     "quote_id": "工務處醫工課課汰換小型送風機",
+     "date_dir": "260528",
+     "unit_price": 2700,
+     "qty": 1
+    },
+    {
+     "quote_id": "立德新-L6F病房及公共區小型送風機汰換工程",
+     "date_dir": "20260515",
+     "unit_price": 2730,
+     "qty": 15
+    },
+    {
+     "quote_id": "260504__報價單-立德新-環南BF數位發展部",
+     "date_dir": "260504",
+     "unit_price": 2700,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-return-box-800cfm",
+   "category": "hvac",
+   "name": "回風箱含濾網 800CFM",
+   "spec": "800CFM",
+   "unit": "組",
+   "cost_type": "material",
+   "std_price": 3315,
+   "price_min": 3240,
+   "price_max": 3315,
+   "price_median": 3315,
+   "samples": 5,
+   "last_seen": "260818",
+   "last_price": 3315,
+   "aliases": [
+    "回風箱含濾網800CFM"
+   ],
+   "sources": [
+    {
+     "quote_id": "S9F醫學美容中心小型送風機汰換報價單",
+     "date_dir": "260818",
+     "unit_price": 3315,
+     "qty": 1
+    },
+    {
+     "quote_id": "260818__報價單-L7F護理站小型送風機汰換",
+     "date_dir": "260818",
+     "unit_price": 3315,
+     "qty": 2
+    },
+    {
+     "quote_id": "工務處醫工課課汰換小型送風機",
+     "date_dir": "260528",
+     "unit_price": 3240,
+     "qty": 1
+    },
+    {
+     "quote_id": "立德新-L6F病房及公共區小型送風機汰換工程",
+     "date_dir": "20260515",
+     "unit_price": 3315,
+     "qty": 11
+    },
+    {
+     "quote_id": "260504__報價單-立德新-環南BF數位發展部",
+     "date_dir": "260504",
+     "unit_price": 3240,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-insulation",
+   "category": "hvac",
+   "name": "五金料件(含銅閘閥、控制線、保溫材)",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "consumable",
+   "std_price": 5000,
+   "price_min": 4000,
+   "price_max": 6000,
+   "price_median": 5000,
+   "samples": 3,
+   "last_seen": "260818",
+   "last_price": 6000,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "S9F醫學美容中心小型送風機汰換報價單",
+     "date_dir": "260818",
+     "unit_price": 4000,
+     "qty": 1
+    },
+    {
+     "quote_id": "260818__報價單-L7F護理站小型送風機汰換",
+     "date_dir": "260818",
+     "unit_price": 6000,
+     "qty": 1
+    },
+    {
+     "quote_id": "立德新-L6F病房及公共區小型送風機汰換工程",
+     "date_dir": "20260515",
+     "unit_price": 50000,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-return-grille-abs600",
+   "category": "hvac",
+   "name": "回風口附抽取式濾網 ABS600*600",
+   "spec": "ABS600*600",
+   "unit": "台",
+   "cost_type": "material",
+   "std_price": 1170,
+   "price_min": 1170,
+   "price_max": 1266,
+   "price_median": 1170,
+   "samples": 3,
+   "last_seen": "260528",
+   "last_price": 1170,
+   "aliases": [
+    "回風口附抽取式濾網ABS600*600"
+   ],
+   "sources": [
+    {
+     "quote_id": "工務處醫工課課汰換小型送風機",
+     "date_dir": "260528",
+     "unit_price": 1170,
+     "qty": 1
+    },
+    {
+     "quote_id": "立德新-L6F病房及公共區小型送風機汰換工程",
+     "date_dir": "20260515",
+     "unit_price": 1266,
+     "qty": 16
+    },
+    {
+     "quote_id": "260504__報價單-立德新-環南BF數位發展部",
+     "date_dir": "260504",
+     "unit_price": 1170,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-supply-diffuser-600",
+   "category": "hvac",
+   "name": "方形擴散式出風口ABS600*600*10\"",
+   "spec": "600*600*10\"",
+   "unit": "台",
+   "cost_type": "material",
+   "std_price": 990,
+   "price_min": 990,
+   "price_max": 1071,
+   "price_median": 990,
+   "samples": 3,
+   "last_seen": "260528",
+   "last_price": 990,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "工務處醫工課課汰換小型送風機",
+     "date_dir": "260528",
+     "unit_price": 990,
+     "qty": 2
+    },
+    {
+     "quote_id": "立德新-L6F病房及公共區小型送風機汰換工程",
+     "date_dir": "20260515",
+     "unit_price": 1071,
+     "qty": 30
+    },
+    {
+     "quote_id": "260504__報價單-立德新-環南BF數位發展部",
+     "date_dir": "260504",
+     "unit_price": 990,
+     "qty": 2
+    }
+   ]
+  },
+  {
+   "id": "hv-air-grille",
+   "category": "hvac",
+   "name": "輕鋼架風口",
+   "spec": "",
+   "unit": "只",
+   "cost_type": "material",
+   "std_price": 1100,
+   "price_min": 1100,
+   "price_max": 1300,
+   "price_median": 1100,
+   "samples": 3,
+   "last_seen": "260505",
+   "last_price": 1300,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "立德新-環南辦公室進、排氣工程",
+     "date_dir": "260505",
+     "unit_price": 1300,
+     "qty": 1
+    },
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 1100,
+     "qty": 4
+    },
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 1100,
+     "qty": 4
+    }
+   ]
+  },
+  {
+   "id": "hv-blower-800cfm",
+   "category": "hvac",
+   "name": "送風機 800CFM",
+   "spec": "800CFM",
+   "unit": "台",
+   "cost_type": "material",
+   "std_price": 11700,
+   "price_min": 11700,
+   "price_max": 11700,
+   "price_median": 11700,
+   "samples": 3,
+   "last_seen": "260818",
+   "last_price": 11700,
+   "aliases": [
+    "送風機800CFM (右接7.左接4)",
+    "送風機800CFM 左",
+    "送風機800CFM 左、右接"
+   ],
+   "sources": [
+    {
+     "quote_id": "S9F醫學美容中心小型送風機汰換報價單",
+     "date_dir": "260818",
+     "unit_price": 11700,
+     "qty": 1
+    },
+    {
+     "quote_id": "260818__報價單-L7F護理站小型送風機汰換",
+     "date_dir": "260818",
+     "unit_price": 11700,
+     "qty": 2
+    },
+    {
+     "quote_id": "立德新-L6F病房及公共區小型送風機汰換工程",
+     "date_dir": "20260515",
+     "unit_price": 11700,
+     "qty": 11
+    }
+   ]
+  },
+  {
+   "id": "hv-plenum-800cfm",
+   "category": "hvac",
+   "name": "集風箱含保溫 800CFM",
+   "spec": "800CFM (10\"Ø*3)",
+   "unit": "組",
+   "cost_type": "material",
+   "std_price": 3300,
+   "price_min": 3300,
+   "price_max": 3300,
+   "price_median": 3300,
+   "samples": 3,
+   "last_seen": "260818",
+   "last_price": 3300,
+   "aliases": [
+    "集風箱含保溫800CFM (10\"Ø*3)",
+    "集風箱含保溫800CFM (10英吋Ø*3)"
+   ],
+   "sources": [
+    {
+     "quote_id": "S9F醫學美容中心小型送風機汰換報價單",
+     "date_dir": "260818",
+     "unit_price": 3300,
+     "qty": 1
+    },
+    {
+     "quote_id": "260818__報價單-L7F護理站小型送風機汰換",
+     "date_dir": "260818",
+     "unit_price": 3300,
+     "qty": 2
+    },
+    {
+     "quote_id": "立德新-L6F病房及公共區小型送風機汰換工程",
+     "date_dir": "20260515",
+     "unit_price": 3300,
+     "qty": 11
+    }
+   ]
+  },
+  {
+   "id": "hv-plenum-800",
+   "category": "hvac",
+   "name": "800型集風箱",
+   "spec": "",
+   "unit": "台",
+   "cost_type": "material",
+   "std_price": 3600,
+   "price_min": 3600,
+   "price_max": 3600,
+   "price_median": 3600,
+   "samples": 2,
+   "last_seen": "260528",
+   "last_price": 3600,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "工務處醫工課課汰換小型送風機",
+     "date_dir": "260528",
+     "unit_price": 3600,
+     "qty": 1
+    },
+    {
+     "quote_id": "260504__報價單-立德新-環南BF數位發展部",
+     "date_dir": "260504",
+     "unit_price": 3600,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-insul-material",
+   "category": "hvac",
+   "name": "保溫材料/另料",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "material",
+   "std_price": 40560,
+   "price_min": 40560,
+   "price_max": 42900,
+   "price_median": 41730,
+   "samples": 2,
+   "last_seen": "260729",
+   "last_price": 40560,
+   "aliases": [
+    "保溫另料",
+    "保溫材料 共計138米"
+   ],
+   "sources": [
+    {
+     "quote_id": "260729__報價單-急診保溫-立德新",
+     "date_dir": "260729",
+     "unit_price": 40560,
+     "qty": 1
+    },
+    {
+     "quote_id": "1229__門診大樓保溫改善工程_立德新 update",
+     "date_dir": "1229",
+     "unit_price": 42900,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-nylon-hose-10",
+   "category": "hvac",
+   "name": "尼龍軟管 10\"",
+   "spec": "10\"",
+   "unit": "支",
+   "cost_type": "material",
+   "std_price": 3900,
+   "price_min": 3900,
+   "price_max": 3900,
+   "price_median": 3900,
+   "samples": 2,
+   "last_seen": "260505",
+   "last_price": 3900,
+   "aliases": [
+    "10\"尼龍管",
+    "10\"尼龍軟管"
+   ],
+   "sources": [
+    {
+     "quote_id": "立德新-環南辦公室進、排氣工程",
+     "date_dir": "260505",
+     "unit_price": 3900,
+     "qty": 2
+    },
+    {
+     "quote_id": "立德新-環南辦公室進、排氣工程",
+     "date_dir": "260505",
+     "unit_price": 3900,
+     "qty": 4
+    }
+   ]
+  },
+  {
+   "id": "hv-temp-controller-723",
+   "category": "hvac",
+   "name": "液晶顯示溫度控制器(DEL-723)",
+   "spec": "DEL-723",
+   "unit": "台",
+   "cost_type": "material",
+   "std_price": 2880,
+   "price_min": 2880,
+   "price_max": 2880,
+   "price_median": 2880,
+   "samples": 2,
+   "last_seen": "260528",
+   "last_price": 2880,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "工務處醫工課課汰換小型送風機",
+     "date_dir": "260528",
+     "unit_price": 2880,
+     "qty": 1
+    },
+    {
+     "quote_id": "260504__報價單-立德新-環南BF數位發展部",
+     "date_dir": "260504",
+     "unit_price": 2880,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-duct-2",
+   "category": "hvac",
+   "name": "鍍鋅風管拆除及封板",
+   "spec": "",
+   "unit": "組",
+   "cost_type": "labor",
+   "std_price": 3900,
+   "price_min": 3900,
+   "price_max": 3900,
+   "price_median": 3900,
+   "samples": 2,
+   "last_seen": "260505",
+   "last_price": 3900,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "立德新-環南辦公室進、排氣工程",
+     "date_dir": "260505",
+     "unit_price": 3900,
+     "qty": 2
+    },
+    {
+     "quote_id": "立德新-環南辦公室進、排氣工程",
+     "date_dir": "260505",
+     "unit_price": 3900,
+     "qty": 2
+    }
+   ]
+  },
+  {
+   "id": "hv-blower-800",
+   "category": "hvac",
+   "name": "鑫國小型送風機800型/左接",
+   "spec": "",
+   "unit": "台",
+   "cost_type": "material",
+   "std_price": 10200,
+   "price_min": 10200,
+   "price_max": 10200,
+   "price_median": 10200,
+   "samples": 2,
+   "last_seen": "260528",
+   "last_price": 10200,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "工務處醫工課課汰換小型送風機",
+     "date_dir": "260528",
+     "unit_price": 10200,
+     "qty": 1
+    },
+    {
+     "quote_id": "260504__報價單-立德新-環南BF數位發展部",
+     "date_dir": "260504",
+     "unit_price": 10200,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-box-fan-1",
+   "category": "hvac",
+   "name": "1/2hp箱型風機",
+   "spec": "",
+   "unit": "台",
+   "cost_type": "material",
+   "std_price": 19500,
+   "price_min": 19500,
+   "price_max": 19500,
+   "price_median": 19500,
+   "samples": 1,
+   "last_seen": "260505",
+   "last_price": 19500,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "立德新-環南辦公室進、排氣工程",
+     "date_dir": "260505",
+     "unit_price": 19500,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-insul-hose-10-2",
+   "category": "hvac",
+   "name": "10\"尼龍保溫軟管",
+   "spec": "10\"",
+   "unit": "米",
+   "cost_type": "material",
+   "std_price": 550,
+   "price_min": 550,
+   "price_max": 550,
+   "price_median": 550,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 550,
+   "aliases": [
+    "10英吋尼龍保温軟管"
+   ],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 550,
+     "qty": 30
+    }
+   ]
+  },
+  {
+   "id": "hv-gi-duct-10-2",
+   "category": "hvac",
+   "name": "10\"鍍鋅叉管",
+   "spec": "10\"",
+   "unit": "只",
+   "cost_type": "material",
+   "std_price": 880,
+   "price_min": 880,
+   "price_max": 880,
+   "price_median": 880,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 880,
+   "aliases": [
+    "10英吋鍍鋅叉管"
+   ],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 880,
+     "qty": 2
+    }
+   ]
+  },
+  {
+   "id": "hv-gi-duct-10",
+   "category": "hvac",
+   "name": "10\"鍍鋅封板叉管",
+   "spec": "10\"",
+   "unit": "只",
+   "cost_type": "material",
+   "std_price": 1950,
+   "price_min": 1950,
+   "price_max": 1950,
+   "price_median": 1950,
+   "samples": 1,
+   "last_seen": "260505",
+   "last_price": 1950,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "立德新-環南辦公室進、排氣工程",
+     "date_dir": "260505",
+     "unit_price": 1950,
+     "qty": 4
+    }
+   ]
+  },
+  {
+   "id": "hv-insulation-10",
+   "category": "hvac",
+   "name": "10\"鍍鋅管及保溫",
+   "spec": "10\"",
+   "unit": "支",
+   "cost_type": "material",
+   "std_price": 3300,
+   "price_min": 3300,
+   "price_max": 3300,
+   "price_median": 3300,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 3300,
+   "aliases": [
+    "10英吋鍍鋅管及保温"
+   ],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 3300,
+     "qty": 2
+    }
+   ]
+  },
+  {
+   "id": "hv-elbow-12",
+   "category": "hvac",
+   "name": "12\"彎頭方轉圓三通",
+   "spec": "12\"",
+   "unit": "式",
+   "cost_type": "material",
+   "std_price": 13200,
+   "price_min": 13200,
+   "price_max": 13200,
+   "price_median": 13200,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 13200,
+   "aliases": [
+    "12英吋彎頭方轉圓三通"
+   ],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 13200,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-gi-duct-12",
+   "category": "hvac",
+   "name": "12\"鍍鋅管",
+   "spec": "12\"",
+   "unit": "米",
+   "cost_type": "material",
+   "std_price": 1100,
+   "price_min": 1100,
+   "price_max": 1100,
+   "price_median": 1100,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 1100,
+   "aliases": [
+    "12英吋鍍鋅管"
+   ],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 1100,
+     "qty": 12
+    }
+   ]
+  },
+  {
+   "id": "hv-box-fan-1hp",
+   "category": "hvac",
+   "name": "1hp箱型風機",
+   "spec": "",
+   "unit": "台",
+   "cost_type": "material",
+   "std_price": 22000,
+   "price_min": 22000,
+   "price_max": 22000,
+   "price_median": 22000,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 22000,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 22000,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-gate-valve-2",
+   "category": "hvac",
+   "name": "2\"泡金銅閘閥",
+   "spec": "2\"",
+   "unit": "只",
+   "cost_type": "material",
+   "std_price": 1320,
+   "price_min": 1320,
+   "price_max": 1320,
+   "price_median": 1320,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 1320,
+   "aliases": [
+    "2英吋泡金銅閘閥"
+   ],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 1320,
+     "qty": 3
+    }
+   ]
+  },
+  {
+   "id": "hv-insul-hose-4",
+   "category": "hvac",
+   "name": "4\"尼龍保溫軟管",
+   "spec": "4\"",
+   "unit": "米",
+   "cost_type": "material",
+   "std_price": 220,
+   "price_min": 220,
+   "price_max": 220,
+   "price_median": 220,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 220,
+   "aliases": [
+    "4英吋尼龍保温軟管"
+   ],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 220,
+     "qty": 40
+    }
+   ]
+  },
+  {
+   "id": "hv-gi-duct-4",
+   "category": "hvac",
+   "name": "4\"鍍鋅叉管",
+   "spec": "4\"",
+   "unit": "只",
+   "cost_type": "material",
+   "std_price": 440,
+   "price_min": 440,
+   "price_max": 440,
+   "price_median": 440,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 440,
+   "aliases": [
+    "4英吋鍍鋅叉管"
+   ],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 440,
+     "qty": 11
+    }
+   ]
+  },
+  {
+   "id": "hv-insulation-4",
+   "category": "hvac",
+   "name": "4\"鍍鋅管及保溫",
+   "spec": "4\"",
+   "unit": "支",
+   "cost_type": "material",
+   "std_price": 1320,
+   "price_min": 1320,
+   "price_max": 1320,
+   "price_median": 1320,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 1320,
+   "aliases": [
+    "4英吋鍍鋅管及保温"
+   ],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 1320,
+     "qty": 11
+    }
+   ]
+  },
+  {
+   "id": "hv-nylon-hose-6",
+   "category": "hvac",
+   "name": "6\"尼龍軟管",
+   "spec": "6\"",
+   "unit": "支",
+   "cost_type": "material",
+   "std_price": 3250,
+   "price_min": 3250,
+   "price_max": 3250,
+   "price_median": 3250,
+   "samples": 1,
+   "last_seen": "260505",
+   "last_price": 3250,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "立德新-環南辦公室進、排氣工程",
+     "date_dir": "260505",
+     "unit_price": 3250,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-flex-hose-6",
+   "category": "hvac",
+   "name": "6\"耐溫難燃軟管",
+   "spec": "6\"",
+   "unit": "米",
+   "cost_type": "material",
+   "std_price": 550,
+   "price_min": 550,
+   "price_max": 550,
+   "price_median": 550,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 550,
+   "aliases": [
+    "6英吋耐温難燃軟管"
+   ],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 550,
+     "qty": 15
+    }
+   ]
+  },
+  {
+   "id": "hv-gi-duct-6-2",
+   "category": "hvac",
+   "name": "6\"鍍鋅叉管及彎頭",
+   "spec": "6\"",
+   "unit": "式",
+   "cost_type": "material",
+   "std_price": 5500,
+   "price_min": 5500,
+   "price_max": 5500,
+   "price_median": 5500,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 5500,
+   "aliases": [
+    "6英吋鍍鋅叉管及彎頭"
+   ],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 5500,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-gi-duct-6",
+   "category": "hvac",
+   "name": "6\"鍍鋅管",
+   "spec": "6\"",
+   "unit": "米",
+   "cost_type": "material",
+   "std_price": 660,
+   "price_min": 660,
+   "price_max": 660,
+   "price_median": 660,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 660,
+   "aliases": [
+    "6英吋鍍鋅管"
+   ],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 660,
+     "qty": 12
+    }
+   ]
+  },
+  {
+   "id": "hv-branch-duct-8",
+   "category": "hvac",
+   "name": "8\"叉管及彎頭",
+   "spec": "8\"",
+   "unit": "式",
+   "cost_type": "material",
+   "std_price": 6600,
+   "price_min": 6600,
+   "price_max": 6600,
+   "price_median": 6600,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 6600,
+   "aliases": [
+    "8英吋叉管及彎頭"
+   ],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 6600,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-gi-duct-8",
+   "category": "hvac",
+   "name": "8\"鍍鋅管",
+   "spec": "8\"",
+   "unit": "米",
+   "cost_type": "material",
+   "std_price": 770,
+   "price_min": 770,
+   "price_max": 770,
+   "price_median": 770,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 770,
+   "aliases": [
+    "8英吋鍍鋅管"
+   ],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 770,
+     "qty": 10
+    }
+   ]
+  },
+  {
+   "id": "hv-air-curtain-110",
+   "category": "hvac",
+   "name": "DC變頻空氣門三尺/110V",
+   "spec": "",
+   "unit": "台",
+   "cost_type": "material",
+   "std_price": 10200,
+   "price_min": 10200,
+   "price_max": 10200,
+   "price_median": 10200,
+   "samples": 1,
+   "last_seen": "260504",
+   "last_price": 10200,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260504__報價單-立德新-環南BF數位發展部",
+     "date_dir": "260504",
+     "unit_price": 10200,
+     "qty": 2
+    }
+   ]
+  },
+  {
+   "id": "hv-fdc140vnat-w-140",
+   "category": "hvac",
+   "name": "FDC140VNAT-W 三相 380V",
+   "spec": "FDC140VNAT-W",
+   "unit": "台",
+   "cost_type": "material",
+   "std_price": 68500,
+   "price_min": 68500,
+   "price_max": 68500,
+   "price_median": 68500,
+   "samples": 1,
+   "last_seen": "260714",
+   "last_price": 68500,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260714__立德新-急診室1F-變頻冷氣新增安裝",
+     "date_dir": "260714",
+     "unit_price": 68500,
+     "qty": 3
+    }
+   ]
+  },
+  {
+   "id": "hv-fdt140vht-140",
+   "category": "hvac",
+   "name": "FDT140VHT",
+   "spec": "FDT140VHT",
+   "unit": "台",
+   "cost_type": "material",
+   "std_price": 24800,
+   "price_min": 24800,
+   "price_max": 24800,
+   "price_median": 24800,
+   "samples": 1,
+   "last_seen": "260714",
+   "last_price": 24800,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260714__立德新-急診室1F-變頻冷氣新增安裝",
+     "date_dir": "260714",
+     "unit_price": 24800,
+     "qty": 2
+    }
+   ]
+  },
+  {
+   "id": "hv-fdt50vht-50",
+   "category": "hvac",
+   "name": "FDT50VHT",
+   "spec": "FDT50VHT",
+   "unit": "台",
+   "cost_type": "material",
+   "std_price": 16000,
+   "price_min": 16000,
+   "price_max": 16000,
+   "price_median": 16000,
+   "samples": 1,
+   "last_seen": "260714",
+   "last_price": 16000,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260714__立德新-急診室1F-變頻冷氣新增安裝",
+     "date_dir": "260714",
+     "unit_price": 16000,
+     "qty": 3
+    }
+   ]
+  },
+  {
+   "id": "hv-refrigerant-134a",
+   "category": "hvac",
+   "name": "R-134A冷媒",
+   "spec": "",
+   "unit": "公斤",
+   "cost_type": "material",
+   "std_price": 650,
+   "price_min": 650,
+   "price_max": 650,
+   "price_median": 650,
+   "samples": 1,
+   "last_seen": "260416",
+   "last_price": 650,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260416__報價單-S12F病理檢驗科檢體冰箱",
+     "date_dir": "260416",
+     "unit_price": 650,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-refrigerant-22",
+   "category": "hvac",
+   "name": "R22冷媒填充",
+   "spec": "",
+   "unit": "公斤",
+   "cost_type": "material",
+   "std_price": 637,
+   "price_min": 637,
+   "price_max": 637,
+   "price_median": 637,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 637,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "中壢聯新診所冷氣修繕",
+     "date_dir": "1219",
+     "unit_price": 637,
+     "qty": 8
+    }
+   ]
+  },
+  {
+   "id": "hv-rc-ext3-3",
+   "category": "hvac",
+   "name": "RC-EXT3",
+   "spec": "",
+   "unit": "台",
+   "cost_type": "material",
+   "std_price": 3400,
+   "price_min": 3400,
+   "price_max": 3400,
+   "price_median": 3400,
+   "samples": 1,
+   "last_seen": "260714",
+   "last_price": 3400,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260714__立德新-急診室1F-變頻冷氣新增安裝",
+     "date_dir": "260714",
+     "unit_price": 3400,
+     "qty": 5
+    }
+   ]
+  },
+  {
+   "id": "hv-sus304-304-2",
+   "category": "hvac",
+   "name": "SUS304不銹鋼 固定架2.0 MM",
+   "spec": "SUS304",
+   "unit": "只",
+   "cost_type": "material",
+   "std_price": 4650,
+   "price_min": 4650,
+   "price_max": 4650,
+   "price_median": 4650,
+   "samples": 1,
+   "last_seen": "260520",
+   "last_price": 4650,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-立德新",
+     "date_dir": "260520",
+     "unit_price": 4650,
+     "qty": 2
+    }
+   ]
+  },
+  {
+   "id": "hv-sus304-304-3",
+   "category": "hvac",
+   "name": "SUS304不銹鋼 導流板(500*400*1.5 MM)",
+   "spec": "500*400*1.5",
+   "unit": "只",
+   "cost_type": "material",
+   "std_price": 5600,
+   "price_min": 5600,
+   "price_max": 5600,
+   "price_median": 5600,
+   "samples": 1,
+   "last_seen": "260520",
+   "last_price": 5600,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-立德新",
+     "date_dir": "260520",
+     "unit_price": 5600,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-elbow-304",
+   "category": "hvac",
+   "name": "SUS304不銹鋼 彎頭90度 3\"2.0 MM",
+   "spec": "3\"",
+   "unit": "只",
+   "cost_type": "material",
+   "std_price": 4150,
+   "price_min": 4150,
+   "price_max": 4150,
+   "price_median": 4150,
+   "samples": 1,
+   "last_seen": "260520",
+   "last_price": 4150,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-立德新",
+     "date_dir": "260520",
+     "unit_price": 4150,
+     "qty": 3
+    }
+   ]
+  },
+  {
+   "id": "hv-sus304-304-4",
+   "category": "hvac",
+   "name": "SUS304不銹鋼板 (400*300*1.0 MM)",
+   "spec": "400*300*1.0",
+   "unit": "式",
+   "cost_type": "material",
+   "std_price": 13500,
+   "price_min": 13500,
+   "price_max": 13500,
+   "price_median": 13500,
+   "samples": 1,
+   "last_seen": "260520",
+   "last_price": 13500,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-立德新",
+     "date_dir": "260520",
+     "unit_price": 13500,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-sus304-304",
+   "category": "hvac",
+   "name": "SUS304不銹鋼管 3\"2.0 MM",
+   "spec": "3\"",
+   "unit": "米",
+   "cost_type": "material",
+   "std_price": 3250,
+   "price_min": 3250,
+   "price_max": 3250,
+   "price_median": 3250,
+   "samples": 1,
+   "last_seen": "260520",
+   "last_price": 3250,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-立德新",
+     "date_dir": "260520",
+     "unit_price": 3250,
+     "qty": 6
+    }
+   ]
+  },
+  {
+   "id": "hv-t-psae-5",
+   "category": "hvac",
+   "name": "T-PSAE-5BW-E",
+   "spec": "",
+   "unit": "台",
+   "cost_type": "material",
+   "std_price": 5800,
+   "price_min": 5800,
+   "price_max": 5800,
+   "price_median": 5800,
+   "samples": 1,
+   "last_seen": "260714",
+   "last_price": 5800,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260714__立德新-急診室1F-變頻冷氣新增安裝",
+     "date_dir": "260714",
+     "unit_price": 5800,
+     "qty": 5
+    }
+   ]
+  },
+  {
+   "id": "hv-compressor-21",
+   "category": "hvac",
+   "name": "danfoss SC21G壓縮機",
+   "spec": "SC21G",
+   "unit": "台",
+   "cost_type": "material",
+   "std_price": 13000,
+   "price_min": 13000,
+   "price_max": 13000,
+   "price_median": 13000,
+   "samples": 1,
+   "last_seen": "260416",
+   "last_price": 13000,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260416__報價單-S12F病理檢驗科檢體冰箱",
+     "date_dir": "260416",
+     "unit_price": 13000,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-insul-labor",
+   "category": "hvac",
+   "name": "保溫工資",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "labor",
+   "std_price": 39000,
+   "price_min": 39000,
+   "price_max": 39000,
+   "price_median": 39000,
+   "samples": 1,
+   "last_seen": "260729",
+   "last_price": 39000,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260729__報價單-急診保溫-立德新",
+     "date_dir": "260729",
+     "unit_price": 39000,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-insulation-2",
+   "category": "hvac",
+   "name": "保溫復原",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "labor",
+   "std_price": 24200,
+   "price_min": 24200,
+   "price_max": 24200,
+   "price_median": 24200,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 24200,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 24200,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-insul-wool-1-3",
+   "category": "hvac",
+   "name": "保溫棉 1\"*1\"t",
+   "spec": "1\"*1\"t",
+   "unit": "米",
+   "cost_type": "material",
+   "std_price": 115,
+   "price_min": 115,
+   "price_max": 115,
+   "price_median": 115,
+   "samples": 1,
+   "last_seen": "1229",
+   "last_price": 115,
+   "aliases": [
+    "保溫棉 1英吋*1英吋t"
+   ],
+   "sources": [
+    {
+     "quote_id": "1229__門診大樓保溫改善工程_立德新 update",
+     "date_dir": "1229",
+     "unit_price": 115,
+     "qty": 76
+    }
+   ]
+  },
+  {
+   "id": "hv-insul-wool-1",
+   "category": "hvac",
+   "name": "保溫棉 1-1/2\"*1-1/4\"t",
+   "spec": "1-1/2\"*1-1/4\"t",
+   "unit": "米",
+   "cost_type": "material",
+   "std_price": 165,
+   "price_min": 165,
+   "price_max": 165,
+   "price_median": 165,
+   "samples": 1,
+   "last_seen": "1229",
+   "last_price": 165,
+   "aliases": [
+    "保溫棉 1-1/2英吋*1-1/4英吋t"
+   ],
+   "sources": [
+    {
+     "quote_id": "1229__門診大樓保溫改善工程_立德新 update",
+     "date_dir": "1229",
+     "unit_price": 165,
+     "qty": 48
+    }
+   ]
+  },
+  {
+   "id": "hv-insul-wool-1-2",
+   "category": "hvac",
+   "name": "保溫棉 1-1/4\"*1-1/4\"t",
+   "spec": "1-1/4\"*1-1/4\"t",
+   "unit": "米",
+   "cost_type": "material",
+   "std_price": 165,
+   "price_min": 165,
+   "price_max": 165,
+   "price_median": 165,
+   "samples": 1,
+   "last_seen": "1229",
+   "last_price": 165,
+   "aliases": [
+    "保溫棉 1-1/4英吋*1-1/4英吋t"
+   ],
+   "sources": [
+    {
+     "quote_id": "1229__門診大樓保溫改善工程_立德新 update",
+     "date_dir": "1229",
+     "unit_price": 165,
+     "qty": 48
+    }
+   ]
+  },
+  {
+   "id": "hv-insul-wool-2",
+   "category": "hvac",
+   "name": "保溫棉 2\"*1-1/4\"t",
+   "spec": "2\"*1-1/4\"t",
+   "unit": "米",
+   "cost_type": "material",
+   "std_price": 165,
+   "price_min": 165,
+   "price_max": 165,
+   "price_median": 165,
+   "samples": 1,
+   "last_seen": "1229",
+   "last_price": 165,
+   "aliases": [
+    "保溫棉 2英吋*1-1/4英吋t"
+   ],
+   "sources": [
+    {
+     "quote_id": "1229__門診大樓保溫改善工程_立德新 update",
+     "date_dir": "1229",
+     "unit_price": 165,
+     "qty": 82
+    }
+   ]
+  },
+  {
+   "id": "hv-insul-wool-3",
+   "category": "hvac",
+   "name": "保溫棉 3/4\"*1\"t",
+   "spec": "3/4\"*1\"t",
+   "unit": "米",
+   "cost_type": "material",
+   "std_price": 143,
+   "price_min": 143,
+   "price_max": 143,
+   "price_median": 143,
+   "samples": 1,
+   "last_seen": "1229",
+   "last_price": 143,
+   "aliases": [
+    "保溫棉 3/4英吋*1英吋t"
+   ],
+   "sources": [
+    {
+     "quote_id": "1229__門診大樓保溫改善工程_立德新 update",
+     "date_dir": "1229",
+     "unit_price": 143,
+     "qty": 270
+    }
+   ]
+  },
+  {
+   "id": "hv-insul-pipe-3",
+   "category": "hvac",
+   "name": "保溫管3/4\"",
+   "spec": "3/4\"",
+   "unit": "米",
+   "cost_type": "material",
+   "std_price": 180,
+   "price_min": 180,
+   "price_max": 180,
+   "price_median": 180,
+   "samples": 1,
+   "last_seen": "260504",
+   "last_price": 180,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260504__報價單-立德新-環南BF數位發展部",
+     "date_dir": "260504",
+     "unit_price": 180,
+     "qty": 12
+    }
+   ]
+  },
+  {
+   "id": "hv-insul-pipe-2",
+   "category": "hvac",
+   "name": "保溫管墊",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "material",
+   "std_price": 29250,
+   "price_min": 29250,
+   "price_max": 29250,
+   "price_median": 29250,
+   "samples": 1,
+   "last_seen": "260729",
+   "last_price": 29250,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260729__報價單-急診保溫-立德新",
+     "date_dir": "260729",
+     "unit_price": 29250,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-piping-8",
+   "category": "hvac",
+   "name": "冰水管管路拆除",
+   "spec": "",
+   "unit": "台",
+   "cost_type": "labor",
+   "std_price": 5400,
+   "price_min": 5400,
+   "price_max": 5400,
+   "price_median": 5400,
+   "samples": 1,
+   "last_seen": "260505",
+   "last_price": 5400,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-病檢科12樓(原第一會議室)立式空調節拆除工程-立德新",
+     "date_dir": "260505",
+     "unit_price": 5400,
+     "qty": 2
+    }
+   ]
+  },
+  {
+   "id": "hv-refrig-oil",
+   "category": "hvac",
+   "name": "冷凍油",
+   "spec": "",
+   "unit": "公升",
+   "cost_type": "material",
+   "std_price": 1105,
+   "price_min": 1105,
+   "price_max": 1105,
+   "price_median": 1105,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 1105,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "中壢聯新診所冷氣修繕",
+     "date_dir": "1219",
+     "unit_price": 1105,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-piping-7",
+   "category": "hvac",
+   "name": "冷卻水管路拆除 含切管、封頭、回收",
+   "spec": "",
+   "unit": "台",
+   "cost_type": "labor",
+   "std_price": 4800,
+   "price_min": 4800,
+   "price_max": 4800,
+   "price_median": 4800,
+   "samples": 1,
+   "last_seen": "260505",
+   "last_price": 4800,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-病檢科12樓(原第一會議室)立式空調節拆除工程-立德新",
+     "date_dir": "260505",
+     "unit_price": 4800,
+     "qty": 2
+    }
+   ]
+  },
+  {
+   "id": "hv-refrigerant",
+   "category": "hvac",
+   "name": "冷媒管路清洗劑",
+   "spec": "",
+   "unit": "公斤",
+   "cost_type": "consumable",
+   "std_price": 728,
+   "price_min": 728,
+   "price_max": 728,
+   "price_median": 728,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 728,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "中壢聯新診所冷氣修繕",
+     "date_dir": "1219",
+     "unit_price": 728,
+     "qty": 8
+    }
+   ]
+  },
+  {
+   "id": "hv-gi-duct",
+   "category": "hvac",
+   "name": "叉管及鍍鋅管彎頭",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "material",
+   "std_price": 21600,
+   "price_min": 21600,
+   "price_max": 21600,
+   "price_median": 21600,
+   "samples": 1,
+   "last_seen": "260505",
+   "last_price": 21600,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "立德新-環南辦公室進、排氣工程",
+     "date_dir": "260505",
+     "unit_price": 21600,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-return-box-1000cfm",
+   "category": "hvac",
+   "name": "回風箱含濾網1000CFM",
+   "spec": "1000CFM",
+   "unit": "組",
+   "cost_type": "material",
+   "std_price": 3510,
+   "price_min": 3510,
+   "price_max": 3510,
+   "price_median": 3510,
+   "samples": 1,
+   "last_seen": "20260515",
+   "last_price": 3510,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "立德新-L6F病房及公共區小型送風機汰換工程",
+     "date_dir": "20260515",
+     "unit_price": 3510,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-return-box-1200cfm",
+   "category": "hvac",
+   "name": "回風箱含濾網1200CFM",
+   "spec": "1200CFM",
+   "unit": "組",
+   "cost_type": "material",
+   "std_price": 3600,
+   "price_min": 3600,
+   "price_max": 3600,
+   "price_median": 3600,
+   "samples": 1,
+   "last_seen": "20260515",
+   "last_price": 3600,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "立德新-L6F病房及公共區小型送風機汰換工程",
+     "date_dir": "20260515",
+     "unit_price": 3600,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-return-box-600cfm",
+   "category": "hvac",
+   "name": "回風箱含濾網600CFM",
+   "spec": "600CFM",
+   "unit": "組",
+   "cost_type": "material",
+   "std_price": 3300,
+   "price_min": 3300,
+   "price_max": 3300,
+   "price_median": 3300,
+   "samples": 1,
+   "last_seen": "20260515",
+   "last_price": 3300,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "立德新-L6F病房及公共區小型送風機汰換工程",
+     "date_dir": "20260515",
+     "unit_price": 3300,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-insulation-6",
+   "category": "hvac",
+   "name": "外覆白色保溫帶(白色)",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "material",
+   "std_price": 11310,
+   "price_min": 11310,
+   "price_max": 11310,
+   "price_median": 11310,
+   "samples": 1,
+   "last_seen": "260729",
+   "last_price": 11310,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260729__報價單-急診保溫-立德新",
+     "date_dir": "260729",
+     "unit_price": 11310,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-install",
+   "category": "hvac",
+   "name": "室內機安裝定位",
+   "spec": "",
+   "unit": "台",
+   "cost_type": "labor",
+   "std_price": 3300,
+   "price_min": 3300,
+   "price_max": 3300,
+   "price_median": 3300,
+   "samples": 1,
+   "last_seen": "260714",
+   "last_price": 3300,
+   "aliases": [
+    "室内機安裝定位"
+   ],
+   "sources": [
+    {
+     "quote_id": "260714__立德新-急診室1F-變頻冷氣新增安裝",
+     "date_dir": "260714",
+     "unit_price": 3300,
+     "qty": 5
+    }
+   ]
+  },
+  {
+   "id": "hv-install-2",
+   "category": "hvac",
+   "name": "室外機安裝定位",
+   "spec": "",
+   "unit": "台",
+   "cost_type": "labor",
+   "std_price": 6500,
+   "price_min": 6500,
+   "price_max": 6500,
+   "price_median": 6500,
+   "samples": 1,
+   "last_seen": "260714",
+   "last_price": 6500,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260714__立德新-急診室1F-變頻冷氣新增安裝",
+     "date_dir": "260714",
+     "unit_price": 6500,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-install-3",
+   "category": "hvac",
+   "name": "室外機白鐵安裝架",
+   "spec": "",
+   "unit": "台",
+   "cost_type": "labor",
+   "std_price": 4500,
+   "price_min": 4500,
+   "price_max": 4500,
+   "price_median": 4500,
+   "samples": 1,
+   "last_seen": "260714",
+   "last_price": 4500,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260714__立德新-急診室1F-變頻冷氣新增安裝",
+     "date_dir": "260714",
+     "unit_price": 4500,
+     "qty": 3
+    }
+   ]
+  },
+  {
+   "id": "hv-insulation-3",
+   "category": "hvac",
+   "name": "排水配置及保溫",
+   "spec": "",
+   "unit": "台",
+   "cost_type": "labor",
+   "std_price": 38000,
+   "price_min": 38000,
+   "price_max": 38000,
+   "price_median": 38000,
+   "samples": 1,
+   "last_seen": "260714",
+   "last_price": 38000,
+   "aliases": [
+    "排水配置及保温"
+   ],
+   "sources": [
+    {
+     "quote_id": "260714__立德新-急診室1F-變頻冷氣新增安裝",
+     "date_dir": "260714",
+     "unit_price": 38000,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-controller",
+   "category": "hvac",
+   "name": "控制器",
+   "spec": "",
+   "unit": "只",
+   "cost_type": "material",
+   "std_price": 6600,
+   "price_min": 6600,
+   "price_max": 6600,
+   "price_median": 6600,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 6600,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 6600,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-labor",
+   "category": "hvac",
+   "name": "控制安裝工資及測試",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "labor",
+   "std_price": 22000,
+   "price_min": 22000,
+   "price_max": 22000,
+   "price_median": 22000,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 22000,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 22000,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-elbow",
+   "category": "hvac",
+   "name": "橡塑專用膠水.閥件彎頭用料",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "consumable",
+   "std_price": 3900,
+   "price_min": 3900,
+   "price_max": 3900,
+   "price_median": 3900,
+   "samples": 1,
+   "last_seen": "260729",
+   "last_price": 3900,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260729__報價單-急診保溫-立德新",
+     "date_dir": "260729",
+     "unit_price": 3900,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-two-way-valve",
+   "category": "hvac",
+   "name": "比例式二通閥",
+   "spec": "",
+   "unit": "只",
+   "cost_type": "material",
+   "std_price": 11000,
+   "price_min": 11000,
+   "price_max": 11000,
+   "price_median": 11000,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 11000,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 11000,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-sensor",
+   "category": "hvac",
+   "name": "溫度感應器",
+   "spec": "",
+   "unit": "只",
+   "cost_type": "material",
+   "std_price": 3300,
+   "price_min": 3300,
+   "price_max": 3300,
+   "price_median": 3300,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 3300,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 3300,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-ahu",
+   "category": "hvac",
+   "name": "空調箱拆除 含斷電、拆卸、保護",
+   "spec": "",
+   "unit": "台",
+   "cost_type": "labor",
+   "std_price": 6000,
+   "price_min": 6000,
+   "price_max": 6000,
+   "price_median": 6000,
+   "samples": 1,
+   "last_seen": "260505",
+   "last_price": 6000,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-病檢科12樓(原第一會議室)立式空調節拆除工程-立德新",
+     "date_dir": "260505",
+     "unit_price": 6000,
+     "qty": 2
+    }
+   ]
+  },
+  {
+   "id": "hv-ahu-2",
+   "category": "hvac",
+   "name": "空調箱搬移",
+   "spec": "",
+   "unit": "台",
+   "cost_type": "labor",
+   "std_price": 3840,
+   "price_min": 3840,
+   "price_max": 3840,
+   "price_median": 3840,
+   "samples": 1,
+   "last_seen": "260505",
+   "last_price": 3840,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-病檢科12樓(原第一會議室)立式空調節拆除工程-立德新",
+     "date_dir": "260505",
+     "unit_price": 3840,
+     "qty": 2
+    }
+   ]
+  },
+  {
+   "id": "hv-piping-6",
+   "category": "hvac",
+   "name": "管路標示",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "labor",
+   "std_price": 1300,
+   "price_min": 1300,
+   "price_max": 1300,
+   "price_median": 1300,
+   "samples": 1,
+   "last_seen": "260729",
+   "last_price": 1300,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260729__報價單-急診保溫-立德新",
+     "date_dir": "260729",
+     "unit_price": 1300,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-piping-5",
+   "category": "hvac",
+   "name": "管路清洗劑",
+   "spec": "",
+   "unit": "公斤",
+   "cost_type": "consumable",
+   "std_price": 650,
+   "price_min": 650,
+   "price_max": 650,
+   "price_median": 650,
+   "samples": 1,
+   "last_seen": "260416",
+   "last_price": 650,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260416__報價單-S12F病理檢驗科檢體冰箱",
+     "date_dir": "260416",
+     "unit_price": 650,
+     "qty": 5
+    }
+   ]
+  },
+  {
+   "id": "hv-piping-4",
+   "category": "hvac",
+   "name": "管路站壓冷煤填充及試機",
+   "spec": "",
+   "unit": "台",
+   "cost_type": "labor",
+   "std_price": 10000,
+   "price_min": 10000,
+   "price_max": 10000,
+   "price_median": 10000,
+   "samples": 1,
+   "last_seen": "260714",
+   "last_price": 10000,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260714__立德新-急診室1F-變頻冷氣新增安裝",
+     "date_dir": "260714",
+     "unit_price": 10000,
+     "qty": 3
+    }
+   ]
+  },
+  {
+   "id": "hv-piping",
+   "category": "hvac",
+   "name": "管路銜接配置",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "material",
+   "std_price": 38500,
+   "price_min": 38500,
+   "price_max": 38500,
+   "price_median": 38500,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 38500,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 38500,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-piping-3",
+   "category": "hvac",
+   "name": "管道標示",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "labor",
+   "std_price": 4800,
+   "price_min": 4800,
+   "price_max": 4800,
+   "price_median": 4800,
+   "samples": 1,
+   "last_seen": "1229",
+   "last_price": 4800,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "1229__門診大樓保溫改善工程_立德新 update",
+     "date_dir": "1229",
+     "unit_price": 4800,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-box-fan",
+   "category": "hvac",
+   "name": "箱型風機防震布管",
+   "spec": "",
+   "unit": "只",
+   "cost_type": "material",
+   "std_price": 3900,
+   "price_min": 3900,
+   "price_max": 3900,
+   "price_median": 3900,
+   "samples": 1,
+   "last_seen": "260505",
+   "last_price": 3900,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "立德新-環南辦公室進、排氣工程",
+     "date_dir": "260505",
+     "unit_price": 3900,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-wired-controller",
+   "category": "hvac",
+   "name": "線控器配管線",
+   "spec": "",
+   "unit": "台",
+   "cost_type": "material",
+   "std_price": 4600,
+   "price_min": 4600,
+   "price_max": 4600,
+   "price_median": 4600,
+   "samples": 1,
+   "last_seen": "260714",
+   "last_price": 4600,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260714__立德新-急診室1F-變頻冷氣新增安裝",
+     "date_dir": "260714",
+     "unit_price": 4600,
+     "qty": 5
+    }
+   ]
+  },
+  {
+   "id": "hv-insulation-5",
+   "category": "hvac",
+   "name": "舊保溫拆除工資",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "labor",
+   "std_price": 28600,
+   "price_min": 28600,
+   "price_max": 28600,
+   "price_median": 28600,
+   "samples": 1,
+   "last_seen": "260729",
+   "last_price": 28600,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260729__報價單-急診保溫-立德新",
+     "date_dir": "260729",
+     "unit_price": 28600,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-expansion-tank-800",
+   "category": "hvac",
+   "name": "良機LET-800膨脹水箱",
+   "spec": "LET-800",
+   "unit": "台",
+   "cost_type": "material",
+   "std_price": 20540,
+   "price_min": 20540,
+   "price_max": 20540,
+   "price_median": 20540,
+   "samples": 1,
+   "last_seen": "260317",
+   "last_price": 20540,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-S棟RF冰水系統膨脹水箱汰換",
+     "date_dir": "260317",
+     "unit_price": 20540,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-haulage",
+   "category": "hvac",
+   "name": "設備搬運定位,橡膠避震",
+   "spec": "",
+   "unit": "台",
+   "cost_type": "labor",
+   "std_price": 49500,
+   "price_min": 49500,
+   "price_max": 49500,
+   "price_median": 49500,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 49500,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 49500,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-blower-1000cfm",
+   "category": "hvac",
+   "name": "送風機1000CFM (左接1)",
+   "spec": "1000CFM",
+   "unit": "台",
+   "cost_type": "material",
+   "std_price": 13500,
+   "price_min": 13500,
+   "price_max": 13500,
+   "price_median": 13500,
+   "samples": 1,
+   "last_seen": "20260515",
+   "last_price": 13500,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "立德新-L6F病房及公共區小型送風機汰換工程",
+     "date_dir": "20260515",
+     "unit_price": 13500,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-blower-1200cfm",
+   "category": "hvac",
+   "name": "送風機1200CFM (左接1)",
+   "spec": "1200CFM",
+   "unit": "台",
+   "cost_type": "material",
+   "std_price": 15750,
+   "price_min": 15750,
+   "price_max": 15750,
+   "price_median": 15750,
+   "samples": 1,
+   "last_seen": "20260515",
+   "last_price": 15750,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "立德新-L6F病房及公共區小型送風機汰換工程",
+     "date_dir": "20260515",
+     "unit_price": 15750,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-blower-600cfm",
+   "category": "hvac",
+   "name": "送風機600CFM (右接1)",
+   "spec": "600CFM",
+   "unit": "台",
+   "cost_type": "material",
+   "std_price": 10200,
+   "price_min": 10200,
+   "price_max": 10200,
+   "price_median": 10200,
+   "samples": 1,
+   "last_seen": "20260515",
+   "last_price": 10200,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "立德新-L6F病房及公共區小型送風機汰換工程",
+     "date_dir": "20260515",
+     "unit_price": 10200,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-piping-work",
+   "category": "hvac",
+   "name": "配管另料",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "consumable",
+   "std_price": 11000,
+   "price_min": 11000,
+   "price_max": 11000,
+   "price_median": 11000,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 11000,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 11000,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-piping-work-2",
+   "category": "hvac",
+   "name": "配管工程",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "material",
+   "std_price": 12000,
+   "price_min": 12000,
+   "price_max": 12000,
+   "price_median": 12000,
+   "samples": 1,
+   "last_seen": "260714",
+   "last_price": 12000,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260714__立德新-急診室1F-變頻冷氣新增安裝",
+     "date_dir": "260714",
+     "unit_price": 12000,
+     "qty": 5
+    }
+   ]
+  },
+  {
+   "id": "hv-copper-pipe",
+   "category": "hvac",
+   "name": "銅管系統分岐管",
+   "spec": "",
+   "unit": "台",
+   "cost_type": "material",
+   "std_price": 3200,
+   "price_min": 3200,
+   "price_max": 3200,
+   "price_median": 3200,
+   "samples": 1,
+   "last_seen": "260714",
+   "last_price": 3200,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260714__立德新-急診室1F-變頻冷氣新增安裝",
+     "date_dir": "260714",
+     "unit_price": 3200,
+     "qty": 2
+    }
+   ]
+  },
+  {
+   "id": "hv-ahu-6rt",
+   "category": "hvac",
+   "name": "鑫國6RT外氣空調箱",
+   "spec": "",
+   "unit": "台",
+   "cost_type": "material",
+   "std_price": 121000,
+   "price_min": 121000,
+   "price_max": 121000,
+   "price_median": 121000,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 121000,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 121000,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-plenum-1000cfm",
+   "category": "hvac",
+   "name": "集風箱含保溫1000CFM (10\"Ø*3)",
+   "spec": "1000CFM",
+   "unit": "組",
+   "cost_type": "material",
+   "std_price": 3510,
+   "price_min": 3510,
+   "price_max": 3510,
+   "price_median": 3510,
+   "samples": 1,
+   "last_seen": "20260515",
+   "last_price": 3510,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "立德新-L6F病房及公共區小型送風機汰換工程",
+     "date_dir": "20260515",
+     "unit_price": 3510,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-plenum-1200cfm",
+   "category": "hvac",
+   "name": "集風箱含保溫1200CFM (10\"Ø*3)",
+   "spec": "1200CFM",
+   "unit": "組",
+   "cost_type": "material",
+   "std_price": 3900,
+   "price_min": 3900,
+   "price_max": 3900,
+   "price_median": 3900,
+   "samples": 1,
+   "last_seen": "20260515",
+   "last_price": 3900,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "立德新-L6F病房及公共區小型送風機汰換工程",
+     "date_dir": "20260515",
+     "unit_price": 3900,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-plenum-600cfm",
+   "category": "hvac",
+   "name": "集風箱含保溫600CFM (10\"Ø*2)",
+   "spec": "600CFM",
+   "unit": "組",
+   "cost_type": "material",
+   "std_price": 3150,
+   "price_min": 3150,
+   "price_max": 3150,
+   "price_median": 3150,
+   "samples": 1,
+   "last_seen": "20260515",
+   "last_price": 3150,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "立德新-L6F病房及公共區小型送風機汰換工程",
+     "date_dir": "20260515",
+     "unit_price": 3150,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-duct",
+   "category": "hvac",
+   "name": "風機風管吊架及固定架",
+   "spec": "",
+   "unit": "組",
+   "cost_type": "material",
+   "std_price": 15600,
+   "price_min": 15600,
+   "price_max": 15600,
+   "price_median": 15600,
+   "samples": 1,
+   "last_seen": "260505",
+   "last_price": 15600,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "立德新-環南辦公室進、排氣工程",
+     "date_dir": "260505",
+     "unit_price": 15600,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-duct-3",
+   "category": "hvac",
+   "name": "風機風管吊架及固定架",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "material",
+   "std_price": 13200,
+   "price_min": 13200,
+   "price_max": 13200,
+   "price_median": 13200,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 13200,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 13200,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "fn-maintenance-opening",
+   "category": "finish",
+   "name": "開維修孔",
+   "spec": "",
+   "unit": "口",
+   "cost_type": "labor",
+   "std_price": 8000,
+   "price_min": 8000,
+   "price_max": 8000,
+   "price_median": 8000,
+   "samples": 3,
+   "last_seen": "260818",
+   "last_price": 8000,
+   "aliases": [
+    "護理站開2口維修孔",
+    "護理站開兩口維修孔",
+    "開口維修孔"
+   ],
+   "sources": [
+    {
+     "quote_id": "S9F醫學美容中心小型送風機汰換報價單",
+     "date_dir": "260818",
+     "unit_price": 8000,
+     "qty": 1
+    },
+    {
+     "quote_id": "260818__報價單-L7F護理站小型送風機汰換",
+     "date_dir": "260818",
+     "unit_price": 8000,
+     "qty": 2
+    },
+    {
+     "quote_id": "立德新-L6F病房及公共區小型送風機汰換工程",
+     "date_dir": "20260515",
+     "unit_price": 8000,
+     "qty": 2
+    }
+   ]
+  },
+  {
+   "id": "fn-cement",
+   "category": "finish",
+   "name": "水泥打孔",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "labor",
+   "std_price": 5500,
+   "price_min": 5500,
+   "price_max": 5500,
+   "price_median": 5500,
+   "samples": 2,
+   "last_seen": "1219",
+   "last_price": 5500,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 5500,
+     "qty": 1
+    },
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 5500,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "fn-paint-5",
+   "category": "finish",
+   "name": "油漆修補(虹牌5G)",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "material",
+   "std_price": 2363,
+   "price_min": 2363,
+   "price_max": 2363,
+   "price_median": 2363,
+   "samples": 2,
+   "last_seen": "260528",
+   "last_price": 2363,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260528__報價單-6L電子紙配接電源工程 (2)-立德新",
+     "date_dir": "260528",
+     "unit_price": 2363,
+     "qty": 1
+    },
+    {
+     "quote_id": "260528__報價單-6L電子紙配接電源工程 (2)-立德新",
+     "date_dir": "260528",
+     "unit_price": 2363,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "fn-site-prep-1",
+   "category": "finish",
+   "name": "1F後區花土區雜物挖掘整地",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "labor",
+   "std_price": 33000,
+   "price_min": 33000,
+   "price_max": 33000,
+   "price_median": 33000,
+   "samples": 1,
+   "last_seen": "060708",
+   "last_price": 33000,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "060708__報價單-1F財務處後區花土及牆角滲水改善修繕工程(明細)-立德新",
+     "date_dir": "060708",
+     "unit_price": 33000,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "fn-flooring",
+   "category": "finish",
+   "name": "PVC地板拆除鋪設工資",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "labor",
+   "std_price": 6000,
+   "price_min": 6000,
+   "price_max": 6000,
+   "price_median": 6000,
+   "samples": 1,
+   "last_seen": "260818",
+   "last_price": 6000,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260818__報價單-急診更衣室PVC地板鋪設暨牆面油漆工程.pdf",
+     "date_dir": "260818",
+     "unit_price": 6000,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "fn-floor-tile-2-35",
+   "category": "finish",
+   "name": "PVC地磚 約2.35坪",
+   "spec": "",
+   "unit": "箱",
+   "cost_type": "material",
+   "std_price": 1020,
+   "price_min": 1020,
+   "price_max": 1020,
+   "price_median": 1020,
+   "samples": 1,
+   "last_seen": "260818",
+   "last_price": 1020,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260818__報價單-急診更衣室PVC地板鋪設暨牆面油漆工程.pdf",
+     "date_dir": "260818",
+     "unit_price": 1020,
+     "qty": 3
+    }
+   ]
+  },
+  {
+   "id": "fn-rainwater-pipe",
+   "category": "finish",
+   "name": "PVC雨水管整理",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "material",
+   "std_price": 2100,
+   "price_min": 2100,
+   "price_max": 2100,
+   "price_median": 2100,
+   "samples": 1,
+   "last_seen": "060708",
+   "last_price": 2100,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "060708__報價單-1F財務處後區花土及牆角滲水改善修繕工程(明細)-立德新",
+     "date_dir": "060708",
+     "unit_price": 2100,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "fn-concrete-placing",
+   "category": "finish",
+   "name": "人工運送澆置及整平",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "labor",
+   "std_price": 18000,
+   "price_min": 18000,
+   "price_max": 18000,
+   "price_median": 18000,
+   "samples": 1,
+   "last_seen": "060708",
+   "last_price": 18000,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "060708__報價單-1F財務處後區花土及牆角滲水改善修繕工程(明細)-立德新",
+     "date_dir": "060708",
+     "unit_price": 18000,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "fn-wire-mesh-3",
+   "category": "finish",
+   "name": "全區#3點焊鋼絲網綁紮組立",
+   "spec": "",
+   "unit": "M2",
+   "cost_type": "labor",
+   "std_price": 2100,
+   "price_min": 2100,
+   "price_max": 2100,
+   "price_median": 2100,
+   "samples": 1,
+   "last_seen": "060708",
+   "last_price": 2100,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "060708__報價單-1F財務處後區花土及牆角滲水改善修繕工程(明細)-立德新",
+     "date_dir": "060708",
+     "unit_price": 2100,
+     "qty": 18
+    }
+   ]
+  },
+  {
+   "id": "fn-water-barrier",
+   "category": "finish",
+   "name": "外牆底部增作擋水牆斜坡",
+   "spec": "",
+   "unit": "M",
+   "cost_type": "material",
+   "std_price": 2250,
+   "price_min": 2250,
+   "price_max": 2250,
+   "price_median": 2250,
+   "samples": 1,
+   "last_seen": "060708",
+   "last_price": 2250,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "060708__報價單-1F財務處後區花土及牆角滲水改善修繕工程(明細)-立德新",
+     "date_dir": "060708",
+     "unit_price": 2250,
+     "qty": 15
+    }
+   ]
+  },
+  {
+   "id": "fn-tile",
+   "category": "finish",
+   "name": "打地、埋管、貼磁磚",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "labor",
+   "std_price": 19500,
+   "price_min": 19500,
+   "price_max": 19500,
+   "price_median": 19500,
+   "samples": 1,
+   "last_seen": "260520",
+   "last_price": 19500,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260520__報價單-停車塔E塔前增設220V電源線2-立德新",
+     "date_dir": "260520",
+     "unit_price": 19500,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "fn-acrylic",
+   "category": "finish",
+   "name": "更新銀色壓克力板",
+   "spec": "",
+   "unit": "片",
+   "cost_type": "material",
+   "std_price": 2700,
+   "price_min": 2700,
+   "price_max": 2700,
+   "price_median": 2700,
+   "samples": 1,
+   "last_seen": "OLD",
+   "last_price": 2700,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "OLD__報價單-護理站區準備室洗手槽美化工程-立德新",
+     "date_dir": "OLD",
+     "unit_price": 2700,
+     "qty": 12
+    }
+   ]
+  },
+  {
+   "id": "fn-wall",
+   "category": "finish",
+   "name": "牆面整平粉刷工資",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "labor",
+   "std_price": 10000,
+   "price_min": 10000,
+   "price_max": 10000,
+   "price_median": 10000,
+   "samples": 1,
+   "last_seen": "260818",
+   "last_price": 10000,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260818__報價單-急診更衣室PVC地板鋪設暨牆面油漆工程.pdf",
+     "date_dir": "260818",
+     "unit_price": 10000,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "fn-silicone",
+   "category": "finish",
+   "name": "美化打矽力康施工費",
+   "spec": "",
+   "unit": "片",
+   "cost_type": "labor",
+   "std_price": 1800,
+   "price_min": 1800,
+   "price_max": 1800,
+   "price_median": 1800,
+   "samples": 1,
+   "last_seen": "OLD",
+   "last_price": 1800,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "OLD__報價單-護理站區準備室洗手槽美化工程-立德新",
+     "date_dir": "OLD",
+     "unit_price": 1800,
+     "qty": 12
+    }
+   ]
+  },
+  {
+   "id": "fn-paint-8-3",
+   "category": "finish",
+   "name": "虹牌水性漆 約8.3坪",
+   "spec": "",
+   "unit": "加崙",
+   "cost_type": "material",
+   "std_price": 600,
+   "price_min": 600,
+   "price_max": 600,
+   "price_median": 600,
+   "samples": 1,
+   "last_seen": "260818",
+   "last_price": 600,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260818__報價單-急診更衣室PVC地板鋪設暨牆面油漆工程.pdf",
+     "date_dir": "260818",
+     "unit_price": 600,
+     "qty": 2
+    }
+   ]
+  },
+  {
+   "id": "fn-woodwork",
+   "category": "finish",
+   "name": "製作木製檯階(緊急進口)",
+   "spec": "",
+   "unit": "組",
+   "cost_type": "labor",
+   "std_price": 5520,
+   "price_min": 5520,
+   "price_max": 5520,
+   "price_median": 5520,
+   "samples": 1,
+   "last_seen": "260616",
+   "last_price": 5520,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260616__立德新-114年度透析大樓建安缺失改善工程報價單(明細)03",
+     "date_dir": "260616",
+     "unit_price": 5520,
+     "qty": 4
+    }
+   ]
+  },
+  {
+   "id": "fn-concrete-3000p",
+   "category": "finish",
+   "name": "預拌混凝土3000PSI",
+   "spec": "",
+   "unit": "M2",
+   "cost_type": "material",
+   "std_price": 2700,
+   "price_min": 2700,
+   "price_max": 2700,
+   "price_median": 2700,
+   "samples": 1,
+   "last_seen": "060708",
+   "last_price": 2700,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "060708__報價單-1F財務處後區花土及牆角滲水改善修繕工程(明細)-立德新",
+     "date_dir": "060708",
+     "unit_price": 2700,
+     "qty": 18
+    }
+   ]
+  },
+  {
+   "id": "ac-mag-lock-0600p",
+   "category": "access",
+   "name": "磁力鎖 JC-0600P",
+   "spec": "JC-0600P",
+   "unit": "個",
+   "cost_type": "material",
+   "std_price": 2860,
+   "price_min": 2860,
+   "price_max": 3750,
+   "price_median": 3750,
+   "samples": 3,
+   "last_seen": "260320",
+   "last_price": 2860,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-心肺治療室增設門禁工事",
+     "date_dir": "260320",
+     "unit_price": 2860,
+     "qty": 1
+    },
+    {
+     "quote_id": "OLD__報價單-6L7L日光室加裝門禁工事-立德新",
+     "date_dir": "OLD",
+     "unit_price": 3750,
+     "qty": 2
+    },
+    {
+     "quote_id": "OLD__報價單-8S8L污物室增設門禁-立德新",
+     "date_dir": "OLD",
+     "unit_price": 3750,
+     "qty": 2
+    }
+   ]
+  },
+  {
+   "id": "ac-mag-lock",
+   "category": "access",
+   "name": "磁力鎖支架",
+   "spec": "",
+   "unit": "個",
+   "cost_type": "material",
+   "std_price": 1950,
+   "price_min": 1950,
+   "price_max": 2700,
+   "price_median": 2325,
+   "samples": 2,
+   "last_seen": "260320",
+   "last_price": 1950,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-心肺治療室增設門禁工事",
+     "date_dir": "260320",
+     "unit_price": 1950,
+     "qty": 1
+    },
+    {
+     "quote_id": "OLD__報價單-6L7L日光室加裝門禁工事-立德新",
+     "date_dir": "OLD",
+     "unit_price": 2700,
+     "qty": 2
+    }
+   ]
+  },
+  {
+   "id": "ac-card-reader-721",
+   "category": "access",
+   "name": "密碼讀卡機 AR-721HD",
+   "spec": "AR-721HD",
+   "unit": "只",
+   "cost_type": "material",
+   "std_price": 3450,
+   "price_min": 3450,
+   "price_max": 3450,
+   "price_median": 3450,
+   "samples": 1,
+   "last_seen": "OLD",
+   "last_price": 3450,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "OLD__報價單-8S8L污物室增設門禁-立德新",
+     "date_dir": "OLD",
+     "unit_price": 3450,
+     "qty": 2
+    }
+   ]
+  },
+  {
+   "id": "ac-fingerprint-30",
+   "category": "access",
+   "name": "指紋機(怡群AC30)",
+   "spec": "AC30",
+   "unit": "台",
+   "cost_type": "material",
+   "std_price": 7800,
+   "price_min": 7800,
+   "price_max": 7800,
+   "price_median": 7800,
+   "samples": 1,
+   "last_seen": "260320",
+   "last_price": 7800,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-心肺治療室增設門禁工事",
+     "date_dir": "260320",
+     "unit_price": 7800,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "ac-call-bell",
+   "category": "access",
+   "name": "無線緊急求救鈴+無線押扣組",
+   "spec": "",
+   "unit": "組",
+   "cost_type": "material",
+   "std_price": 2120,
+   "price_min": 2120,
+   "price_max": 2120,
+   "price_median": 2120,
+   "samples": 1,
+   "last_seen": "260821",
+   "last_price": 2120,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260821__報價單-無線緊急求救鈴安裝",
+     "date_dir": "260821",
+     "unit_price": 2120,
+     "qty": 4
+    }
+   ]
+  },
+  {
+   "id": "ac-switch",
+   "category": "access",
+   "name": "磁簧開關GUARD",
+   "spec": "",
+   "unit": "只",
+   "cost_type": "material",
+   "std_price": 195,
+   "price_min": 195,
+   "price_max": 195,
+   "price_median": 195,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 195,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-B1F影像醫學更衣室指示燈工事",
+     "date_dir": "1219",
+     "unit_price": 195,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "ac-sensor-601",
+   "category": "access",
+   "name": "紅外線感應器RP-601",
+   "spec": "RP-601",
+   "unit": "個",
+   "cost_type": "material",
+   "std_price": 715,
+   "price_min": 715,
+   "price_max": 715,
+   "price_median": 715,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 715,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-B1F影像醫學更衣室指示燈工事",
+     "date_dir": "1219",
+     "unit_price": 715,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "fr-fire-stop",
+   "category": "fire",
+   "name": "防火區劃之防火填塞施作",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "labor",
+   "std_price": 88650,
+   "price_min": 57600,
+   "price_max": 119700,
+   "price_median": 88650,
+   "samples": 3,
+   "last_seen": "260616",
+   "last_price": 57600,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-114年度醫療大樓建安缺失改善工程(明細)02-立德新",
+     "date_dir": "260616",
+     "unit_price": 119700,
+     "qty": 1
+    },
+    {
+     "quote_id": "260616__報價單-立德新-114年度門診大樓建安缺失改善工程報價單(明細)02.pdf",
+     "date_dir": "260616",
+     "unit_price": 492000,
+     "qty": 1
+    },
+    {
+     "quote_id": "260616__立德新-114年度透析大樓建安缺失改善工程報價單(明細)03",
+     "date_dir": "260616",
+     "unit_price": 57600,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "fr-door-closer",
+   "category": "fire",
+   "name": "防火門之門弓器新增",
+   "spec": "",
+   "unit": "只",
+   "cost_type": "material",
+   "std_price": 4470,
+   "price_min": 4470,
+   "price_max": 4470,
+   "price_median": 4470,
+   "samples": 3,
+   "last_seen": "260616",
+   "last_price": 4470,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-114年度醫療大樓建安缺失改善工程(明細)02-立德新",
+     "date_dir": "260616",
+     "unit_price": 4470,
+     "qty": 14
+    },
+    {
+     "quote_id": "260616__報價單-立德新-114年度門診大樓建安缺失改善工程報價單(明細)02.pdf",
+     "date_dir": "260616",
+     "unit_price": 4470,
+     "qty": 12
+    },
+    {
+     "quote_id": "260616__立德新-114年度透析大樓建安缺失改善工程報價單(明細)03",
+     "date_dir": "260616",
+     "unit_price": 4470,
+     "qty": 9
+    }
+   ]
+  },
+  {
+   "id": "fr-firedoor-panic-bar",
+   "category": "fire",
+   "name": "防火門水平推桿更新(工+料)",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "material",
+   "std_price": 5970,
+   "price_min": 5970,
+   "price_max": 5970,
+   "price_median": 5970,
+   "samples": 3,
+   "last_seen": "260616",
+   "last_price": 5970,
+   "aliases": [
+    "防火門之水平推桿更新(工+料)"
+   ],
+   "sources": [
+    {
+     "quote_id": "報價單-114年度醫療大樓建安缺失改善工程(明細)02-立德新",
+     "date_dir": "260616",
+     "unit_price": 5970,
+     "qty": 3
+    },
+    {
+     "quote_id": "260616__報價單-立德新-114年度門診大樓建安缺失改善工程報價單(明細)02.pdf",
+     "date_dir": "260616",
+     "unit_price": 5970,
+     "qty": 3
+    },
+    {
+     "quote_id": "260616__立德新-114年度透析大樓建安缺失改善工程報價單(明細)03",
+     "date_dir": "260616",
+     "unit_price": 5970,
+     "qty": 10
+    }
+   ]
+  },
+  {
+   "id": "fr-rockwool",
+   "category": "fire",
+   "name": "一小時防火時效岩綿庫版新增",
+   "spec": "",
+   "unit": "組",
+   "cost_type": "material",
+   "std_price": 14700,
+   "price_min": 14700,
+   "price_max": 14700,
+   "price_median": 14700,
+   "samples": 1,
+   "last_seen": "260616",
+   "last_price": 14700,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-114年度醫療大樓建安缺失改善工程(明細)02-立德新",
+     "date_dir": "260616",
+     "unit_price": 14700,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "fr-extinguisher-2",
+   "category": "fire",
+   "name": "手提式CO2滅火器5P",
+   "spec": "",
+   "unit": "支",
+   "cost_type": "material",
+   "std_price": 2730,
+   "price_min": 2730,
+   "price_max": 2730,
+   "price_median": 2730,
+   "samples": 1,
+   "last_seen": "OLD",
+   "last_price": 2730,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "OLD__報價單-20250924_二氧化碳滅火器5P(立德新_神經科).pdf",
+     "date_dir": "OLD",
+     "unit_price": 2730,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "fr-fire-door",
+   "category": "fire",
+   "name": "防火門新增",
+   "spec": "",
+   "unit": "組",
+   "cost_type": "material",
+   "std_price": 68700,
+   "price_min": 68700,
+   "price_max": 68700,
+   "price_median": 68700,
+   "samples": 1,
+   "last_seen": "260616",
+   "last_price": 68700,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-114年度醫療大樓建安缺失改善工程(明細)02-立德新",
+     "date_dir": "260616",
+     "unit_price": 68700,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "cm-hardware-misc",
+   "category": "common",
+   "name": "五金另件(固定配件、耗材等)",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "consumable",
+   "std_price": 2000,
+   "price_min": 675,
+   "price_max": 5200,
+   "price_median": 2000,
+   "samples": 45,
+   "last_seen": "260825",
+   "last_price": 500,
+   "aliases": [
+    "五金另件",
+    "五金另料",
+    "五金另料(螺絲零件、焊接材料等)",
+    "五金吊架另料",
+    "五金料件"
+   ],
+   "sources": [
+    {
+     "quote_id": "報價單-創新教育中心安裝專用迴路插座",
+     "date_dir": "260825",
+     "unit_price": 500,
+     "qty": 1
+    },
+    {
+     "quote_id": "260825__報價單-神經醫學中心申請220V專用插座",
+     "date_dir": "260825",
+     "unit_price": 500,
+     "qty": 1
+    },
+    {
+     "quote_id": "加護中心申請220V專用插座",
+     "date_dir": "260824",
+     "unit_price": 500,
+     "qty": 1
+    },
+    {
+     "quote_id": "260818__報價單-神經醫學中心新增網孔及拉線作業",
+     "date_dir": "260818",
+     "unit_price": 500,
+     "qty": 1
+    },
+    {
+     "quote_id": "260729__報價單-L11 30KVA UPS (1)-立德新",
+     "date_dir": "260729",
+     "unit_price": 5000,
+     "qty": 1
+    },
+    {
+     "quote_id": "報價單-申請外籍移工檢體蒐集區新增硬體設備(網孔、電源) (1)-立德新",
+     "date_dir": "260729",
+     "unit_price": 650,
+     "qty": 1
+    },
+    {
+     "quote_id": "260722__報價單-L11 30KVA UPS (1)-立德新.pdf",
+     "date_dir": "260722",
+     "unit_price": 5000,
+     "qty": 1
+    },
+    {
+     "quote_id": "工務處醫工課課汰換小型送風機",
+     "date_dir": "260528",
+     "unit_price": 3000,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "cm-install-fee",
+   "category": "common",
+   "name": "施工費",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "labor",
+   "std_price": 5000,
+   "price_min": 2500,
+   "price_max": 15000,
+   "price_median": 5000,
+   "samples": 27,
+   "last_seen": "260729",
+   "last_price": 4500,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-申請外籍移工檢體蒐集區新增硬體設備(網孔、電源) (1)-立德新",
+     "date_dir": "260729",
+     "unit_price": 4500,
+     "qty": 1
+    },
+    {
+     "quote_id": "260520__報價單-停車塔E塔前增設220V電源線2-立德新",
+     "date_dir": "260520",
+     "unit_price": 6000,
+     "qty": 1
+    },
+    {
+     "quote_id": "260320__報價單-插座請購 (門診大樓一樓領藥櫃檯旁智能販賣機使用)",
+     "date_dir": "260320",
+     "unit_price": 2500,
+     "qty": 1
+    },
+    {
+     "quote_id": "260320__報價單-請購生化血液冰箱及血清冰箱改為緊急用電.pdf",
+     "date_dir": "260320",
+     "unit_price": 2500,
+     "qty": 1
+    },
+    {
+     "quote_id": "260223__報價單-申請產房待產室5新增網路線-立德新.pdf",
+     "date_dir": "260223",
+     "unit_price": 5000,
+     "qty": 1
+    },
+    {
+     "quote_id": "260223__報價單-舒眠館新增網路線3F至 B2-追加工程",
+     "date_dir": "260223",
+     "unit_price": 5000,
+     "qty": 1
+    },
+    {
+     "quote_id": "260223__報價單-財務處_增設拉線至第一個位置網路孔-立德新",
+     "date_dir": "260223",
+     "unit_price": 5000,
+     "qty": 1
+    },
+    {
+     "quote_id": "報價單-501診拉網路線施工-立德新",
+     "date_dir": "260223",
+     "unit_price": 5000,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "cm-labor",
+   "category": "common",
+   "name": "工資",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "labor",
+   "std_price": 5000,
+   "price_min": 2000,
+   "price_max": 15000,
+   "price_median": 5000,
+   "samples": 23,
+   "last_seen": "260825",
+   "last_price": 3000,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-創新教育中心安裝專用迴路插座",
+     "date_dir": "260825",
+     "unit_price": 2000,
+     "qty": 1
+    },
+    {
+     "quote_id": "260825__報價單-神經醫學中心申請220V專用插座",
+     "date_dir": "260825",
+     "unit_price": 3000,
+     "qty": 1
+    },
+    {
+     "quote_id": "加護中心申請220V專用插座",
+     "date_dir": "260824",
+     "unit_price": 3000,
+     "qty": 1
+    },
+    {
+     "quote_id": "260821__報價單-無線緊急求救鈴安裝",
+     "date_dir": "260821",
+     "unit_price": 1000,
+     "qty": 1
+    },
+    {
+     "quote_id": "S9F醫學美容中心小型送風機汰換報價單",
+     "date_dir": "260818",
+     "unit_price": 2000,
+     "qty": 3
+    },
+    {
+     "quote_id": "260818__報價單-L7F護理站小型送風機汰換",
+     "date_dir": "260818",
+     "unit_price": 2000,
+     "qty": 6
+    },
+    {
+     "quote_id": "260818__報價單-神經醫學中心新增網孔及拉線作業",
+     "date_dir": "260818",
+     "unit_price": 4000,
+     "qty": 1
+    },
+    {
+     "quote_id": "260714__立德新-急診室1F-變頻冷氣新增安裝",
+     "date_dir": "260714",
+     "unit_price": 5000,
+     "qty": 4
+    }
+   ]
+  },
+  {
+   "id": "cm-waste-disposal",
+   "category": "common",
+   "name": "廢棄物清運",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "other",
+   "std_price": 9575,
+   "price_min": 6000,
+   "price_max": 18000,
+   "price_median": 9575,
+   "samples": 8,
+   "last_seen": "260818",
+   "last_price": 2000,
+   "aliases": [
+    "事業廢棄物清運",
+    "廢料清運(建築用料及廢棄物)",
+    "廢棄物清運費",
+    "廢棄物清運費用",
+    "廢棄物清運費用 2車",
+    "清運費"
+   ],
+   "sources": [
+    {
+     "quote_id": "260818__報價單-急診更衣室PVC地板鋪設暨牆面油漆工程.pdf",
+     "date_dir": "260818",
+     "unit_price": 2000,
+     "qty": 1
+    },
+    {
+     "quote_id": "260729__報價單-急診保溫-立德新",
+     "date_dir": "260729",
+     "unit_price": 15000,
+     "qty": 1
+    },
+    {
+     "quote_id": "060708__報價單-1F財務處後區花土及牆角滲水改善修繕工程(明細)-立德新",
+     "date_dir": "060708",
+     "unit_price": 18000,
+     "qty": 1
+    },
+    {
+     "quote_id": "報價單-立德新",
+     "date_dir": "260520",
+     "unit_price": 12000,
+     "qty": 1
+    },
+    {
+     "quote_id": "報價單-病檢科12樓(原第一會議室)立式空調節拆除工程-立德新",
+     "date_dir": "260505",
+     "unit_price": 6000,
+     "qty": 1
+    },
+    {
+     "quote_id": "1229__門診大樓保溫改善工程_立德新 update",
+     "date_dir": "1229",
+     "unit_price": 40800,
+     "qty": 1
+    },
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 7150,
+     "qty": 1
+    },
+    {
+     "quote_id": "OLD__報價單-護理站區準備室洗手槽美化工程-立德新",
+     "date_dir": "OLD",
+     "unit_price": 6500,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "cm-freight",
+   "category": "common",
+   "name": "運雜費",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "other",
+   "std_price": 5500,
+   "price_min": 4500,
+   "price_max": 6600,
+   "price_median": 5500,
+   "samples": 7,
+   "last_seen": "260729",
+   "last_price": 4500,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260729__報價單-L11 30KVA UPS (1)-立德新",
+     "date_dir": "260729",
+     "unit_price": 4500,
+     "qty": 1
+    },
+    {
+     "quote_id": "260722__報價單-L11 30KVA UPS (1)-立德新.pdf",
+     "date_dir": "260722",
+     "unit_price": 4500,
+     "qty": 1
+    },
+    {
+     "quote_id": "立德新-環南辦公室進、排氣工程",
+     "date_dir": "260505",
+     "unit_price": 6500,
+     "qty": 1
+    },
+    {
+     "quote_id": "立德新-環南辦公室進、排氣工程",
+     "date_dir": "260505",
+     "unit_price": 5200,
+     "qty": 1
+    },
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 5500,
+     "qty": 1
+    },
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 6600,
+     "qty": 1
+    },
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 6600,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "cm-onsite-install-labor",
+   "category": "common",
+   "name": "現場安裝工資",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "labor",
+   "std_price": 42000,
+   "price_min": 32000,
+   "price_max": 66000,
+   "price_median": 42000,
+   "samples": 6,
+   "last_seen": "260729",
+   "last_price": 40000,
+   "aliases": [
+    "安裝工資",
+    "現塲安裝工資",
+    "現塲工資"
+   ],
+   "sources": [
+    {
+     "quote_id": "260729__報價單-L11 30KVA UPS (1)-立德新",
+     "date_dir": "260729",
+     "unit_price": 40000,
+     "qty": 1
+    },
+    {
+     "quote_id": "260722__報價單-L11 30KVA UPS (1)-立德新.pdf",
+     "date_dir": "260722",
+     "unit_price": 40000,
+     "qty": 1
+    },
+    {
+     "quote_id": "立德新-環南辦公室進、排氣工程",
+     "date_dir": "260505",
+     "unit_price": 32000,
+     "qty": 1
+    },
+    {
+     "quote_id": "立德新-環南辦公室進、排氣工程",
+     "date_dir": "260505",
+     "unit_price": 45500,
+     "qty": 1
+    },
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 44000,
+     "qty": 1
+    },
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 66000,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "cm-overhead-fee",
+   "category": "common",
+   "name": "管銷費",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "other",
+   "std_price": 11000,
+   "price_min": 8400,
+   "price_max": 22000,
+   "price_median": 11000,
+   "samples": 5,
+   "last_seen": "260520",
+   "last_price": 22000,
+   "aliases": [
+    "管銷費(含監工費用)"
+   ],
+   "sources": [
+    {
+     "quote_id": "報價單-立德新",
+     "date_dir": "260520",
+     "unit_price": 22000,
+     "qty": 1
+    },
+    {
+     "quote_id": "立德新-環南辦公室進、排氣工程",
+     "date_dir": "260505",
+     "unit_price": 8400,
+     "qty": 1
+    },
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 11000,
+     "qty": 1
+    },
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 11000,
+     "qty": 1
+    },
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 38500,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "cm-ceiling",
+   "category": "common",
+   "name": "工安(防護)管理含輕鋼架天花板復原(移動)",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "other",
+   "std_price": 30000,
+   "price_min": 30000,
+   "price_max": 30000,
+   "price_median": 30000,
+   "samples": 1,
+   "last_seen": "1229",
+   "last_price": 30000,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "1229__門診大樓保溫改善工程_立德新 update",
+     "date_dir": "1229",
+     "unit_price": 30000,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "cm-safety",
+   "category": "common",
+   "name": "工安衛生管理",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "other",
+   "std_price": 3900,
+   "price_min": 3900,
+   "price_max": 3900,
+   "price_median": 3900,
+   "samples": 1,
+   "last_seen": "260729",
+   "last_price": 3900,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260729__報價單-急診保溫-立德新",
+     "date_dir": "260729",
+     "unit_price": 3900,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "cm-mgmt-fee",
+   "category": "common",
+   "name": "設備管理費(含檢測、建檔列管、資產盤點)",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "other",
+   "std_price": 600,
+   "price_min": 600,
+   "price_max": 600,
+   "price_median": 600,
+   "samples": 1,
+   "last_seen": "OLD",
+   "last_price": 600,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "OLD__報價單-20250924_二氧化碳滅火器5P(立德新_神經科).pdf",
+     "date_dir": "OLD",
+     "unit_price": 600,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "ot-ups-30kva",
+   "category": "other",
+   "name": "UPS ABLEREX 30KVA/27KW(整機式、含輸出變壓器)",
+   "spec": "30KVA/27KW 380/220V→208/120V",
+   "unit": "台",
+   "cost_type": "material",
+   "std_price": 252000,
+   "price_min": 252000,
+   "price_max": 252000,
+   "price_median": 252000,
+   "samples": 2,
+   "last_seen": "260729",
+   "last_price": 252000,
+   "aliases": [
+    "UPS廠牌:ABLEREX 30KVA/27KWUPS容量型號:TAURUS(整機式UPS)(含輸出變壓器)輸入電壓:3相4線380/220V,60Hz輸出電壓:3相4線208/120V,60Hz",
+    "UPS廠牌:ABLEREX 30KVA/27KWUPS容量型號:TAURUS(整機式UPS)(含輸出變壓器)輸入電壓：3相4線 380/220V,60Hz 輸出電壓：3相4線 208/120V,60Hz"
+   ],
+   "sources": [
+    {
+     "quote_id": "260729__報價單-L11 30KVA UPS (1)-立德新",
+     "date_dir": "260729",
+     "unit_price": 252000,
+     "qty": 1
+    },
+    {
+     "quote_id": "260722__報價單-L11 30KVA UPS (1)-立德新.pdf",
+     "date_dir": "260722",
+     "unit_price": 252000,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "ot-insul-labor-full",
+   "category": "other",
+   "name": "保溫工資(全案汰換,含穿樑穿牆處理)",
+   "spec": "全案LOT",
+   "unit": "式",
+   "cost_type": "labor",
+   "std_price": 391391,
+   "price_min": 391391,
+   "price_max": 391391,
+   "price_median": 391391,
+   "samples": 1,
+   "last_seen": "1229",
+   "last_price": 391391,
+   "aliases": [
+    "保溫工資(含保溫汰換工資、外覆白色PVC、送風機水盤保溫工資、管墊安裝工資、管路穿樑.穿牆保溫處理工資)"
+   ],
+   "sources": [
+    {
+     "quote_id": "1229__門診大樓保溫改善工程_立德新 update",
+     "date_dir": "1229",
+     "unit_price": 391391,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "fn-fire-paint",
+   "category": "other",
+   "name": "升降機梯廳牆面裝修材(防火漆噴塗)",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "labor",
+   "std_price": 133200,
+   "price_min": 133200,
+   "price_max": 133200,
+   "price_median": 133200,
+   "samples": 1,
+   "last_seen": "260616",
+   "last_price": 133200,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260616__立德新-114年度透析大樓建安缺失改善工程報價單(明細)03",
+     "date_dir": "260616",
+     "unit_price": 133200,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "fn-ceiling",
+   "category": "other",
+   "name": "天花板更新(PVC更新為矽酸鈣板\\耐燃二級以上材)",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "material",
+   "std_price": 85350,
+   "price_min": 85350,
+   "price_max": 85350,
+   "price_median": 85350,
+   "samples": 1,
+   "last_seen": "260616",
+   "last_price": 85350,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-114年度醫療大樓建安缺失改善工程(明細)02-立德新",
+     "date_dir": "260616",
+     "unit_price": 85350,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-insul-pipe",
+   "category": "other",
+   "name": "新增保溫管墊材料",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "material",
+   "std_price": 88800,
+   "price_min": 88800,
+   "price_max": 88800,
+   "price_median": 88800,
+   "samples": 1,
+   "last_seen": "1229",
+   "last_price": 88800,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "1229__門診大樓保溫改善工程_立德新 update",
+     "date_dir": "1229",
+     "unit_price": 88800,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "hv-piping-2",
+   "category": "other",
+   "name": "舊有管路設備拆除搬運",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "labor",
+   "std_price": 71500,
+   "price_min": 71500,
+   "price_max": 71500,
+   "price_median": 71500,
+   "samples": 1,
+   "last_seen": "1219",
+   "last_price": 71500,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "1219__報價單-SB2空氣品質改善-立德新",
+     "date_dir": "1219",
+     "unit_price": 71500,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "fr-fire-door-sign",
+   "category": "other",
+   "name": "門診、醫療、血液透析大樓張貼防火門標示與反光條",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "labor",
+   "std_price": 59700,
+   "price_min": 59700,
+   "price_max": 59700,
+   "price_median": 59700,
+   "samples": 1,
+   "last_seen": "260616",
+   "last_price": 59700,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260616__立德新-114年度透析大樓建安缺失改善工程報價單(明細)03",
+     "date_dir": "260616",
+     "unit_price": 59700,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "fr-fire-door-3",
+   "category": "other",
+   "name": "防火門新增(3扇)",
+   "spec": "",
+   "unit": "式",
+   "cost_type": "material",
+   "std_price": 281400,
+   "price_min": 281400,
+   "price_max": 281400,
+   "price_median": 281400,
+   "samples": 1,
+   "last_seen": "260616",
+   "last_price": 281400,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "260616__報價單-立德新-114年度門診大樓建安缺失改善工程報價單(明細)02.pdf",
+     "date_dir": "260616",
+     "unit_price": 281400,
+     "qty": 1
+    }
+   ]
+  },
+  {
+   "id": "fn-scaffold-180",
+   "category": "other",
+   "name": "鷹架搭設 長*寬*高 (180*120*900 CM)",
+   "spec": "180*120*900",
+   "unit": "式",
+   "cost_type": "labor",
+   "std_price": 55000,
+   "price_min": 55000,
+   "price_max": 55000,
+   "price_median": 55000,
+   "samples": 1,
+   "last_seen": "260520",
+   "last_price": 55000,
+   "aliases": [],
+   "sources": [
+    {
+     "quote_id": "報價單-立德新",
+     "date_dir": "260520",
+     "unit_price": 55000,
+     "qty": 1
+    }
+   ]
+  }
+ ]
+}

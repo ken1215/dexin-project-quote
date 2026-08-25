@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════════════
+   聯新國際醫療集團 CIS — 色票與字型
+   深藍 #0054A7 / 亮藍 #008CD6 / CIS 綠 #00A94F / 淺藍 #D3EDFB
+   Ink 5 階墨色；中文 微軟正黑體、英數 Inter（tabular-nums）
+   ═══════════════════════════════════════════════════════════ */
+@theme {
+  --color-deep:   #0054A7;
+  --color-deep-d: #00468C;
+  --color-bright: #008CD6;
+  --color-green:  #00A94F;
+  --color-light:  #D3EDFB;
+
+  --color-ink-900: #0A1F33;
+  --color-ink-700: #334155;
+  --color-ink-500: #6B7C8C;
+  --color-ink-200: #D9E3EC;
+  --color-ink-50:  #F7FAFC;
+
+  --color-warn:    #C0392B;
+  --color-warn-bg: #FDF3F2;
+  --color-alert:   #D35400;
+
+  --font-sans: "Microsoft JhengHei", "微軟正黑體", "Inter", -apple-system,
+               "Segoe UI", "Noto Sans TC", sans-serif;
+  --font-num:  "Inter", "Segoe UI", "Microsoft JhengHei", sans-serif;
+}
+
+html { color-scheme: light; }
+
+body {
+  margin: 0;
+  background: var(--color-ink-50);
+  color: var(--color-ink-700);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+/* 數字一律等寬對齊——金額表格的可讀性靠這個 */
+.num, input[type="number"], td.num, th.num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* 共用元件樣式（Tailwind utility 之外的少數重複樣式） */
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-1 rounded-md border border-ink-200
+           bg-white px-3 py-1.5 text-sm text-ink-700 transition
+           hover:border-bright hover:text-deep disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply border-deep bg-deep text-white hover:bg-deep-d hover:text-white hover:border-deep-d;
+  }
+  .btn-danger {
+    @apply border-warn/40 text-warn hover:border-warn hover:text-warn;
+  }
+  .field {
+    @apply w-full rounded-md border border-ink-200 bg-white px-2.5 py-1.5 text-sm text-ink-900
+           outline-none focus:border-bright focus:ring-2 focus:ring-bright/25
+           disabled:bg-ink-50 disabled:text-ink-500 read-only:bg-ink-50 read-only:text-ink-500;
+  }
+  .label { @apply mb-1 block text-xs text-ink-500; }
+  .card  { @apply rounded-lg border border-ink-200 bg-white p-4; }
+  .card-title {
+    @apply mb-3 border-b border-ink-200 pb-2 text-[15px] font-semibold text-deep;
+  }
+  .tag { @apply inline-block rounded-full bg-light px-2 py-0.5 text-[11px] text-deep; }
+  .th  { @apply border border-ink-200 bg-light/60 px-2 py-1.5 text-xs font-semibold text-ink-700; }
+  .td  { @apply border border-ink-200 px-2 py-1 text-[13px]; }
+}
+
+/* ── 列印：只印報價單，介面全部隱藏 ── */
+@media print {
+  @page { size: A4; margin: 12mm 10mm; }
+  body { background: #fff; font-size: 12px; }
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
+  .print-page { page-break-after: always; }
+  .print-page:last-child { page-break-after: auto; }
+  .print-page table { font-size: 11.5px; }
+  .print-page th, .print-page td { border: 1px solid #666 !important; padding: 3px 5px; }
+}
+.print-only { display: none; }
