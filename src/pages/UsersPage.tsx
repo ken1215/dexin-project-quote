@@ -13,16 +13,25 @@ interface AccountRow {
   last_sign_in_at: string | null
 }
 
+/**
+ * session 失效的哨兵訊息。
+ * 最常見的觸發情境是「主管改了自己的密碼」——Supabase 會撤銷該使用者既有的 session，
+ * 於是下一次呼叫就 401。原本直接把 Edge Function 的「登入憑證無效或已過期」丟到畫面上，
+ * 使用者只會覺得系統壞了，根本不知道要重新登入。
+ */
+const SESSION_EXPIRED = 'SESSION_EXPIRED'
+
 /** 呼叫 admin-users Edge Function（service_role 只存在於伺服器端，前端拿不到） */
 async function callAdmin<T>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
   const { data: { session } } = await supabase.auth.getSession()
-  if (!session) throw new Error('登入狀態已過期，請重新登入')
+  if (!session) throw new Error(SESSION_EXPIRED)
   const { data, error } = await supabase.functions.invoke('admin-users', {
     body: { action, ...payload },
   })
   if (error) {
     // Edge Function 回非 2xx 時錯誤訊息藏在 context 裡，挖出來給人看
     const ctx = (error as { context?: Response }).context
+    if (ctx && typeof ctx.status === 'number' && ctx.status === 401) throw new Error(SESSION_EXPIRED)
     if (ctx && typeof ctx.json === 'function') {
       try {
         const body = await ctx.json()
@@ -40,7 +49,10 @@ async function callAdmin<T>(action: string, payload: Record<string, unknown> = {
 const fmtDate = (s: string | null) => (s ? s.slice(0, 10) : '—')
 
 export default function UsersPage() {
-  const { profile } = useAuth()
+  const { profile, signOut } = useAuth()
+  /** 改完自己的密碼後的過場：顯示提示並自動登出，不要讓人卡在看不懂的 401 */
+  const [selfPwDone, setSelfPwDone] = useState(false)
+  const [expired, setExpired] = useState(false)
   const [rows, setRows] = useState<AccountRow[]>([])
   const [draft, setDraft] = useState<Record<string, Partial<AccountRow>>>({})
   const [loading, setLoading] = useState(true)
@@ -72,7 +84,12 @@ export default function UsersPage() {
   useEffect(() => { void load() }, [load])
 
   const flash = (msg: string) => { setOk(msg); setError(null); setTimeout(() => setOk(null), 4000) }
-  const fail = (e: unknown) => { setError(e instanceof Error ? e.message : String(e)); setOk(null) }
+  const fail = (e: unknown) => {
+    const msg = e instanceof Error ? e.message : String(e)
+    setOk(null)
+    if (msg === SESSION_EXPIRED) { setExpired(true); setError(null); return }
+    setError(msg)
+  }
 
   const val = <K extends keyof AccountRow>(r: AccountRow, k: K): AccountRow[K] =>
     (draft[r.id]?.[k] ?? r[k]) as AccountRow[K]
@@ -116,11 +133,19 @@ export default function UsersPage() {
 
   async function resetPw() {
     if (!pwFor) return
+    const isSelf = pwFor.id === profile?.id
     setBusy('pw')
     try {
       await callAdmin('reset_password', { id: pwFor.id, password: newPw })
-      flash(`已重設 ${pwFor.email} 的密碼，請告知本人並提醒他登入後自行更改`)
       setPwFor(null); setNewPw('')
+      if (isSelf) {
+        // Supabase 在密碼變更時會撤銷這個使用者既有的 session，
+        // 繼續留在頁面上只會在下一次操作時撞 401。直接帶去重新登入。
+        setSelfPwDone(true)
+        setTimeout(() => { void signOut() }, 2500)
+        return
+      }
+      flash(`已重設 ${pwFor.email} 的密碼，請告知本人並提醒他登入後自行更改`)
     } catch (e) { fail(e) }
     setBusy('')
   }
@@ -138,6 +163,37 @@ export default function UsersPage() {
   }
 
   const isSelf = (r: AccountRow) => r.id === profile?.id
+
+  // 改完自己的密碼：不要讓人留在頁面上等著撞 401
+  if (selfPwDone) {
+    return (
+      <div className="mx-auto mt-16 max-w-md text-center">
+        <div className="card">
+          <h2 className="card-title justify-center text-center">密碼已更新</h2>
+          <p className="text-ink-700">
+            你剛更改了自己的密碼，基於安全考量目前的登入狀態已失效。
+          </p>
+          <p className="mt-2 text-ink-500">正在登出，請用<b className="text-deep">新密碼</b>重新登入…</p>
+          <button className="btn btn-primary mt-4" onClick={() => void signOut()}>立即前往登入</button>
+        </div>
+      </div>
+    )
+  }
+
+  // session 失效（最常見是密碼剛被改過）：講人話並給一個出口
+  if (expired) {
+    return (
+      <div className="mx-auto mt-16 max-w-md text-center">
+        <div className="card border-alert/40">
+          <h2 className="card-title justify-center text-center text-alert">登入狀態已失效</h2>
+          <p className="text-ink-700">
+            這通常發生在密碼剛被更改過，或是離開太久。請重新登入後再操作。
+          </p>
+          <button className="btn btn-primary mt-4" onClick={() => void signOut()}>重新登入</button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -298,6 +354,16 @@ export default function UsersPage() {
       {pwFor && (
         <div className="card border-bright/40">
           <h2 className="card-title">重設密碼：{pwFor.email}</h2>
+          {pwFor.id === profile?.id ? (
+            <p className="mb-3 rounded-md border border-alert/40 bg-alert/10 px-3 py-2 text-[13px] text-alert">
+              這是<b>你自己的帳號</b>。改完之後目前的登入狀態會立即失效，
+              系統會自動登出，需要用新密碼重新登入——請先確認新密碼記得住。
+            </p>
+          ) : (
+            <p className="mb-3 text-[13px] text-ink-500">
+              改完之後對方目前的登入狀態會失效，需重新登入。請以其他管道告知新密碼。
+            </p>
+          )}
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-[240px]">
               <label className="label">新密碼（至少 8 碼）</label>
