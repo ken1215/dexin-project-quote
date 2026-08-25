@@ -17,6 +17,9 @@ const EVIDENCE_TAG: Record<EvidenceKind, string> = {
 
 /** 一列可就地編輯的欄位（單價用字串承接輸入中的中間狀態） */
 interface RowEdit {
+  name: string
+  spec: string
+  unit: string
   std_price: string
   evidence_id: string
   evidence_note: string
@@ -78,6 +81,9 @@ const coverageClass = (cov: number | null): string => {
 }
 
 const baseEdit = (it: PriceItem): RowEdit => ({
+  name: it.name,
+  spec: it.spec,
+  unit: it.unit,
   std_price: String(it.std_price),
   evidence_id: it.evidence_id ?? '',
   evidence_note: it.evidence_note,
@@ -330,6 +336,9 @@ export default function PriceCatalogPage() {
     if (!e) return false
     const b = baseEdit(it)
     return Number(e.std_price) !== Number(b.std_price)
+      || e.name !== b.name
+      || e.spec !== b.spec
+      || e.unit !== b.unit
       || e.evidence_id !== b.evidence_id
       || e.evidence_note !== b.evidence_note
       || e.active !== b.active
@@ -346,10 +355,21 @@ export default function PriceCatalogPage() {
     })
     if (bad) { setErr(`「${bad.name}」的標準單價不是有效數字（不可為負）`); return }
 
+    // 品名與單位空白會讓報價單上出現沒有名字、沒有單位的一行，
+    // 送到醫院採購手上很難看，在這裡先擋掉
+    const blank = dirtyItems.find((it) => {
+      const e = editOf(it)
+      return !e.name.trim() || !e.unit.trim()
+    })
+    if (blank) { setErr(`「${blank.name}」的品名與單位不可空白`); return }
+
     setSaving(true); setErr(null); setMsg(null)
     const rows = dirtyItems.map((it) => {
       const e = editOf(it)
       return toRow(it, {
+        name: e.name.trim(),
+        spec: e.spec.trim(),
+        unit: e.unit.trim(),
         std_price: Math.round(Number(e.std_price)),
         evidence_id: e.evidence_id || null,
         evidence_note: e.evidence_note,
@@ -997,14 +1017,35 @@ export default function PriceCatalogPage() {
                             />
                           </td>
                           <td className="td">
-                            <div className="text-ink-900">{it.name}</div>
-                            <div className="text-[11px] text-ink-500">
+                            <input
+                              className="field px-1.5 py-1" value={e.name}
+                              aria-label={`${it.name} 品名`}
+                              onChange={(ev) => patch(it, { name: ev.target.value })}
+                            />
+                            <div className="mt-0.5 text-[11px] text-ink-500">
                               {categoryOf(it.category_id)?.name ?? it.category_id}
                               {it.needs_area && <span className="ml-1 text-alert">・待轉 m²</span>}
                             </div>
                           </td>
-                          <td className="td text-ink-700">{it.spec || '—'}</td>
-                          <td className="td text-center">{it.unit}</td>
+                          <td className="td">
+                            <input
+                              className="field px-1.5 py-1" value={e.spec}
+                              placeholder="規格／說明"
+                              aria-label={`${it.name} 規格`}
+                              onChange={(ev) => patch(it, { spec: ev.target.value })}
+                            />
+                          </td>
+                          <td className="td">
+                            {/* 改單位等於改變單價的意義（米 → m² 價格就不是同一回事），
+                                所以標成警示色提醒主管改完要順手確認單價 */}
+                            <input
+                              className={'field w-16 px-1.5 py-1 text-center '
+                                + (e.unit !== it.unit ? 'border-alert text-alert' : '')}
+                              value={e.unit}
+                              aria-label={`${it.name} 單位`}
+                              onChange={(ev) => patch(it, { unit: ev.target.value })}
+                            />
+                          </td>
                           <td className="td text-center text-ink-700">{COST_LABEL[it.cost_type]}</td>
                           <td className="td num">
                             <input

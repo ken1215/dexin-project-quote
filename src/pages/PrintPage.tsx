@@ -237,6 +237,21 @@ function SheetHeader(
 export default function PrintPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+
+  /**
+   * 「返回」要看這頁是怎麼被打開的，否則按了沒反應。
+   * 開單頁是用 window.open('#/print/…') 開新分頁，新分頁沒有上一頁，
+   * 原本的 navigate(-1) 在那個情境下是完全無作用的（實際回報的災情）。
+   *   - 由我方程式開的新分頁（window.opener 有值）→ 關掉這個分頁
+   *   - 同一分頁內導覽過來的 → 回上一頁
+   *   - 直接貼網址進來的 → 回首頁（Guard 會把採購導到他們的議價頁）
+   */
+  const openedInNewTab = typeof window !== 'undefined' && Boolean(window.opener)
+  const goBack = useCallback(() => {
+    if (openedInNewTab && !window.opener?.closed) { window.close(); return }
+    if (window.history.length > 1) { navigate(-1); return }
+    navigate('/')
+  }, [navigate, openedInNewTab])
   const {
     items, settings, evidenceOf, mgmtFeeRate, taxRate, laborBase, laborDiscount,
     loading: refLoading,
@@ -442,7 +457,7 @@ export default function PrintPage() {
     return (
       <div className="p-10 text-center">
         <p className="text-warn">{error ?? '查無此報價單'}</p>
-        <button type="button" className="btn mt-4" onClick={() => navigate(-1)}>返回</button>
+        <button type="button" className="btn mt-4" onClick={goBack}>{openedInNewTab ? '關閉' : '返回'}</button>
       </div>
     )
   }
@@ -462,7 +477,7 @@ export default function PrintPage() {
         <button type="button" className="btn btn-primary" onClick={() => window.print()}>
           列印 / 轉 PDF
         </button>
-        <button type="button" className="btn" onClick={() => navigate(-1)}>返回</button>
+        <button type="button" className="btn" onClick={goBack}>{openedInNewTab ? '關閉此分頁' : '返回'}</button>
         <span className="ml-auto flex items-center gap-2 text-xs text-ink-500">
           單號 <span className="num text-ink-900">{quote.quote_no || '—'}</span>
           <span className={'rounded-full border px-2 py-[1px] text-[11px] ' + stamp.cls}>
@@ -579,7 +594,7 @@ export default function PrintPage() {
                       alt=""
                       className={
                         'pointer-events-none absolute left-1/2 -bottom-[4mm] w-[34mm] ' +
-                        'h-auto -translate-x-1/2 rotate-[-6deg] opacity-[0.88]'
+                        'h-auto -translate-x-1/2 opacity-[0.88]'
                       }
                       onError={() => setStampSrc(null)}
                     />

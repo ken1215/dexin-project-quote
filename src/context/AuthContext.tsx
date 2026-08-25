@@ -8,12 +8,17 @@ interface AuthValue {
   profile: Profile | null
   loading: boolean
   isManager: boolean
+  /** 醫院採購：只能看已送出的單並登錄還價，看不到單價庫與底價 */
+  isProcurement: boolean
+  /** 自家人（同仁或主管） */
+  isInternal: boolean
   signIn: (email: string, password: string) => Promise<string | null>
   signOut: () => Promise<void>
 }
 
 const Ctx = createContext<AuthValue>({
   session: null, profile: null, loading: true, isManager: false,
+  isProcurement: false, isInternal: false,
   signIn: async () => '未初始化', signOut: async () => {},
 })
 
@@ -54,6 +59,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profile,
     loading,
     isManager: profile?.role === 'manager' && profile.active,
+    isProcurement: profile?.role === 'procurement' && profile.active,
+    isInternal: (profile?.role === 'manager' || profile?.role === 'staff') && profile.active,
     async signIn(email, password) {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       return error ? error.message : null

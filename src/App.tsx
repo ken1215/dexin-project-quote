@@ -10,15 +10,25 @@ import IndicesPage from './pages/IndicesPage'
 import NegotiationPage from './pages/NegotiationPage'
 import PrintPage from './pages/PrintPage'
 import UsersPage from './pages/UsersPage'
+import ClientNegotiationPage from './pages/ClientNegotiationPage'
 
-/** 未登入導去登入頁；managerOnly 的頁面擋非主管 */
-function Guard({ children, managerOnly = false }: { children: React.ReactNode; managerOnly?: boolean }) {
-  const { session, profile, loading, isManager } = useAuth()
+/**
+ * 未登入導去登入頁；managerOnly 擋非主管；internalOnly 擋醫院採購。
+ * 醫院採購是對方的人，除了議價頁以外一律不得進入——真正的把關在資料庫 RLS，
+ * 這裡只是不要讓他們看到一片空白的畫面而已。
+ */
+function Guard(
+  { children, managerOnly = false, internalOnly = false }:
+  { children: React.ReactNode; managerOnly?: boolean; internalOnly?: boolean },
+) {
+  const { session, profile, loading, isManager, isProcurement } = useAuth()
   if (loading) return <div className="p-10 text-center text-ink-500">載入中…</div>
   if (!session) return <Navigate to="/login" replace />
   if (profile && !profile.active) {
     return <div className="p-10 text-center text-warn">此帳號已停用，請洽工務處主管。</div>
   }
+  // 採購登入後預設落到議價頁，不要讓他們卡在讀不到資料的畫面
+  if (internalOnly && isProcurement) return <Navigate to="/client" replace />
   if (managerOnly && !isManager) {
     return <div className="p-10 text-center text-warn">此功能限主管使用。</div>
   }
@@ -34,13 +44,16 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/print/:id" element={<Guard><PrintPage /></Guard>} />
             <Route element={<Guard><Layout /></Guard>}>
-              <Route index element={<QuoteListPage />} />
-              <Route path="quote/new" element={<QuoteEditorPage />} />
-              <Route path="quote/:id" element={<QuoteEditorPage />} />
+              <Route index element={<Guard internalOnly><QuoteListPage /></Guard>} />
+              <Route path="quote/new" element={<Guard internalOnly><QuoteEditorPage /></Guard>} />
+              <Route path="quote/:id" element={<Guard internalOnly><QuoteEditorPage /></Guard>} />
               <Route path="catalog" element={<Guard managerOnly><PriceCatalogPage /></Guard>} />
               <Route path="indices" element={<Guard managerOnly><IndicesPage /></Guard>} />
               <Route path="users" element={<Guard managerOnly><UsersPage /></Guard>} />
               <Route path="nego/:id" element={<Guard managerOnly><NegotiationPage /></Guard>} />
+              {/* 醫院採購專用：只看得到已送出的單，只能登錄還價 */}
+              <Route path="client" element={<ClientNegotiationPage />} />
+              <Route path="client/:id" element={<ClientNegotiationPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

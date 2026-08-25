@@ -226,6 +226,15 @@ export default function UsersPage() {
                   同仁全部功能 ＋ 維護標準單價與底價 ＋ 物價指數與工資係數 ＋ 議價回應 ＋ 核可／退回 ＋ 帳號管理。
                 </td>
               </tr>
+              <tr>
+                <td className="td whitespace-nowrap font-semibold text-alert">醫院採購</td>
+                <td className="td">
+                  <span className="text-alert">這是對方（聯新國際醫院採購單位）的帳號，不是自家人。</span>
+                  只看得到已核可送出的報價單與自己提的議價，
+                  <b>看不到單價庫、底價、成本、佐證與報價專用章</b>。
+                  可逐項提出建議單價，但不能修改單據、也不能定案。
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -273,6 +282,7 @@ export default function UsersPage() {
                   onChange={(e) => setNf({ ...nf, role: e.target.value as Role })}>
                   <option value="staff">同仁</option>
                   <option value="manager">主管</option>
+                  <option value="procurement">醫院採購（對方）</option>
                 </select>
               </div>
             </div>
@@ -320,6 +330,7 @@ export default function UsersPage() {
                         onChange={(e) => edit(r.id, { role: e.target.value as Role })}>
                         <option value="staff">同仁</option>
                         <option value="manager">主管</option>
+                        <option value="procurement">醫院採購（對方）</option>
                       </select>
                     </td>
                     <td className="td text-center">

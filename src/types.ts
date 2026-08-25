@@ -1,4 +1,5 @@
-export type Role = 'staff' | 'manager'
+/** procurement = 聯新國際醫院採購單位（對方的人），權限與自家同仁完全不同 */
+export type Role = 'staff' | 'manager' | 'procurement'
 export type CostType = 'material' | 'consumable' | 'labor' | 'other'
 export type QuoteStatus =
   | 'draft' | 'submitted' | 'approved' | 'negotiating' | 'closed' | 'rejected'

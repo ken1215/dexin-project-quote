@@ -7,7 +7,7 @@ const link = ({ isActive }: { isActive: boolean }) =>
   (isActive ? 'bg-white/20 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white')
 
 export default function Layout() {
-  const { profile, isManager, signOut } = useAuth()
+  const { profile, isManager, isProcurement, signOut } = useAuth()
   const { settings, error } = useRefData()
   const version = String(settings.catalog_version ?? '')
 
@@ -20,8 +20,15 @@ export default function Layout() {
         {version && <span className="text-xs text-white/70">單價庫 {version}</span>}
 
         <nav className="ml-4 flex flex-wrap gap-1">
-          <NavLink to="/" end className={link}>報價單</NavLink>
-          <NavLink to="/quote/new" className={link}>開新單</NavLink>
+          {/* 醫院採購是對方的人：只給議價入口，其餘一概不顯示 */}
+          {isProcurement ? (
+            <NavLink to="/client" className={link}>報價議價</NavLink>
+          ) : (
+            <>
+              <NavLink to="/" end className={link}>報價單</NavLink>
+              <NavLink to="/quote/new" className={link}>開新單</NavLink>
+            </>
+          )}
           {isManager && <NavLink to="/catalog" className={link}>單價維護</NavLink>}
           {isManager && <NavLink to="/indices" className={link}>物價指數</NavLink>}
           {isManager && <NavLink to="/users" className={link}>人員權限</NavLink>}
@@ -31,7 +38,7 @@ export default function Layout() {
           <span className="text-white/85">
             {profile?.full_name || '—'}
             <span className="ml-1.5 rounded-full bg-white/20 px-2 py-0.5 text-[11px]">
-              {isManager ? '主管' : '同仁'}
+              {isManager ? '主管' : isProcurement ? '醫院採購' : '同仁'}
             </span>
           </span>
           <button onClick={() => void signOut()} className="btn border-white/35 bg-white/15 text-white hover:border-white hover:text-white">
