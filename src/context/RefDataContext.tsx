@@ -18,7 +18,10 @@ interface RefData {
   /** 便利查詢 */
   mgmtFeeRate: number
   taxRate: number
+  /** 技術工日薪「成本」基準（2,800），不是報價值 */
   laborBase: number
+  /** 工資報價加成係數：報價 = laborBase × laborMarkup × 時段係數 */
+  laborMarkup: number
   categoryOf: (id: string) => Category | undefined
   indexOf: (id: string | null) => MaterialIndex | undefined
   evidenceOf: (id: string | null) => EvidenceSource | undefined
@@ -84,6 +87,7 @@ export function RefDataProvider({ children }: { children: ReactNode }) {
     mgmtFeeRate: num('mgmt_fee_rate', 0.09),
     taxRate: num('tax_rate', 0.05),
     laborBase: num('labor_base_daily', 2800),
+    laborMarkup: num('labor_markup', 1.15),
     categoryOf: (id) => categories.find((c) => c.id === id),
     indexOf: (id) => (id ? indices.find((x) => x.id === id) : undefined),
     evidenceOf: (id) => (id ? evidence.find((x) => x.id === id) : undefined),

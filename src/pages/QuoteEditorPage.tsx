@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useRefData } from '../context/RefDataContext'
-import { calcTotals, laborPrice, lineAmount, money, validateQuote } from '../lib/calc'
+import { calcTotals, laborCost, laborPrice, lineAmount, money, validateQuote } from '../lib/calc'
 import type {
   DraftLine, DraftQuote, DraftSection, LaborRate,
   PriceItem, Quote, QuoteLine, QuoteSection, QuoteStatus,
@@ -43,7 +43,7 @@ export default function QuoteEditorPage() {
   const navigate = useNavigate()
   const { profile, isManager } = useAuth()
   const {
-    categories, items, laborRates, laborBase, mgmtFeeRate, taxRate,
+    categories, items, laborRates, laborBase, laborMarkup, mgmtFeeRate, taxRate,
     categoryOf, loading: refLoading, error: refError,
   } = useRefData()
 
@@ -103,8 +103,16 @@ export default function QuoteEditorPage() {
   }, [id])
 
   /* ── 權限／唯讀 ─────────────────────────────────────────── */
-  const locked = draft.status !== 'draft' && !isManager
+  // 議價中／已定案的單一律凍結（主管也不例外）：本頁存檔是「整段砍掉重寫」，
+  // 明細列會換成新 id，negotiations.line_id 會被 on delete cascade 連帶清光。
+  // 這兩種狀態的金額異動只能在議價頁做。
+  const frozen = draft.status === 'negotiating' || draft.status === 'closed'
+  // 退回(rejected)單開放建立者修改重送（存檔時狀態會改回 draft，見 saveStatus）
+  const editableByOwner = draft.status === 'draft' || draft.status === 'rejected'
+  const locked = frozen || (!editableByOwner && !isManager)
   const canReview = isManager && draft.status === 'submitted'
+  /** 存檔時實際寫入的狀態：退回單一經修改存檔即回到草稿 */
+  const saveStatus: QuoteStatus = draft.status === 'rejected' ? 'draft' : draft.status
 
   /* ── 參考資料索引 ───────────────────────────────────────── */
   const itemById = useMemo(
@@ -186,9 +194,14 @@ export default function QuoteEditorPage() {
   const addItem = (item: PriceItem) => {
     const c = categoryOf(item.category_id)
     const title = (c?.section_title || c?.name || '其他工程').trim()
-    const isLabor = item.cost_type === 'labor'
+    // 「成本 × 加成 × 時段」只適用於按「工」計價的工資項（技術工日薪）。
+    // 單價庫裡許多 cost_type='labor' 的品項是按 台/米/m²/座 的包裝勞務價
+    // （例：鷹架 55,000/座、室內機安裝 3,300/台、管路標示 9/米），
+    // 這些必須用品項自己的 std_price，套日薪公式會整個報錯價。
+    const isLabor = item.cost_type === 'labor' && item.unit === '工'
     const rate = isLabor ? defaultRate : undefined
-    const price = isLabor ? laborPrice(laborBase, rate) : Number(item.std_price) || 0
+    // 工資項報一律走「成本 × 加成 × 時段」，不能拿成本 laborBase 直接當報價
+    const price = isLabor ? laborPrice(laborBase, rate, laborMarkup) : Number(item.std_price) || 0
 
     setDraft((d) => {
       let sections = d.sections
@@ -232,7 +245,7 @@ export default function QuoteEditorPage() {
     const r = rateById.get(rateId)
     patchLine(sk, lk, {
       labor_rate_id: r ? r.id : null,
-      unit_price: laborPrice(laborBase, r),
+      unit_price: laborPrice(laborBase, r, laborMarkup),
     })
   }
 
@@ -288,8 +301,25 @@ export default function QuoteEditorPage() {
         const upd = await supabase.from('quotes')
           .update({ ...head, updated_at: new Date().toISOString() })
           .eq('id', quoteId)
+          .select('id')
         if (upd.error) { setErr(`更新報價單失敗：${upd.error.message}`); return null }
+        // RLS 擋下時不會報錯、只會匹配 0 筆——這裡必須擋住，
+        // 否則下面會把明細刪掉卻寫不回去（母單狀態沒改成功，子表寫入會被政策拒絕）
+        if (((upd.data ?? []) as { id: string }[]).length === 0) {
+          setErr('更新報價單失敗：目前狀態下您沒有修改此單的權限。')
+          return null
+        }
         setDraft((d) => ({ ...d, status: nextStatus }))
+      }
+
+      // 已有議價紀錄的單不可在此重寫明細：明細會換新 id，
+      // negotiations.line_id 的 on delete cascade 會把議價歷程整批帶走。
+      const ng = await supabase.from('negotiations')
+        .select('id', { count: 'exact', head: true }).eq('quote_id', quoteId)
+      if (ng.error) { setErr(`議價紀錄檢查失敗：${ng.error.message}`); return null }
+      if ((ng.count ?? 0) > 0) {
+        setErr('本單已有議價紀錄，於此儲存會清除議價歷程，已擋下；金額異動請至「議價」頁處理。')
+        return null
       }
 
       // 單據很小，不做 diff：整段砍掉重寫（quote_lines 有 on delete cascade）
@@ -340,8 +370,8 @@ export default function QuoteEditorPage() {
     const bad = dbGuard()
     setIssues(bad)
     if (bad.length) return
-    const savedId = await persist(draft.status)
-    if (savedId) setNotice('已儲存。')
+    const savedId = await persist(saveStatus)
+    if (savedId) setNotice(draft.status === 'rejected' ? '已儲存，狀態回到草稿，修改後可重新送審。' : '已儲存。')
   }
 
   const onSubmit = async () => {
@@ -356,7 +386,7 @@ export default function QuoteEditorPage() {
     const bad = dbGuard()
     setIssues(bad)
     if (bad.length) return
-    const savedId = locked ? draft.id ?? null : await persist(draft.status)
+    const savedId = locked ? draft.id ?? null : await persist(saveStatus)
     if (savedId) window.open(`#/print/${savedId}`)
   }
 
@@ -418,7 +448,9 @@ export default function QuoteEditorPage() {
       )}
       {locked && (
         <div className="rounded-md border border-ink-200 bg-ink-50 px-4 py-2.5 text-sm text-ink-500">
-          本單已送審，如需修改請洽主管退回。
+          {frozen
+            ? '本單已進入議價／定案階段，在此改寫明細會清除議價紀錄，故已鎖定；金額異動請至「議價」頁處理。'
+            : '本單已送審，如需修改請洽主管退回。'}
         </div>
       )}
       {draft.status === 'rejected' && reviewNote && (
@@ -583,7 +615,7 @@ export default function QuoteEditorPage() {
                     {sec.lines.map((l, li) => {
                       const src = l.item_id ? itemById.get(l.item_id) : undefined
                       const isLabor = !l.is_custom
-                        && (src?.cost_type === 'labor' || l.labor_rate_id !== null)
+                        && ((src?.cost_type === 'labor' && src.unit === '工') || l.labor_rate_id !== null)
                       const rate = l.labor_rate_id ? rateById.get(l.labor_rate_id) : undefined
                       return (
                         <tr key={l.key} className={l.is_custom ? 'bg-warn-bg' : undefined}>
@@ -624,6 +656,9 @@ export default function QuoteEditorPage() {
                                 {rate?.legal_basis && (
                                   <span className="text-[11px] text-ink-500">{rate.legal_basis}</span>
                                 )}
+                                <span className="text-[11px] text-ink-500">
+                                  成本 {money(laborCost(laborBase, rate))} × 加成 {laborMarkup}
+                                </span>
                               </div>
                             )}
                           </td>
@@ -755,11 +790,11 @@ export default function QuoteEditorPage() {
                   type="button" className="btn w-full" disabled={saving}
                   onClick={() => void onSaveDraft()}
                 >{saving ? '儲存中…' : '儲存草稿'}</button>
-                {draft.status === 'draft' && (
+                {(draft.status === 'draft' || draft.status === 'rejected') && (
                   <button
                     type="button" className="btn btn-primary w-full" disabled={saving}
                     onClick={() => void onSubmit()}
-                  >送主管核可</button>
+                  >{draft.status === 'rejected' ? '修正後重新送審' : '送主管核可'}</button>
                 )}
               </>
             )}

@@ -35,8 +35,20 @@ export function calcTotals(
   return { sections: secs, works, mgmt, sub, tax, total: sub + tax }
 }
 
-/** 工資項單價 = 基準日薪 × 時段係數 */
-export function laborPrice(baseDaily: number, rate?: LaborRate | null): number {
+/**
+ * 工資項的「報價」單價。
+ *
+ * 2,800 元/工 是**成本基準**（使用者 2026-08-25 定案），不是報價值——
+ * 它落在臺北市政府 112 年度工程預算參考單價的普通工(2,240)與技術工(3,000)之間，
+ * 也低於立德新自家歷史成交(3,000~5,000/工)。直接拿去報等於自己砍自己。
+ * 所以報價 = 成本 × 加成係數 × 時段係數，加成係數由主管在「物價指數」頁維護。
+ */
+export function laborPrice(baseDaily: number, rate?: LaborRate | null, markup = 1): number {
+  return Math.round(baseDaily * (Number(markup) || 1) * (rate ? Number(rate.multiplier) : 1))
+}
+
+/** 工資成本（未加成），用於工率分析表上與報價並列對照 */
+export function laborCost(baseDaily: number, rate?: LaborRate | null): number {
   return Math.round(baseDaily * (rate ? Number(rate.multiplier) : 1))
 }
 

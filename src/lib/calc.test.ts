@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert/strict'
 import {
-  calcTotals, concessionPct, indexedPrice, laborPrice, lineAmount, validateQuote,
+  calcTotals, concessionPct, indexedPrice, laborCost, laborPrice, lineAmount, validateQuote,
 } from './calc.ts'
 import type { DraftQuote, DraftSection, LaborRate, MaterialIndex, PriceItem } from '../types.ts'
 
@@ -62,13 +62,24 @@ assert.equal(calcTotals([], 0.09, 0.05).total, 0)
 // ── 3. 工資：2,800 × 勞基法時段係數 ────────────────────────────
 const rate = (id: string, m: number): LaborRate =>
   ({ id, name: id, multiplier: m, legal_basis: '', sort: 0, active: true })
-assert.equal(laborPrice(2800, rate('weekday', 1)), 2800)
-assert.equal(laborPrice(2800, rate('overtime', 1.34)), 3752)
-assert.equal(laborPrice(2800, rate('restday', 1.67)), 4676)
-assert.equal(laborPrice(2800, rate('holiday', 2)), 5600)
-assert.equal(laborPrice(2800, null), 2800, '沒選時段就用基準日薪')
-// 法定下限：基本時薪 196 × 8h = 1,568，平日日薪不得低於此
-assert.ok(laborPrice(2800, rate('weekday', 1)) >= 196 * 8, '平日日薪高於法定下限')
+
+// 成本（未加成）：2,800 × 時段係數
+assert.equal(laborCost(2800, rate('weekday', 1)), 2800)
+assert.equal(laborCost(2800, rate('overtime', 1.34)), 3752)
+assert.equal(laborCost(2800, rate('restday', 1.67)), 4676)
+assert.equal(laborCost(2800, rate('holiday', 2)), 5600)
+assert.equal(laborCost(2800, null), 2800, '沒選時段就用基準日薪')
+
+// 報價 = 成本 × 加成係數 × 時段係數。2,800 是成本基準，不是報價值。
+assert.equal(laborPrice(2800, rate('weekday', 1), 1.15), 3220)
+assert.equal(laborPrice(2800, rate('holiday', 2), 1.15), 6440)
+assert.equal(laborPrice(2800, null, 1.15), 3220)
+assert.equal(laborPrice(2800, rate('weekday', 1)), 2800, '沒給係數時退回成本，不可意外加成')
+
+// 加成後的平日報價要站得住：不低於法定下限，也不低於官方技術工參考單價
+assert.ok(laborPrice(2800, rate('weekday', 1), 1.15) >= 196 * 8, '高於法定下限 1,568')
+assert.ok(laborPrice(2800, rate('weekday', 1), 1.15) >= 3000,
+  '不低於臺北市 112 年度參考單價之技術工 3,000 元/工——低於這個數字就是自己砍自己')
 
 // ── 4. 指數連動建議價 ──────────────────────────────────────────
 const item = (o: Partial<PriceItem> = {}): PriceItem => ({

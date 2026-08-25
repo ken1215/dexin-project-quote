@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useRefData } from '../context/RefDataContext'
-import { money } from '../lib/calc'
+import { laborCost, laborPrice, money } from '../lib/calc'
 import type { LaborRate, MaterialIndex } from '../types'
 
 /** (現值/基準值 − 1) × 100，保留一位小數字串（含正負號） */
@@ -26,11 +26,14 @@ function fmtDateTime(iso: string): string {
 
 export default function IndicesPage() {
   const refData = useRefData()
-  const { indices, evidence, laborRates, laborBase, evidenceOf, loading, error, reload } = refData
+  const {
+    indices, evidence, laborRates, laborBase, laborMarkup, evidenceOf, loading, error, reload,
+  } = refData
 
   const [rows, setRows] = useState<MaterialIndex[]>([])
   const [laborRows, setLaborRows] = useState<LaborRate[]>([])
   const [baseDaily, setBaseDaily] = useState<number>(laborBase)
+  const [markup, setMarkup] = useState<number>(laborMarkup)
 
   const [savingIdx, setSavingIdx] = useState(false)
   const [idxError, setIdxError] = useState<string | null>(null)
@@ -43,6 +46,7 @@ export default function IndicesPage() {
   useEffect(() => { setRows(indices.map((i) => ({ ...i }))) }, [indices])
   useEffect(() => { setLaborRows(laborRates.map((r) => ({ ...r }))) }, [laborRates])
   useEffect(() => { setBaseDaily(laborBase) }, [laborBase])
+  useEffect(() => { setMarkup(laborMarkup) }, [laborMarkup])
 
   const linkedSourceIds = Array.from(new Set(indices.map((i) => i.source_id).filter((id): id is string => !!id)))
   const linkedSources = evidence.filter((e) => linkedSourceIds.includes(e.id))
@@ -90,7 +94,8 @@ export default function IndicesPage() {
       return orig && Number(orig.multiplier) !== Number(r.multiplier)
     })
     const baseChanged = Number(baseDaily) !== Number(laborBase)
-    if (!changedRates.length && !baseChanged) return
+    const markupChanged = Number(markup) !== Number(laborMarkup)
+    if (!changedRates.length && !baseChanged && !markupChanged) return
     setSavingLabor(true)
     setLaborError(null)
     setLaborSaved(false)
@@ -115,6 +120,16 @@ export default function IndicesPage() {
         return
       }
     }
+    if (markupChanged) {
+      const { error: upErr } = await supabase
+        .from('settings')
+        .upsert({ key: 'labor_markup', value: Number(markup) || 1 }, { onConflict: 'key' })
+      if (upErr) {
+        setLaborError(upErr.message)
+        setSavingLabor(false)
+        return
+      }
+    }
     await reload()
     setSavingLabor(false)
     setLaborSaved(true)
@@ -128,7 +143,9 @@ export default function IndicesPage() {
     laborRows.some((r) => {
       const orig = laborRates.find((x) => x.id === r.id)
       return orig && Number(orig.multiplier) !== Number(r.multiplier)
-    }) || Number(baseDaily) !== Number(laborBase)
+    })
+    || Number(baseDaily) !== Number(laborBase)
+    || Number(markup) !== Number(laborMarkup)
 
   if (loading) return <div className="p-6 text-ink-500">載入中…</div>
 
@@ -279,9 +296,9 @@ export default function IndicesPage() {
           </div>
         </div>
 
-        <div className="mb-4 flex items-end gap-3">
+        <div className="mb-4 flex flex-wrap items-start gap-6">
           <div>
-            <label className="label">基準日薪（元／日，來自 settings.labor_base_daily）</label>
+            <label className="label">基準日薪／成本（元／日，來自 settings.labor_base_daily）</label>
             <input
               type="number"
               step="1"
@@ -290,6 +307,21 @@ export default function IndicesPage() {
               value={baseDaily}
               onChange={(e) => { setBaseDaily(Number(e.target.value)); setLaborSaved(false) }}
             />
+          </div>
+          <div>
+            <label className="label">工資加成係數（來自 settings.labor_markup）</label>
+            <input
+              type="number"
+              step="0.01"
+              className="field num"
+              style={{ width: '10rem' }}
+              value={markup}
+              onChange={(e) => { setMarkup(Number(e.target.value)); setLaborSaved(false) }}
+            />
+            <div className="mt-1 text-xs text-ink-500">
+              {money(baseDaily)} 為成本基準，報價 = 成本 × 加成係數。
+              目前 ×{Number(markup) || 1} = {money(laborPrice(Number(baseDaily) || 0, null, markup))} 元／工
+            </div>
           </div>
         </div>
 
@@ -300,13 +332,14 @@ export default function IndicesPage() {
                 <th className="th text-left">名稱</th>
                 <th className="th num">倍率</th>
                 <th className="th text-left">法源依據</th>
-                <th className="th num">基準日薪換算金額</th>
+                <th className="th num">成本（未加成）</th>
+                <th className="th num">報價（含加成）</th>
               </tr>
             </thead>
             <tbody>
               {laborRows.length === 0 && (
                 <tr>
-                  <td className="td text-center text-ink-500" colSpan={4}>目前沒有工資時段加成資料</td>
+                  <td className="td text-center text-ink-500" colSpan={5}>目前沒有工資時段加成資料</td>
                 </tr>
               )}
               {laborRows.map((r) => (
@@ -322,11 +355,35 @@ export default function IndicesPage() {
                     />
                   </td>
                   <td className="td">{r.legal_basis}</td>
-                  <td className="td num">{money(Number(baseDaily) * Number(r.multiplier))}</td>
+                  <td className="td num text-ink-500">{money(laborCost(Number(baseDaily) || 0, r))}</td>
+                  <td className="td num text-deep">
+                    {money(laborPrice(Number(baseDaily) || 0, r, markup))}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* 調整加成係數前的對照參考——唯讀，只列數字不做計算 */}
+        <div className="mt-4 rounded-md border border-ink-200 bg-ink-50 p-3 text-xs text-ink-500">
+          <div className="mb-2 font-semibold text-ink-700">加成係數對照參考（唯讀）</div>
+          <ul className="list-disc space-y-1 pl-5">
+            <li>
+              臺北市政府 112 年度工程預算參考單價：技術工 375 元／時 × 8 小時 = 3,000 元／工；
+              普通工 280 元／時 × 8 小時 = 2,240 元／工
+            </li>
+            <li>
+              立德新歷史成交：260528 6L 電子紙 3,000 元／工；260520 透析大樓 5,000 元／工；
+              20260515 L6F 5,000 元／工
+            </li>
+            <li>
+              勞動部基本工資（115／1／1 起）：時薪 196 元 × 8 小時 = 1,568 元／工（法定下限）
+            </li>
+          </ul>
+          <div className="mt-2">
+            調整加成係數前請先對照上列數字，避免報價低於自家歷史成交或官方參考單價。
+          </div>
         </div>
       </div>
     </div>

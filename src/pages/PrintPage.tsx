@@ -72,7 +72,11 @@ interface ProdRow {
   qty: number
   output: number
   manDays: number
-  unitWage: number
+  /** 每單位工資成本（未加成） */
+  unitCost: number
+  /** 每單位報價工資（含加成係數） */
+  unitQuote: number
+  /** 應攤工資，用報價值 */
   wage: number
   basis: string
   confidence: string
@@ -212,7 +216,8 @@ export default function PrintPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const {
-    items, settings, evidenceOf, mgmtFeeRate, taxRate, laborBase, loading: refLoading,
+    items, settings, evidenceOf, mgmtFeeRate, taxRate, laborBase, laborMarkup,
+    loading: refLoading,
   } = useRefData()
 
   const [quote, setQuote] = useState<Quote | null>(null)
@@ -342,14 +347,15 @@ export default function PrintPage() {
         qty,
         output,
         manDays,
-        unitWage: Math.round(laborBase / output),
-        wage: Math.round(manDays * laborBase),
+        unitCost: Math.round(laborBase / output),
+        unitQuote: Math.round((laborBase * laborMarkup) / output),
+        wage: Math.round(manDays * laborBase * laborMarkup),
         basis: p.basis,
         confidence: p.confidence,
       })
     }
     return out
-  }, [prods, prodOf, lines, laborBase])
+  }, [prods, prodOf, lines, laborBase, laborMarkup])
 
   const catalogVersion = toText(settings['catalog_version'], '（未設定）')
 
@@ -569,13 +575,15 @@ export default function PrintPage() {
             <thead>
               <tr>
                 <th className={TH}>工項</th>
-                <th className={TH + ' w-[7%]'}>單位</th>
-                <th className={TH + ' w-[8%]'}>數量</th>
-                <th className={TH + ' w-[13%]'}>工率（每工日產出）</th>
-                <th className={TH + ' w-[9%]'}>所需工數</th>
-                <th className={TH + ' w-[10%]'}>工資單價</th>
-                <th className={TH + ' w-[12%]'}>應攤工資</th>
-                <th className={TH + ' w-[22%]'}>依據</th>
+                <th className={TH + ' w-[6%]'}>單位</th>
+                <th className={TH + ' w-[7%]'}>數量</th>
+                <th className={TH + ' w-[12%]'}>工率（每工日產出）</th>
+                <th className={TH + ' w-[8%]'}>所需工數</th>
+                {/* 不印工資成本——這份文件要交給醫院採購，
+                    把自家成本結構與利潤率印在上面等於邀請對方往成本押 */}
+                <th className={TH + ' w-[12%]'}>工資單價</th>
+                <th className={TH + ' w-[13%]'}>應攤工資</th>
+                <th className={TH + ' w-[24%]'}>依據</th>
               </tr>
             </thead>
             <tbody>
@@ -588,7 +596,7 @@ export default function PrintPage() {
                     <td className={TD + ' num'}>{trim2(r.qty)}</td>
                     <td className={TD + ' num'}>{trim2(r.output)} {r.unit} / 工日</td>
                     <td className={TD + ' num'}>{r.manDays.toFixed(2)}</td>
-                    <td className={TD + ' num'}>{money(r.unitWage)}</td>
+                    <td className={TD + ' num'}>{money(r.unitQuote)}</td>
                     <td className={TD + ' num'}>{money(r.wage)}</td>
                     <td className={TD_MUTED}>
                       <span className="inline-flex flex-wrap items-center gap-1">
@@ -607,7 +615,7 @@ export default function PrintPage() {
                 )
               })}
               <tr>
-                <td className={TD + ' border-t-deep text-right font-bold text-ink-700'} colSpan={6}>
+                <td className={TD + ' border-t-deep text-right font-bold text-ink-700'} colSpan={7}>
                   應攤工資合計
                 </td>
                 <td className={TD + ' num border-t-deep font-bold'}>
@@ -618,9 +626,10 @@ export default function PrintPage() {
             </tbody>
           </table>
           <p className="mt-3 text-[10.5px] leading-relaxed text-ink-500">
-            工率係一名技術工於正常工時（8 小時）之產出基準。技術工日薪 NT${money(laborBase)}，
-            依勞動部基本工資（時薪 196 元 × 8 小時 = 1,568 元）為法定下限，
-            並依勞動基準法第 24、39 條計算延時與假日加成。
+            工率係一名技術工於正常工時（8 小時）之產出基準，工資單價 = 技術工日薪 ÷ 工率。
+            日薪水準參照臺北市政府工程預算參考單價之技術工單價，並以勞動部基本工資
+            （時薪 196 元 × 8 小時 = 1,568 元）為法定下限，另含勞保、健保、勞退雇主提繳等法定負擔。
+            夜間、休息日及例假日施作之加成依勞動基準法第 24、39 條計算。
           </p>
         </Sheet>
       )}

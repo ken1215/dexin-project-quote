@@ -90,8 +90,10 @@ Deno.serve(async (req) => {
         })
         if (error) throw error
         // trigger 會自動建 profile，這裡補上姓名與角色
+        // trigger 建的 profile 預設 active=false（防自行註冊的人讀到資料），
+        // 由主管建立的帳號在這裡明確設成啟用
         await admin.from('profiles')
-          .update({ full_name: fullName || email.split('@')[0], role })
+          .update({ full_name: fullName || email.split('@')[0], role, active: true })
           .eq('id', data.user.id)
         return json({ ok: true, id: data.user.id })
       }
