@@ -496,14 +496,20 @@ export default function QuoteEditorPage() {
           </div>
           <div>
             <label className="label">申請單位</label>
+            {/* 上面選常用的、下面直接打，兩個都通。input+datalist 在已有值時會被自己的
+                內容濾掉選項、換人要先清空，不直覺，所以拆成兩個控制項。 */}
+            <select
+              className="field" value="" disabled={locked}
+              onChange={(e) => { if (e.target.value) patchDraft({ dept: e.target.value }) }}
+            >
+              <option value="">— 從常用名單選 —</option>
+              {DEPT_OPTIONS.map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
             <input
-              className="field" list="dept-options" value={draft.dept} disabled={locked}
-              placeholder="選擇或直接輸入"
+              className="field mt-1" value={draft.dept} disabled={locked}
+              placeholder="或直接輸入"
               onChange={(e) => patchDraft({ dept: e.target.value })}
             />
-            <datalist id="dept-options">
-              {DEPT_OPTIONS.map((d) => <option key={d} value={d} />)}
-            </datalist>
           </div>
           <div>
             <label className="label">工程現場聯絡窗口</label>
