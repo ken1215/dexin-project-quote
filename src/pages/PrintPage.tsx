@@ -213,7 +213,7 @@ function SheetHeader(
           <Field label="客戶名稱" value="聯新國際醫院" />
           <Field label="報價日期" value={quote.quote_date} />
           <Field label="工程地點" value={quote.project} />
-          <Field label="聯絡人" value={quote.contact} />
+          <Field label="現場聯絡窗口" value={quote.contact} />
           <Field label="申請單位" value={quote.dept} />
           <Field label="單價庫版本" value={catalogVersion} />
           <Field label="工程管理費" value={`${pct(feeRate)}%`} />

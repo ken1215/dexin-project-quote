@@ -282,7 +282,7 @@ export default function NegotiationPage() {
             <div className="text-ink-900">{quote.project || '—'}</div>
           </div>
           <div>
-            <div className="label">需求單位／聯絡人</div>
+            <div className="label">申請單位／現場窗口</div>
             <div className="text-ink-900">{quote.dept || '—'}／{quote.contact || '—'}</div>
           </div>
           <div>

@@ -15,6 +15,18 @@ const CN = ['壹', '貳', '參', '肆', '伍', '陸', '柒', '捌', '玖', '拾'
 const uid = (): string => crypto.randomUUID()
 
 /** 取本機日期（不要用 toISOString，那是 UTC 會差一天） */
+/** 申請單位候選：取自歷史報價單「聯絡人」欄實際寫法，依出現次數排序。非清單內的可直接手動輸入 */
+const DEPT_OPTIONS = [
+  '工務處-黃耀輝',
+  '工務處-陳垣興',
+  '工務處-劉泳慶',
+  '工務處-游文豪',
+  '工務處-陳俊育',
+  '工務處-游文政',
+  '工務處-卓英翰',
+  '工務處',
+]
+
 const today = (): string => new Date().toLocaleDateString('sv-SE')
 
 /** 折數寫成國人習慣的「幾折」：0.9 → 「9 折」、0.85 → 「8.5 折」；未打折（≧1）回傳 null */
@@ -485,12 +497,16 @@ export default function QuoteEditorPage() {
           <div>
             <label className="label">申請單位</label>
             <input
-              className="field" value={draft.dept} disabled={locked}
+              className="field" list="dept-options" value={draft.dept} disabled={locked}
+              placeholder="選擇或直接輸入"
               onChange={(e) => patchDraft({ dept: e.target.value })}
             />
+            <datalist id="dept-options">
+              {DEPT_OPTIONS.map((d) => <option key={d} value={d} />)}
+            </datalist>
           </div>
           <div>
-            <label className="label">聯絡人</label>
+            <label className="label">工程現場聯絡窗口</label>
             <input
               className="field" value={draft.contact} disabled={locked}
               onChange={(e) => patchDraft({ contact: e.target.value })}
