@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useRefData } from '../context/RefDataContext'
-import { calcTotals, lineAmount, money } from '../lib/calc'
+import { calcTotals, laborListPrice, lineAmount, money } from '../lib/calc'
 import {
   EVIDENCE_LABEL,
   type DraftSection, type EvidenceKind, type Quote, type QuoteLine,
@@ -253,7 +253,7 @@ export default function PrintPage() {
     navigate('/')
   }, [navigate, openedInNewTab])
   const {
-    items, settings, evidenceOf, mgmtFeeRate, taxRate, laborBase, laborDiscount,
+    items, settings, evidenceOf, mgmtFeeRate, taxRate, laborBase, laborDiscount, laborRates,
     loading: refLoading,
   } = useRefData()
 
@@ -468,9 +468,23 @@ export default function PrintPage() {
   /** 兩道條件都成立才蓋章：狀態在已核可之後 ＋ 印章圖真的拿到了 */
   const showStamp = needStamp && Boolean(stampSrc)
   const approvedDate = dateOnly(quote.approved_at)
-  /** 總表 1 頁 + 各大項明細各 1 頁 + 有工率資料時再 1 頁 */
+  /**
+   * 明細頁把大項塞滿一張再換頁——一個大項獨佔一頁會印出一疊三行表格的紙。
+   * ponytail: 以列數估高度（每列一列高），大項成本 = 表頭 + 標題 + 小計 + 明細列數。
+   * 明細列若備註很長會折行而超估，真的印歪再改成量測 offsetHeight 分頁。
+   */
+  const SHEET_ROWS = 26
+  const sectionPages: { sec: DraftSection; si: number }[][] = []
+  draftSections.forEach((sec, si) => {
+    const cost = 3 + Math.max(sec.lines.length, 1)
+    const last = sectionPages[sectionPages.length - 1]
+    const used = last?.reduce((a, x) => a + 3 + Math.max(x.sec.lines.length, 1), 0) ?? 0
+    if (last && used + cost <= SHEET_ROWS) last.push({ sec, si })
+    else sectionPages.push([{ sec, si }])
+  })
+  /** 總表 1 頁 + 明細頁 + 有工率資料時再 1 頁 */
   const withProd = showProd && prodRows.length > 0
-  const totalPages = 1 + draftSections.length + (withProd ? 1 : 0)
+  const totalPages = 1 + sectionPages.length + (withProd ? 1 : 0)
   const sheetProps = { quote, stamp, catalogVersion, feeRate, busRate, total: totalPages }
 
   return (
@@ -627,12 +641,13 @@ export default function PrintPage() {
         </div>
       </Sheet>
 
-      {/* ── 明細頁：每個工程大項一頁 ── */}
-      {draftSections.map((sec, si) => {
-        const subtotal = sec.lines.reduce((a, l) => a + lineAmount(l.unit_price, l.qty), 0)
-        return (
-          <Sheet {...sheetProps} page={si + 2} key={sec.key}>
-            <table className="mt-4 w-full border-collapse">
+      {/* ── 明細頁：大項依列數塞滿一張再換頁 ── */}
+      {sectionPages.map((group, pi) => (
+        <Sheet {...sheetProps} page={pi + 2} key={group[0].sec.key}>
+          {group.map(({ sec, si }) => {
+          const subtotal = sec.lines.reduce((a, l) => a + lineAmount(l.unit_price, l.qty), 0)
+          return (
+            <table className="mt-4 w-full border-collapse" key={sec.key}>
               <thead>
                 <tr>
                   <th className={TH + ' w-[7%]'}>項次</th>
@@ -663,6 +678,11 @@ export default function PrintPage() {
                 )}
                 {sec.lines.map((l, li) => {
                   const tone = l.is_custom ? ' text-warn' : ''
+                  // 工資列把法源與「牌價 × 折數」印在品名下——單價欄只有一個數字，
+                  // 採購看不出 4,509 是休息日加給打完折的結果，折讓也就白給了
+                  const lr = l.labor_rate_id
+                    ? laborRates.find((r) => r.id === l.labor_rate_id)
+                    : undefined
                   return (
                     <tr key={l.key}>
                       <td className={TD + ' text-center' + tone}>
@@ -672,6 +692,16 @@ export default function PrintPage() {
                         {l.name}
                         {l.spec && (
                           <span className={l.is_custom ? 'text-warn/70' : 'text-ink-500'}>　{l.spec}</span>
+                        )}
+                        {lr && (
+                          <span className="text-ink-500">
+                            　{lr.name}
+                            {lr.legal_basis ? `（${lr.legal_basis}）` : ''}
+                            ：牌價 {money(laborListPrice(laborBase, lr))}
+                            {discountLabel(laborDiscount)
+                              ? ` × 物管合約 ${discountLabel(laborDiscount)}`
+                              : ''}
+                          </span>
                         )}
                       </td>
                       <td className={TD + ' text-center' + tone}>{l.unit}</td>
@@ -696,9 +726,10 @@ export default function PrintPage() {
                 </tr>
               </tbody>
             </table>
-          </Sheet>
-        )
-      })}
+          )
+          })}
+        </Sheet>
+      ))}
 
       {/* ── 工率分析：一筆工率都對不到就整區不渲染 ── */}
       {withProd && (
