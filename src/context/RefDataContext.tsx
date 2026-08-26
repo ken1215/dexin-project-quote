@@ -18,7 +18,7 @@ interface RefData {
   /** 便利查詢 */
   mgmtFeeRate: number
   taxRate: number
-  /** 技術工日薪「牌價」（3,000，對齊臺北市政府工程預算參考單價） */
+  /** 技術工日薪「牌價」（3,000，對齊直轄市工程預算參考單價） */
   laborBase: number
   /** 物業管理合約優惠折數：報價 = laborBase × laborDiscount × 時段係數 */
   laborDiscount: number

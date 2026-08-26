@@ -815,8 +815,8 @@ export default function PrintPage() {
           </table>
           <p className="mt-3 text-[10.5px] leading-relaxed text-ink-500">
             工率係一名技術工於正常工時（8 小時）之產出基準，工資單價 = 技術工日薪 ÷ 工率。
-            技術工日薪牌價 NT${money(laborBase)}／工，係參照臺北市政府工程預算參考單價之技術工單價
-            （375 元／時 × 8 小時）；
+            技術工日薪牌價 NT${money(laborBase)}／工，係參照直轄市工程預算參考單價之技術工單價
+            （375 元／時 × 8 小時），並以行政院主計總處營造工程物價指數（CCI）勞務類指數檢核工資水準；
             {discountLabel(laborDiscount)
               ? `因貴院已訂有物業管理合約，本報價之工資按牌價 ${discountLabel(laborDiscount)} 計價。`
               : '本報價之工資按牌價計價。'}
