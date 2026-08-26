@@ -64,6 +64,8 @@ export interface PriceItem {
   needs_area: boolean
   active: boolean
   sort: number
+  /** 大類底下的子分類（同質品項收在一起）；空字串＝該大類不分組 */
+  subgroup: string
 }
 
 export interface PriceFloor {

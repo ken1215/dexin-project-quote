@@ -112,6 +112,8 @@ const toRow = (it: PriceItem, over: Partial<PriceItem>): PriceItem => ({
   needs_area: it.needs_area,
   active: it.active,
   sort: it.sort,
+  // upsert 是整列寫回，漏掉哪一欄就會被還原成預設值——子分類會全部清空
+  subgroup: it.subgroup,
   ...over,
 })
 
@@ -996,7 +998,9 @@ export default function PriceCatalogPage() {
                       </div>
                     </td>
                   </tr>
-                  {open && g.rows.map((it) => {
+                  {open && g.rows.map((it, ri) => {
+                    // rows 已依 sort 排好，子分類必為連續區塊——變了就插一列標題
+                    const newSub = it.subgroup && it.subgroup !== g.rows[ri - 1]?.subgroup
                     const e = editOf(it)
                     const dirty = isDirty(it)
                     const idx = indexOf(it.index_id)
@@ -1007,6 +1011,16 @@ export default function PriceCatalogPage() {
                     const floorVal = floorEdits[it.id] ?? (floor ? String(floor.floor_price) : '')
                     return (
                       <Fragment key={it.id}>
+                        {newSub && (
+                          <tr>
+                            <td
+                              className="border border-ink-200 bg-light/70 px-2 py-1 text-[12px] font-semibold text-deep"
+                              colSpan={COL_COUNT}
+                            >
+                              {it.subgroup}
+                            </td>
+                          </tr>
+                        )}
                         <tr className={dirty ? 'bg-light/40' : undefined}>
                           <td className="td text-center">
                             <input

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
@@ -567,8 +567,20 @@ export default function QuoteEditorPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {visibleItems.map((it) => (
-                      <tr key={it.id} className="hover:bg-light/40">
+                    {visibleItems.map((it, ii) => (
+                      <Fragment key={it.id}>
+                      {/* 清單已依 sort 排好，子分類必為連續區塊——變了就插一列標題 */}
+                      {it.subgroup && it.subgroup !== visibleItems[ii - 1]?.subgroup && (
+                        <tr>
+                          <td
+                            className="border border-ink-200 bg-bright/10 px-2 py-1 text-[12px] font-semibold text-bright"
+                            colSpan={4}
+                          >
+                            {it.subgroup}
+                          </td>
+                        </tr>
+                      )}
+                      <tr className="hover:bg-light/40">
                         <td className="td">
                           <span className="text-ink-900">{it.name}</span>
                           {it.needs_area && (
@@ -586,6 +598,7 @@ export default function QuoteEditorPage() {
                           <button type="button" className="btn" onClick={() => addItem(it)}>加入</button>
                         </td>
                       </tr>
+                      </Fragment>
                     ))}
                     {visibleItems.length === 0 && (
                       <tr>
