@@ -687,7 +687,7 @@ export default function QuoteEditorPage() {
                               className="field num"
                               type="number"
                               min={0}
-                              step="0.01"
+                              step="any"
                               value={l.qty}
                               disabled={locked}
                               onChange={(e) => patchLine(sec.key, l.key, { qty: Number(e.target.value) })}

@@ -267,6 +267,8 @@ export default function PrintPage() {
   const [error, setError] = useState<string | null>(null)
   /** 報價專用章的 data URI；null＝不蓋（未核可、查無此設定、或載入失敗） */
   const [stampSrc, setStampSrc] = useState<string | null>(null)
+  /** 列印是否附工率分析頁；預設開，記住上次選擇 */
+  const [showProd, setShowProd] = useState(() => localStorage.getItem('print.prod') !== '0')
 
   const load = useCallback(async () => {
     if (!id) { setError('缺少報價單編號'); setLoading(false); return }
@@ -467,7 +469,8 @@ export default function PrintPage() {
   const showStamp = needStamp && Boolean(stampSrc)
   const approvedDate = dateOnly(quote.approved_at)
   /** 總表 1 頁 + 各大項明細各 1 頁 + 有工率資料時再 1 頁 */
-  const totalPages = 1 + draftSections.length + (prodRows.length ? 1 : 0)
+  const withProd = showProd && prodRows.length > 0
+  const totalPages = 1 + draftSections.length + (withProd ? 1 : 0)
   const sheetProps = { quote, stamp, catalogVersion, feeRate, busRate, total: totalPages }
 
   return (
@@ -478,6 +481,19 @@ export default function PrintPage() {
           列印 / 轉 PDF
         </button>
         <button type="button" className="btn" onClick={goBack}>{openedInNewTab ? '關閉此分頁' : '返回'}</button>
+        {prodRows.length > 0 && (
+          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-ink-700">
+            <input
+              type="checkbox"
+              checked={showProd}
+              onChange={(e) => {
+                setShowProd(e.target.checked)
+                localStorage.setItem('print.prod', e.target.checked ? '1' : '0')
+              }}
+            />
+            附工率分析頁
+          </label>
+        )}
         <span className="ml-auto flex items-center gap-2 text-xs text-ink-500">
           單號 <span className="num text-ink-900">{quote.quote_no || '—'}</span>
           <span className={'rounded-full border px-2 py-[1px] text-[11px] ' + stamp.cls}>
@@ -685,7 +701,7 @@ export default function PrintPage() {
       })}
 
       {/* ── 工率分析：一筆工率都對不到就整區不渲染 ── */}
-      {prodRows.length > 0 && (
+      {withProd && (
         <Sheet {...sheetProps} page={totalPages}>
           <h2 className="mt-4 border-b-2 border-deep pb-1 text-[14px] font-bold tracking-wide text-deep">
             工率分析（單價合理性說明）
