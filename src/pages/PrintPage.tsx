@@ -468,6 +468,10 @@ export default function PrintPage() {
   /** 兩道條件都成立才蓋章：狀態在已核可之後 ＋ 印章圖真的拿到了 */
   const showStamp = needStamp && Boolean(stampSrc)
   const approvedDate = dateOnly(quote.approved_at)
+  /** 申請單位存的是「工務處-姓名」，製表欄直接取後半的人名；只寫單位名就留白給手簽 */
+  const makerName = /[-－]/.test(quote.dept ?? '')
+    ? (quote.dept.split(/[-－]/).pop() ?? '').trim()
+    : ''
   /**
    * 明細頁把大項塞滿一張再換頁——一個大項獨佔一頁會印出一疊三行表格的紙。
    * ponytail: 以列數估高度（每列一列高），大項成本 = 表頭 + 標題 + 小計 + 明細列數。
@@ -610,6 +614,7 @@ export default function PrintPage() {
         <div className="mt-10 grid grid-cols-3 gap-8">
           {['製表', '工務處主管核可', '日期'].map((t) => {
             const isApproval = t === '工務處主管核可'
+            const isMaker = t === '製表'
             return (
               <div key={t}>
                 <div className="text-[10px] tracking-wide text-ink-500">{t}</div>
@@ -618,6 +623,11 @@ export default function PrintPage() {
                     'relative border-b border-ink-700 ' + (showStamp ? 'h-[27mm]' : 'mt-8')
                   }
                 >
+                  {isMaker && makerName && (
+                    <div className="absolute bottom-[1mm] left-0 w-full text-center text-[12.5px] text-ink-900">
+                      {makerName}
+                    </div>
+                  )}
                   {isApproval && showStamp && stampSrc && (
                     <img
                       src={stampSrc}
