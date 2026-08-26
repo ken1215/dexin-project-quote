@@ -530,10 +530,11 @@ export default function QuoteEditorPage() {
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="space-y-4">
-          {/* 品項挑選 */}
+          {/* 品項挑選。挑選區走亮藍系、明細區走深藍系——兩塊都是白卡片時，
+              同仁常把「還在挑」當成「已經加進單子」 */}
           {!locked && (
-            <div className="card">
-              <div className="card-title">選擇工料項目</div>
+            <div className="card border-l-4 border-l-bright bg-bright/[0.04]">
+              <div className="card-title border-bright/30 text-bright">選擇工料項目</div>
               <div className="mb-2 flex flex-wrap gap-1">
                 <button
                   type="button"
@@ -601,7 +602,7 @@ export default function QuoteEditorPage() {
 
           {/* 明細 */}
           {draft.sections.map((sec, si) => (
-            <div className="card" key={sec.key}>
+            <div className="card border-l-4 border-l-deep" key={sec.key}>
               <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-ink-200 pb-2">
                 <span className="text-[15px] font-semibold text-deep">
                   {CN[si] || si + 1}、

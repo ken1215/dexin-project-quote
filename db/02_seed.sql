@@ -38,7 +38,7 @@ on conflict (id) do update set name=excluded.name, section_title=excluded.sectio
 insert into labor_rates (id,name,multiplier,legal_basis,sort) values
   ('weekday','平日（正常工時）',1.0,'基準日薪',1),
   ('overtime','平日延長工時／夜間',1.34,'勞基法 §24 加給 1/3 以上',2),
-  ('restday','休息日出勤',1.67,'勞基法 §24-1 休息日出勤加給',3),
+  ('restday','休息日出勤',1.67,'勞基法 §24 II 休息日出勤加給',3),
   ('holiday','例假日／國定假日',2.0,'勞基法 §39 工資加倍發給',4)
 on conflict (id) do update set multiplier=excluded.multiplier, legal_basis=excluded.legal_basis;
 
