@@ -164,8 +164,8 @@ function QuoteIndex() {
   return (
     <div className="space-y-4">
       <div className="card">
-        <h2 className="text-[17px] font-semibold text-deep">報價單議價</h2>
-        <p className="mt-2 text-[13px] text-ink-700">
+        <h2 className="text-[1.0625rem] font-semibold text-deep">報價單議價</h2>
+        <p className="mt-2 text-[0.8125rem] text-ink-700">
           以下為立德新股份有限公司送交本院之報價單。您可針對個別項目提出議價，
           我方將於收到後回覆。
         </p>
@@ -394,7 +394,7 @@ function QuoteNegotiation({ quoteId }: { quoteId: string }) {
     <div className="space-y-4">
       <div className="card">
         <div className="flex flex-wrap items-center gap-3">
-          <h2 className="text-[17px] font-semibold text-deep">報價單議價</h2>
+          <h2 className="text-[1.0625rem] font-semibold text-deep">報價單議價</h2>
           <span className="tag">{quote.quote_no}</span>
           <span className={`tag ${statusTagClass(quote.status)}`}>{statusText(quote.status)}</span>
           <button type="button" className="btn ml-auto shrink-0" onClick={() => navigate('/client')}>
@@ -418,12 +418,12 @@ function QuoteNegotiation({ quoteId }: { quoteId: string }) {
           </div>
           <div>
             <div className="label">合計金額（含稅）</div>
-            <div className="num text-[17px] font-semibold text-deep">{money(origTotals.total)}</div>
+            <div className="num text-[1.0625rem] font-semibold text-deep">{money(origTotals.total)}</div>
           </div>
         </div>
 
         {readOnly && (
-          <div className="mt-3 rounded-md border border-ink-200 bg-light/50 px-3 py-2 text-[13px] text-deep">
+          <div className="mt-3 rounded-md border border-ink-200 bg-light/50 px-3 py-2 text-[0.8125rem] text-deep">
             本案已定案，如需調整請洽立德新工務處。
           </div>
         )}
@@ -442,7 +442,7 @@ function QuoteNegotiation({ quoteId }: { quoteId: string }) {
           <div className="text-ink-500">本單沒有任何項目。</div>
         ) : (
           <>
-            <p className="mb-3 text-[13px] text-ink-700">
+            <p className="mb-3 text-[0.8125rem] text-ink-700">
               請於「貴院建議單價」填入希望的單價，並於「說明」簡述理由；未填寫的項目視為不議價，
               沿用我方原報價。
             </p>
@@ -489,11 +489,11 @@ function QuoteNegotiation({ quoteId }: { quoteId: string }) {
                               <div className="w-full min-w-0">
                                 <div className="break-words text-ink-900">{l.name}</div>
                                 {l.spec && (
-                                  <div className="break-words text-[11px] text-ink-500">{l.spec}</div>
+                                  <div className="break-words text-[0.6875rem] text-ink-500">{l.spec}</div>
                                 )}
                                 {/* 與列印版報價單同一條規則：臨時項目印 reason，其餘印 note */}
                                 {(l.is_custom ? l.reason : l.note) && (
-                                  <div className="break-words text-[11px] text-ink-500">
+                                  <div className="break-words text-[0.6875rem] text-ink-500">
                                     {l.is_custom ? l.reason : l.note}
                                   </div>
                                 )}
@@ -518,7 +518,7 @@ function QuoteNegotiation({ quoteId }: { quoteId: string }) {
                                   onChange={(e) => setRow(l.id, { offer: e.target.value })}
                                 />
                                 {filled && (
-                                  <div className={`mt-1 text-[11px] font-semibold ${
+                                  <div className={`mt-1 text-[0.6875rem] font-semibold ${
                                     pct < 0 ? 'text-green' : pct > 0 ? 'text-alert' : 'text-ink-500'
                                   }`}>
                                     {pct > 0 ? '+' : ''}{pct.toFixed(1)}%
@@ -553,26 +553,26 @@ function QuoteNegotiation({ quoteId }: { quoteId: string }) {
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="rounded-md border border-ink-200 px-3 py-2">
                 <div className="label">我方原報價合計（含稅）</div>
-                <div className="num text-[15px] font-semibold text-ink-900">
+                <div className="num text-[0.9375rem] font-semibold text-ink-900">
                   {money(origTotals.total)}
                 </div>
               </div>
               <div className="rounded-md border border-ink-200 px-3 py-2">
                 <div className="label">依貴院建議之調整後合計（含稅）</div>
-                <div className="num text-[15px] font-semibold text-deep">
+                <div className="num text-[0.9375rem] font-semibold text-deep">
                   {money(offerTotals.total)}
                 </div>
               </div>
               <div className="rounded-md border border-ink-200 px-3 py-2">
                 <div className="label">與原報價差額</div>
-                <div className={`num text-[15px] font-semibold ${
+                <div className={`num text-[0.9375rem] font-semibold ${
                   diff < 0 ? 'text-green' : diff > 0 ? 'text-alert' : 'text-ink-700'
                 }`}>
                   {diff > 0 ? '+' : ''}{money(diff)}
                 </div>
               </div>
             </div>
-            <p className="mt-2 text-[12px] text-ink-500">
+            <p className="mt-2 text-[0.75rem] text-ink-500">
               以上金額含工程管理費 {(mgmtRate * 100).toFixed(1)}% 與營業稅 {(taxRate * 100).toFixed(1)}%；
               未填寫建議單價的項目沿用我方原價。此為試算，實際金額以雙方確認後之報價單為準。
             </p>
@@ -645,7 +645,7 @@ function QuoteNegotiation({ quoteId }: { quoteId: string }) {
                                 {n.client_offer === null ? '—' : money(Number(n.client_offer))}
                               </td>
                               <td
-                                className="td whitespace-pre-wrap break-words text-[12px] text-ink-700"
+                                className="td whitespace-pre-wrap break-words text-[0.75rem] text-ink-700"
                                 data-label="貴院說明"
                               >
                                 {answered ? '—' : (n.rationale || '—')}
@@ -659,7 +659,7 @@ function QuoteNegotiation({ quoteId }: { quoteId: string }) {
                                 {n.final_price === null ? '—' : money(Number(n.final_price))}
                               </td>
                               <td
-                                className="td whitespace-pre-wrap break-words text-[12px] text-ink-700"
+                                className="td whitespace-pre-wrap break-words text-[0.75rem] text-ink-700"
                                 data-label="我方說明"
                               >
                                 {answered ? (n.rationale || '—') : '—'}

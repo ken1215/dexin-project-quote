@@ -31,6 +31,11 @@ html {
   color-scheme: light;
   /* 手機橫轉直時 Safari 會自作主張放大字級 */
   -webkit-text-size-adjust: 100%;
+
+  /* 介面整體字級。使用者反映同仁年紀較長，2026-08-27 由 100% 調到 110%。
+     要再調整就改這一個數字——全站的字級、間距、點擊目標都是 rem，會一起跟著走。
+     （@media print 另外把 html/body 定死在 11.5px，所以 A4 版面不受影響。） */
+  font-size: 110%;
 }
 
 body {
@@ -38,8 +43,9 @@ body {
   background: var(--color-ink-50);
   color: var(--color-ink-700);
   font-family: var(--font-sans);
-  font-size: 14px;
-  line-height: 1.55;
+  /* 0.875rem＝根字級的 14/16。根字級 110% 時實際是 15.4px */
+  font-size: 0.875rem;
+  line-height: 1.6;
 }
 
 /* 數字一律等寬對齊——金額表格的可讀性靠這個 */
@@ -70,9 +76,9 @@ body {
   .label { @apply mb-1 block text-xs text-ink-500; }
   .card  { @apply rounded-lg border border-ink-200 bg-white p-4; }
   .card-title {
-    @apply mb-3 border-b border-ink-200 pb-2 text-[15px] font-semibold text-deep;
+    @apply mb-3 border-b border-ink-200 pb-2 text-[0.9375rem] font-semibold text-deep;
   }
-  .tag { @apply inline-block rounded-full bg-light px-2 py-0.5 text-[11px] text-deep; }
+  .tag { @apply inline-block rounded-full bg-light px-2 py-0.5 text-[0.6875rem] text-deep; }
 
   /* ── 手機版共用樣板（全站一致，各頁不要自己另發明一套）────────
      用法見下方 @media 區塊的註解。 */
@@ -102,8 +108,9 @@ body {
    ══════════════════════════════════════════════════════════════ */
 @media (max-width: 639px) {
   /* iOS Safari 在 font-size < 16px 的輸入框聚焦時會自動放大整頁，
-     使用者得手動縮回去。所有輸入類元件在手機一律 16px。 */
-  .field, input, select, textarea { font-size: 16px; }
+     使用者得手動縮回去。1rem 在根字級 110% 下是 17.6px，穩穩過門檻；
+     寫死 16px 反而會讓手機的輸入框比桌機還小。 */
+  .field, input, select, textarea { font-size: 1rem; }
 
   .rwd-table, .rwd-table tbody, .rwd-table tr, .rwd-table td { display: block; width: 100%; }
   .rwd-table thead { display: none; }
@@ -153,7 +160,7 @@ body {
   .field { @apply min-h-10; }
   input[type="checkbox"], input[type="radio"] { width: 1.15rem; height: 1.15rem; }
   .th  { @apply border border-ink-200 bg-light/60 px-2 py-1.5 text-xs font-semibold text-ink-700; }
-  .td  { @apply border border-ink-200 px-2 py-1 text-[13px]; }
+  .td  { @apply border border-ink-200 px-2 py-1 text-[0.8125rem]; }
 }
 
 /* ── 列印：只印工程標單，介面全部隱藏 ──────────────────────────

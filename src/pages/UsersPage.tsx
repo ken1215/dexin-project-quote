@@ -256,7 +256,7 @@ export default function UsersPage() {
 
       <div className="card">
         <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-ink-200 pb-2">
-          <h2 className="text-[15px] font-semibold text-deep">帳號清單</h2>
+          <h2 className="text-[0.9375rem] font-semibold text-deep">帳號清單</h2>
           <span className="tag">{rows.length} 個帳號</span>
           {/* 手機：兩顆按鈕自成一列並等寬撐開，避免被擠成迷你按鈕 */}
           <div className="ml-auto flex w-full gap-2 sm:w-auto">
@@ -399,12 +399,12 @@ export default function UsersPage() {
         <div className="card border-bright/40">
           <h2 className="card-title break-words">重設密碼：{toEmployeeNo(pwFor.email)}</h2>
           {pwFor.id === profile?.id ? (
-            <p className="mb-3 rounded-md border border-alert/40 bg-alert/10 px-3 py-2 text-[13px] text-alert">
+            <p className="mb-3 rounded-md border border-alert/40 bg-alert/10 px-3 py-2 text-[0.8125rem] text-alert">
               這是<b>你自己的帳號</b>。改完之後目前的登入狀態會立即失效，
               系統會自動登出，需要用新密碼重新登入——請先確認新密碼記得住。
             </p>
           ) : (
-            <p className="mb-3 text-[13px] text-ink-500">
+            <p className="mb-3 text-[0.8125rem] text-ink-500">
               改完之後對方目前的登入狀態會失效，需重新登入。請以其他管道告知新密碼。
             </p>
           )}

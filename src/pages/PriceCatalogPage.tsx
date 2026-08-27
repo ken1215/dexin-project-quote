@@ -125,8 +125,8 @@ function Stat({ label, value, sub, alert }: {
   return (
     <div className={'rounded-lg border px-4 py-3 ' + (alert ? 'border-alert/40 bg-alert/10' : 'border-ink-200 bg-white')}>
       <div className="text-xs text-ink-500">{label}</div>
-      <div className={'num text-[22px] leading-tight font-semibold ' + (alert ? 'text-alert' : 'text-deep')}>{value}</div>
-      {sub && <div className="text-[11px] text-ink-500">{sub}</div>}
+      <div className={'num text-[1.375rem] leading-tight font-semibold ' + (alert ? 'text-alert' : 'text-deep')}>{value}</div>
+      {sub && <div className="text-[0.6875rem] text-ink-500">{sub}</div>}
     </div>
   )
 }
@@ -721,7 +721,7 @@ export default function PriceCatalogPage() {
       {/* ── 新增品項 ───────────────────────────────────────── */}
       <div className="card">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-200 pb-2">
-          <div className="text-[15px] font-semibold text-deep">新增品項</div>
+          <div className="text-[0.9375rem] font-semibold text-deep">新增品項</div>
           <button className="btn" onClick={() => { setShowNew((v) => !v); setErr(null) }}>
             {showNew ? '收合' : '＋ 新增品項'}
           </button>
@@ -795,17 +795,17 @@ export default function PriceCatalogPage() {
       {/* ── 單價表 ─────────────────────────────────────────── */}
       <div className="card">
         <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-ink-200 pb-2 sm:gap-3">
-          <div className="text-[15px] font-semibold text-deep">標準單價維護</div>
+          <div className="text-[0.9375rem] font-semibold text-deep">標準單價維護</div>
           <span className="text-xs text-ink-500">底價欄僅主管可見</span>
           <button
-            className="btn px-2 py-0.5 text-[11px]"
+            className="btn px-2 py-0.5 text-[0.6875rem]"
             disabled={groups.length === 0}
             onClick={expandAllCats}
           >
             全部展開
           </button>
           <button
-            className="btn px-2 py-0.5 text-[11px]"
+            className="btn px-2 py-0.5 text-[0.6875rem]"
             disabled={groups.length === 0}
             onClick={collapseAllCats}
           >
@@ -878,7 +878,7 @@ export default function PriceCatalogPage() {
                   </div>
                 )}
                 {bulkUsageOpen && usedSelected.length > 0 && (
-                  <ul className="mt-2 max-h-48 overflow-y-auto rounded border border-ink-200 bg-white px-3 py-2 text-[13px] break-words text-ink-700">
+                  <ul className="mt-2 max-h-48 overflow-y-auto rounded border border-ink-200 bg-white px-3 py-2 text-[0.8125rem] break-words text-ink-700">
                     {usedSelected.map((i) => {
                       const u = bulkUsage?.[i.id]
                       return (
@@ -968,7 +968,7 @@ export default function PriceCatalogPage() {
                           否則右側的群組全選勾選框要橫捲到底才點得到。 */}
                       <div className="sticky left-0 flex max-w-[calc(100vw-4rem)] flex-wrap items-center gap-x-3 gap-y-1 sm:static sm:max-w-none">
                         <span className="text-deep" aria-hidden="true">{open ? '▾' : '▸'}</span>
-                        <span className="text-[14px] font-semibold text-deep">{g.name}</span>
+                        <span className="text-[0.875rem] font-semibold text-deep">{g.name}</span>
                         <span className="text-xs text-ink-700">
                           品項 <span className="num">{g.rows.length}</span>
                         </span>
@@ -1019,7 +1019,7 @@ export default function PriceCatalogPage() {
                         {newSub && (
                           <tr>
                             <td
-                              className="border border-ink-200 bg-light/70 px-2 py-1 text-[12px] font-semibold text-deep"
+                              className="border border-ink-200 bg-light/70 px-2 py-1 text-[0.75rem] font-semibold text-deep"
                               colSpan={COL_COUNT}
                             >
                               {it.subgroup}
@@ -1041,7 +1041,7 @@ export default function PriceCatalogPage() {
                               aria-label={`${it.name} 品名`}
                               onChange={(ev) => patch(it, { name: ev.target.value })}
                             />
-                            <div className="mt-0.5 text-[11px] break-words text-ink-500">
+                            <div className="mt-0.5 text-[0.6875rem] break-words text-ink-500">
                               {categoryOf(it.category_id)?.name ?? it.category_id}
                               {it.needs_area && <span className="ml-1 text-alert">・待轉 m²</span>}
                             </div>
@@ -1082,7 +1082,7 @@ export default function PriceCatalogPage() {
                               onBlur={() => void saveFloor(it)}
                             />
                           </td>
-                          <td className="td text-[11px] text-ink-500">
+                          <td className="td text-[0.6875rem] text-ink-500">
                             {it.samples === 0 ? '無歷史資料' : (
                               <>
                                 {m(it.price_min)}–{m(it.price_max)}　中位 {m(it.price_median)}
@@ -1090,7 +1090,7 @@ export default function PriceCatalogPage() {
                               </>
                             )}
                           </td>
-                          <td className="td text-[11px]">
+                          <td className="td text-[0.6875rem]">
                             {!it.index_id ? <span className="text-ink-500">—</span> : (
                               <>
                                 <div className="text-ink-700">
@@ -1100,7 +1100,7 @@ export default function PriceCatalogPage() {
                                 {suggested !== null && suggested !== cur && (
                                   <button
                                     type="button"
-                                    className="mt-0.5 rounded border border-bright px-1.5 py-0.5 text-[11px] text-bright hover:bg-bright hover:text-white"
+                                    className="mt-0.5 rounded border border-bright px-1.5 py-0.5 text-[0.6875rem] text-bright hover:bg-bright hover:text-white"
                                     onClick={() => patch(it, { std_price: String(suggested) })}
                                   >
                                     建議 {money(suggested)} {suggested > cur ? '↑' : '↓'}
@@ -1129,14 +1129,14 @@ export default function PriceCatalogPage() {
                             />
                           </td>
                           <td className="td text-center">
-                            <button type="button" className="btn px-2 py-0.5 text-[11px]" onClick={() => void openHistory(it)}>
+                            <button type="button" className="btn px-2 py-0.5 text-[0.6875rem]" onClick={() => void openHistory(it)}>
                               軌跡
                             </button>
                           </td>
                           <td className="td text-center">
                             <button
                               type="button"
-                              className="btn btn-danger px-2 py-0.5 text-[11px]"
+                              className="btn btn-danger px-2 py-0.5 text-[0.6875rem]"
                               disabled={delBusy || bulkBusy}
                               onClick={() => void openDelete(it)}
                             >
@@ -1151,13 +1151,13 @@ export default function PriceCatalogPage() {
                               {/* 跨欄面板同樣釘在可視區左緣，手機不必橫捲就能讀完並按到按鈕 */}
                               <div className="sticky left-0 max-w-[calc(100vw-4rem)] sm:static sm:max-w-none">
                               <div className="text-sm font-semibold text-warn">確認刪除此品項？</div>
-                              <div className="mt-1 grid grid-cols-1 gap-x-4 gap-y-0.5 text-[13px] break-words text-ink-900 sm:grid-cols-2 md:grid-cols-4">
+                              <div className="mt-1 grid grid-cols-1 gap-x-4 gap-y-0.5 text-[0.8125rem] break-words text-ink-900 sm:grid-cols-2 md:grid-cols-4">
                                 <div>品名：{it.name}</div>
                                 <div>規格：{it.spec || '—'}</div>
                                 <div>單位：{it.unit}</div>
                                 <div>目前標準單價：<span className="num">{money(it.std_price)}</span></div>
                               </div>
-                              <div className="mt-2 text-[13px] text-ink-900">
+                              <div className="mt-2 text-[0.8125rem] text-ink-900">
                                 {delUsageLoading && <span className="text-ink-500">使用情形查詢中…</span>}
                                 {!delUsageLoading && delUsage && (
                                   delUsage.line_count === 0 && delUsage.quote_count === 0
@@ -1172,7 +1172,7 @@ export default function PriceCatalogPage() {
                                     )
                                 )}
                               </div>
-                              <div className="mt-1 text-[13px] text-ink-700">
+                              <div className="mt-1 text-[0.8125rem] text-ink-700">
                                 若只是暫時不用，建議改用「停用」而不是刪除。
                               </div>
                               <div className="mt-2 flex flex-col gap-2 sm:flex-row">
@@ -1213,7 +1213,7 @@ export default function PriceCatalogPage() {
                                     ))}
                                   </select>
                                   {src && (
-                                    <div className="mt-1 text-[11px] text-ink-500">
+                                    <div className="mt-1 text-[0.6875rem] text-ink-500">
                                       發布機關：{src.publisher || '—'}
                                       {src.url && (
                                         <>
@@ -1234,7 +1234,7 @@ export default function PriceCatalogPage() {
                                   />
                                 </div>
                               </div>
-                              <div className="mt-2 text-[11px] text-ink-500">
+                              <div className="mt-2 text-[0.6875rem] text-ink-500">
                                 修改後請按上方「儲存變更」寫入資料庫。
                               </div>
                               </div>

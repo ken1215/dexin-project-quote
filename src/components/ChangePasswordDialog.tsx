@@ -41,7 +41,7 @@ export default function ChangePasswordDialog({ onClose }: { onClose: () => void 
                  backdrop:bg-ink-900/40"
     >
       <form onSubmit={submit} className="p-5">
-        <h2 className="mb-1 text-[15px] font-semibold text-deep">更改密碼</h2>
+        <h2 className="mb-1 text-[0.9375rem] font-semibold text-deep">更改密碼</h2>
         <p className="mb-4 text-xs text-ink-500">
           更改後本次登入會失效，需用新密碼重新登入。
         </p>

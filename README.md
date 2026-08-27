@@ -48,6 +48,37 @@ scripts/
 └─ gen_seed.py              轉換規則（工資日薪制、裝修 m²、佐證掛載）
 ```
 
+## 醫院網路擋住時：搬到自有位址
+
+聯新的網路過濾把 `github.io`（個人網頁／程式碼託管類）與 `supabase.co`（雲端服務類）
+**整類**擋掉，所以「只把網頁換個地方放」沒有用——畫面出得來，登入與讀單價庫照樣被擋。
+（判斷依據：同一條網路連得上 YouTube，代表是分類黑名單而非白名單制，
+未分類的新網域通常直接就通。）
+
+`functions/_middleware.js`（Cloudflare Pages Function）讓瀏覽器全程只連**一個**位址：
+靜態網頁由 Pages 出，`/rest/v1/*`、`/auth/v1/*`、`/functions/v1/*` 轉發到 Supabase，
+`supabase.co` 不再出現在任何一個連線裡。
+**它只換傳輸路徑，不做權限判斷**——權限仍全由 RLS 決定，多一層代理不會讓誰多拿到一筆資料。
+
+搬法（由便宜到貴，通常第 1 步就夠）：
+
+1. **先試免費網域**：Cloudflare（免費）→ Pages → 連這個 GitHub repo，
+   build 指令 `npm run build`、輸出目錄 `dist`。環境變數三個：
+   - `SUPABASE_URL` ＝ `https://xjylpaqvdxmxzehvwreg.supabase.co`（給代理用，不是給前端）
+   - `VITE_SUPABASE_URL` ＝ **這個 Pages 站自己的網址**（例 `https://dexin-quote.pages.dev`）
+   - `VITE_SUPABASE_ANON_KEY` ＝ anon key
+
+   拿到網址後用**醫院網路**開一次看通不通。
+2. **通了就結束**，不必買網域也不必找資訊室。
+3. **沒通才買網域**（年費約 300–500 元），DNS 接到同一個 Pages 專案，
+   `VITE_SUPABASE_URL` 改成新網域後重新部署。未分類的新網域過關機率高得多，
+   對資訊室也是「乙方自家系統」而不是「某個 GitHub 個人頁」。
+4. 仍不通才走白名單申請——這時只需要申請**一個**網址。
+
+GitHub Pages 那份保留不動，院外照樣可用。
+`scripts/deploy.mjs` 的連線防呆是拿建置當下的 `VITE_SUPABASE_URL` 去比對產出，
+不寫死 `supabase.co`，所以換網域不會被它擋（網址不符／完全沒設定兩種情況都實測會 exit 1）。
+
 ## 資料來源
 
 單價庫由 2025-11 至 2026-08 共 **73 份**立德新對聯新國際醫院的報價單、

@@ -604,7 +604,7 @@ export default function QuoteEditorPage() {
                       {it.subgroup && it.subgroup !== visibleItems[ii - 1]?.subgroup && (
                         <tr>
                           <td
-                            className="border border-ink-200 bg-bright/10 px-2 py-1 text-[12px] font-semibold text-bright"
+                            className="border border-ink-200 bg-bright/10 px-2 py-1 text-[0.75rem] font-semibold text-bright"
                             colSpan={4}
                           >
                             {it.subgroup}
@@ -617,12 +617,12 @@ export default function QuoteEditorPage() {
                           <div className="min-w-0">
                             <span className="break-words text-ink-900">{it.name}</span>
                             {it.needs_area && (
-                              <span className="ml-1.5 rounded bg-alert/10 px-1.5 py-0.5 text-[11px] text-alert">
+                              <span className="ml-1.5 rounded bg-alert/10 px-1.5 py-0.5 text-[0.6875rem] text-alert">
                                 待轉 m²
                               </span>
                             )}
                             {it.spec && (
-                              <div className="break-words text-[11px] text-ink-500">{it.spec}</div>
+                              <div className="break-words text-[0.6875rem] text-ink-500">{it.spec}</div>
                             )}
                           </div>
                         </td>
@@ -655,7 +655,7 @@ export default function QuoteEditorPage() {
           {draft.sections.map((sec, si) => (
             <div className="card border-l-4 border-l-deep" key={sec.key}>
               <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-ink-200 pb-2">
-                <span className="text-[15px] font-semibold text-deep">
+                <span className="text-[0.9375rem] font-semibold text-deep">
                   {CN[si] || si + 1}、
                 </span>
                 <input
@@ -718,7 +718,7 @@ export default function QuoteEditorPage() {
                             ) : (
                               <>
                                 <div className="break-words text-ink-900">{l.name}</div>
-                                {l.spec && <div className="break-words text-[11px] text-ink-500">{l.spec}</div>}
+                                {l.spec && <div className="break-words text-[0.6875rem] text-ink-500">{l.spec}</div>}
                               </>
                             )}
                             {isLabor && (
@@ -737,9 +737,9 @@ export default function QuoteEditorPage() {
                                   ))}
                                 </select>
                                 {rate?.legal_basis && (
-                                  <span className="text-[11px] text-ink-500">{rate.legal_basis}</span>
+                                  <span className="text-[0.6875rem] text-ink-500">{rate.legal_basis}</span>
                                 )}
-                                <span className="text-[11px] text-ink-500">
+                                <span className="text-[0.6875rem] text-ink-500">
                                   牌價 {money(laborListPrice(laborBase, rate))}
                                   {discountLabel(laborDiscount)
                                     ? ` × 物管合約 ${discountLabel(laborDiscount)}`
@@ -866,7 +866,7 @@ export default function QuoteEditorPage() {
                 </tr>
                 <tr className="border-t border-ink-200">
                   <td className="py-1.5 font-semibold text-deep">合計</td>
-                  <td className="num py-1.5 text-[16px] font-semibold text-deep">
+                  <td className="num py-1.5 text-[1rem] font-semibold text-deep">
                     {money(totals.total)}
                   </td>
                 </tr>

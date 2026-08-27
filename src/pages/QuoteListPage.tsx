@@ -307,7 +307,7 @@ export default function QuoteListPage() {
         {confirmOne && (
           <div className="card border-warn/40">
             <div className="card-title text-warn">確認刪除報價單</div>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[13px]">
+            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[0.8125rem]">
               <dt className="text-ink-500">單號</dt>
               <dd className="min-w-0 break-words font-semibold text-ink-900">{confirmOne.quote_no}</dd>
               <dt className="text-ink-500">案名</dt>
@@ -321,11 +321,11 @@ export default function QuoteListPage() {
               <dt className="text-ink-500">合計金額</dt>
               <dd className="num font-semibold text-deep">{money(totals[confirmOne.id] ?? 0)}</dd>
             </dl>
-            <p className="mt-3 text-[13px] font-semibold text-warn">
+            <p className="mt-3 text-[0.8125rem] font-semibold text-warn">
               將一併刪除此單的所有明細與議價紀錄，且無法復原。
             </p>
             {confirmOne.status !== 'draft' && (
-              <p className="mt-2 text-[13px] text-alert">
+              <p className="mt-2 text-[0.8125rem] text-alert">
                 此單已送審／核可／議價過，刪除後將失去該筆往來紀錄。若只是不再進行，建議保留存查。
               </p>
             )}
@@ -353,18 +353,18 @@ export default function QuoteListPage() {
         {confirmBatch && (
           <div className="card border-warn/40">
             <div className="card-title text-warn">確認刪除選取的 {selectedQuotes.length} 張報價單</div>
-            <p className="text-[13px] break-words text-ink-700">
+            <p className="text-[0.8125rem] break-words text-ink-700">
               將刪除下列單號：
               <span className="num break-words font-semibold text-ink-900">{confirmNoList.join('、')}</span>
               {confirmNoRest > 0 && (
                 <span className="text-ink-500">…等 {selectedQuotes.length} 張</span>
               )}
             </p>
-            <p className="mt-2 text-[13px] font-semibold text-warn">
+            <p className="mt-2 text-[0.8125rem] font-semibold text-warn">
               將一併刪除這些單的所有明細與議價紀錄，且無法復原。
             </p>
             {nonDraftSelected > 0 && (
-              <p className="mt-2 text-[13px] text-alert">
+              <p className="mt-2 text-[0.8125rem] text-alert">
                 其中 {nonDraftSelected} 張不是草稿狀態，已送審／核可／議價過，刪除後將失去該筆往來紀錄。
                 若只是不再進行，建議保留存查。
               </p>
@@ -467,7 +467,7 @@ export default function QuoteListPage() {
             {/* 手機把表格轉成卡片後 <thead> 會被隱藏，連帶失去表頭的全選框，
                 這裡補一個只在手機出現的全選控制，行為與表頭那顆完全相同。 */}
             {isManager && filtered.length > 0 && (
-              <label className="mb-2 flex items-center gap-2 text-[13px] text-ink-700 sm:hidden">
+              <label className="mb-2 flex items-center gap-2 text-[0.8125rem] text-ink-700 sm:hidden">
                 <input
                   type="checkbox"
                   aria-label="全選目前篩選後的報價單"
@@ -525,7 +525,7 @@ export default function QuoteListPage() {
                                 disabled={busy}
                                 onChange={(e) => toggleOne(q.id, e.target.checked)}
                               />
-                              <span className="text-[11px] text-ink-500 sm:hidden">選取此單</span>
+                              <span className="text-[0.6875rem] text-ink-500 sm:hidden">選取此單</span>
                             </label>
                           </td>
                         )}

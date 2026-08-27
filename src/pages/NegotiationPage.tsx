@@ -269,7 +269,7 @@ export default function NegotiationPage() {
     <div className="space-y-4">
       <div className="card">
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <h2 className="text-[17px] font-semibold text-deep">議價回應</h2>
+          <h2 className="text-[1.0625rem] font-semibold text-deep">議價回應</h2>
           <span className="tag max-w-full truncate">{quote.quote_no}</span>
           <span className="tag">{STATUS_LABEL[quote.status]}</span>
           <Link to={`/quote/${quote.id}`} className="btn ml-auto">回單據</Link>
@@ -291,7 +291,7 @@ export default function NegotiationPage() {
           </div>
           <div>
             <div className="label">原報價合計（含稅）</div>
-            <div className="num text-[17px] font-semibold text-deep">{money(origTotals.total)}</div>
+            <div className="num text-[1.0625rem] font-semibold text-deep">{money(origTotals.total)}</div>
           </div>
         </div>
 
@@ -380,10 +380,10 @@ export default function NegotiationPage() {
                               <div className="w-full min-w-0">
                                 <div className="break-words text-ink-900">{l.name}</div>
                                 {l.spec && (
-                                  <div className="break-words text-[11px] text-ink-500">{l.spec}</div>
+                                  <div className="break-words text-[0.6875rem] text-ink-500">{l.spec}</div>
                                 )}
                                 {fp !== null && (
-                                  <div className="text-[11px] text-ink-500">底價 {money(fp)}</div>
+                                  <div className="text-[0.6875rem] text-ink-500">底價 {money(fp)}</div>
                                 )}
                               </div>
                             </td>
@@ -420,7 +420,7 @@ export default function NegotiationPage() {
                                   onChange={(e) => setRow(l.id, { final_price: e.target.value })}
                                 />
                                 {under && fp !== null && (
-                                  <div className="mt-1 text-[11px] font-semibold text-warn">
+                                  <div className="mt-1 text-[0.6875rem] font-semibold text-warn">
                                     低於底價 {money(fp - fin)} 元
                                   </div>
                                 )}
@@ -506,7 +506,7 @@ export default function NegotiationPage() {
                                 <td className="td num" data-label="定案價">
                                   {n.final_price === null ? '—' : money(Number(n.final_price))}
                                 </td>
-                                <td className="td text-[12px] text-ink-700">
+                                <td className="td text-[0.75rem] text-ink-700">
                                   <div className="w-full min-w-0 whitespace-pre-wrap break-words">
                                     <span className="label sm:hidden">理由</span>
                                     {n.rationale || '—'}
@@ -528,7 +528,7 @@ export default function NegotiationPage() {
         <aside className="space-y-4 lg:sticky lg:top-16 lg:self-start">
           <div className="card">
             <div className="card-title">整單試算</div>
-            <table className="w-full border-collapse text-[13px]">
+            <table className="w-full border-collapse text-[0.8125rem]">
               <tbody>
                 <tr>
                   <td className="td">原報價工程小計</td>
@@ -552,7 +552,7 @@ export default function NegotiationPage() {
                 </tr>
                 <tr>
                   <td className="td font-semibold text-deep">定案後合計</td>
-                  <td className="td num text-[15px] font-semibold text-deep">
+                  <td className="td num text-[0.9375rem] font-semibold text-deep">
                     {money(finalTotals.total)}
                   </td>
                 </tr>
@@ -575,7 +575,7 @@ export default function NegotiationPage() {
             </table>
 
             {belowFloor.length > 0 && (
-              <div className="mt-3 rounded-md border border-warn/30 bg-warn-bg px-3 py-2 text-[12px] text-warn">
+              <div className="mt-3 rounded-md border border-warn/30 bg-warn-bg px-3 py-2 text-[0.75rem] text-warn">
                 共 {belowFloor.length} 項定案單價低於底價，請重新評估或補強理由。
               </div>
             )}
@@ -604,17 +604,17 @@ export default function NegotiationPage() {
           {confirmClose && (
             <div className="card border-warn/40">
               <div className="card-title text-warn">確認定案</div>
-              <p className="text-[13px] text-ink-700">
+              <p className="text-[0.8125rem] text-ink-700">
                 此動作會將本單 {lines.length} 項的報價單價
                 <span className="font-semibold text-warn">直接覆寫為上方的定案單價</span>
                 ，並把狀態改為「已定案」。覆寫後列印出來的即為定案版金額，原報價金額不再保留。
               </p>
-              <p className="mt-2 text-[13px] text-ink-700">
+              <p className="mt-2 text-[0.8125rem] text-ink-700">
                 定案後合計 <span className="num font-semibold text-deep">{money(finalTotals.total)}</span>
                 ，較原報價讓價 {money(diff)} 元（{totalPct.toFixed(1)}%）。
               </p>
               {belowFloor.length > 0 && (
-                <p className="mt-2 text-[13px] font-semibold text-warn">
+                <p className="mt-2 text-[0.8125rem] font-semibold text-warn">
                   注意：其中 {belowFloor.length} 項低於底價。
                 </p>
               )}

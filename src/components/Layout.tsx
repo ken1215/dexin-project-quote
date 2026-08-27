@@ -42,7 +42,7 @@ export default function Layout() {
     <>
       <span className="text-white/85">
         {profile?.full_name || '—'}
-        <span className="ml-1.5 rounded-full bg-white/20 px-2 py-0.5 text-[11px]">
+        <span className="ml-1.5 rounded-full bg-white/20 px-2 py-0.5 text-[0.6875rem]">
           {ROLE_LABEL[profile?.role ?? 'staff']}
         </span>
       </span>
@@ -62,7 +62,7 @@ export default function Layout() {
     <>
       <header className="no-print sticky top-0 z-20 bg-deep text-white">
         <div className="flex items-center gap-3 px-3 py-2 sm:px-5 sm:py-2.5">
-          <h1 className="truncate text-[15px] font-semibold tracking-wide sm:text-[17px]">
+          <h1 className="truncate text-[0.9375rem] font-semibold tracking-wide sm:text-[1.0625rem]">
             {/* 手機沒有橫向空間放全名，留下認得出來的短名 */}
             <span className="sm:hidden">德新報價系統</span>
             <span className="hidden sm:inline">德新物業(立德新)專案工程報價系統</span>

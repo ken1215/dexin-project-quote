@@ -628,7 +628,7 @@ export default function IndicesPage() {
                         <td className={`td${ok ? '' : ' bg-warn-bg'}`}>
                           <div className="min-w-0 break-words">
                             <div className="font-medium">{r.work_item}</div>
-                            {r.note && <div className="text-[11px] text-ink-500">{r.note}</div>}
+                            {r.note && <div className="text-[0.6875rem] text-ink-500">{r.note}</div>}
                           </div>
                         </td>
                         <td className="td" data-label="單位">{r.unit}</td>
@@ -644,9 +644,9 @@ export default function IndicesPage() {
                                 output_per_manday: Number(e.target.value),
                               })}
                             />
-                            {!ok && <div className="mt-1 text-[11px] text-warn">工率必須大於 0</div>}
+                            {!ok && <div className="mt-1 text-[0.6875rem] text-warn">工率必須大於 0</div>}
                             {tooLow && (
-                              <div className="mt-1 text-[11px] text-alert">工率偏高，請確認</div>
+                              <div className="mt-1 text-[0.6875rem] text-alert">工率偏高，請確認</div>
                             )}
                           </div>
                         </td>
@@ -660,7 +660,7 @@ export default function IndicesPage() {
                         <td className="td" data-label="可信度">
                           <span
                             className={
-                              'inline-block rounded-full border px-2 py-0.5 text-[11px] '
+                              'inline-block rounded-full border px-2 py-0.5 text-[0.6875rem] '
                               + (CONFIDENCE_CLASS[r.confidence] || 'border-ink-500 text-ink-500')
                             }
                           >
