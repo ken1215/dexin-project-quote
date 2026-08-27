@@ -9,7 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "node --experimental-strip-types src/lib/calc.test.ts",
-    "deploy": "npm run build && node scripts/deploy.mjs"
+    "deploy": "npm run build && node scripts/deploy.mjs",
+    "deploy:cf": "node scripts/deploy-cloudflare.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.4",
