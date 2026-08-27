@@ -23,15 +23,17 @@ const cnNo = (i: number): string => CN[i] ?? String(i + 1)
 /** 右上角狀態印章：外框式，不填色（填色會蓋住底下的表頭資訊） */
 const STAMP: Record<QuoteStatus, { label: string; cls: string }> = {
   draft: { label: '草　稿', cls: 'border-ink-500 text-ink-500' },
-  submitted: { label: '待核可', cls: 'border-alert text-alert' },
-  approved: { label: '已核可', cls: 'border-green text-green' },
+  submitted: { label: '待處長核可', cls: 'border-alert text-alert' },
+  approved_l1: { label: '待副部長核定', cls: 'border-alert text-alert' },
+  approved: { label: '已核定', cls: 'border-green text-green' },
   negotiating: { label: '議價中', cls: 'border-bright text-bright' },
   closed: { label: '定案版', cls: 'border-deep text-deep' },
   rejected: { label: '已退回', cls: 'border-warn text-warn' },
 }
 
-/** 會蓋報價專用章的狀態——全都是「主管已核可」之後的狀態。
-    draft / submitted / rejected 一律不蓋：沒核可的單蓋章是嚴重問題。 */
+/** 會蓋報價專用章的狀態——全都是「副部長已核定」之後的狀態。
+    draft / submitted / approved_l1 / rejected 一律不蓋：
+    只過了第一關的單就蓋章，等於處長可以自己放行對外文件。 */
 const STAMPED_STATUS: readonly QuoteStatus[] = ['approved', 'negotiating', 'closed']
 
 /** 佐證來源類別的標籤配色 */

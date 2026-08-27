@@ -8,6 +8,14 @@
 // 部署：npx supabase functions deploy admin-users
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
+/** 工號登入的合成網域，與前端 AuthContext 的 EMP_DOMAIN 必須一致 */
+const EMP_DOMAIN = 'dexin.local'
+const isEmployeeNo = (v: string) => /^\d{6}$/.test(v)
+/** 帳號欄位收 6 碼工號（內部同仁）或真實 email（醫院採購那類外部帳號） */
+const toLoginEmail = (v: string) => (isEmployeeNo(v) ? `${v}@${EMP_DOMAIN}` : v)
+/** 密碼下限 6 碼——初始密碼就是 6 碼工號 */
+const MIN_PW = 6
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -42,8 +50,10 @@ Deno.serve(async (req) => {
   const { data: profile } = await admin
     .from('profiles').select('role, active').eq('id', me.user.id).maybeSingle()
 
+  // 只認 manager（行政管理部副部長）。工務處長 dept_head 有簽核與單價庫權限，
+  // 但不得管帳號——這裡與資料庫的 is_admin() 政策是同一條界線的兩道鎖。
   if (!profile || profile.role !== 'manager' || !profile.active) {
-    return json({ error: '此功能限啟用中的主管使用' }, 403)
+    return json({ error: '此功能限行政管理部副部長使用' }, 403)
   }
 
   // ── 3. 執行動作 ────────────────────────────────────────────
@@ -77,23 +87,31 @@ Deno.serve(async (req) => {
       }
 
       case 'create': {
-        const email = String(body.email ?? '').trim()
-        const password = String(body.password ?? '')
+        const loginId = String(body.email ?? '').trim()
         const fullName = String(body.full_name ?? '').trim()
-        const role = body.role === 'manager' ? 'manager' : 'staff'
-        if (!email.includes('@')) return json({ error: 'Email 格式不正確' }, 400)
-        if (password.length < 8) return json({ error: '密碼至少 8 碼' }, 400)
+        const role = ['manager', 'dept_head', 'procurement'].includes(String(body.role))
+          ? String(body.role) : 'staff'
+
+        if (!isEmployeeNo(loginId) && !loginId.includes('@')) {
+          return json({ error: '請填 6 碼數字工號，外部單位帳號才填 Email' }, 400)
+        }
+        const email = toLoginEmail(loginId)
+        // 初始密碼留空＝與工號相同（外部 email 帳號沒有工號可帶，一定要填）
+        const password = String(body.password ?? '') || (isEmployeeNo(loginId) ? loginId : '')
+        if (password.length < MIN_PW) {
+          return json({ error: `密碼至少 ${MIN_PW} 碼` }, 400)
+        }
 
         const { data, error } = await admin.auth.admin.createUser({
           email, password, email_confirm: true,
-          user_metadata: { full_name: fullName || email.split('@')[0] },
+          user_metadata: { full_name: fullName || loginId },
         })
         if (error) throw error
         // trigger 會自動建 profile，這裡補上姓名與角色
         // trigger 建的 profile 預設 active=false（防自行註冊的人讀到資料），
         // 由主管建立的帳號在這裡明確設成啟用
         await admin.from('profiles')
-          .update({ full_name: fullName || email.split('@')[0], role, active: true })
+          .update({ full_name: fullName || loginId, role, active: true })
           .eq('id', data.user.id)
         return json({ ok: true, id: data.user.id })
       }
@@ -101,7 +119,7 @@ Deno.serve(async (req) => {
       case 'reset_password': {
         const id = String(body.id ?? '')
         const password = String(body.password ?? '')
-        if (password.length < 8) return json({ error: '密碼至少 8 碼' }, 400)
+        if (password.length < MIN_PW) return json({ error: `密碼至少 ${MIN_PW} 碼` }, 400)
         const { error } = await admin.auth.admin.updateUserById(id, { password })
         if (error) throw error
         return json({ ok: true })

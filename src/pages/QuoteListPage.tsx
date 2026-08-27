@@ -10,6 +10,7 @@ import { STATUS_LABEL } from '../types'
 const STATUS_TAG_CLASS: Record<QuoteStatus, string> = {
   draft: 'bg-ink-200 text-ink-700',
   submitted: 'bg-alert/15 text-alert',
+  approved_l1: 'bg-alert/25 text-alert',
   approved: 'bg-green/15 text-green',
   negotiating: 'bg-bright/15 text-bright',
   closed: 'bg-deep/15 text-deep',
@@ -41,7 +42,7 @@ function quoteTotal(quote: Quote, lines: QuoteLine[]): number {
 }
 
 export default function QuoteListPage() {
-  const { profile, isManager } = useAuth()
+  const { profile, isManager, isAdmin } = useAuth()
 
   const [quotes, setQuotes] = useState<Quote[]>([])
   const [totals, setTotals] = useState<Record<string, number>>({})
@@ -166,10 +167,11 @@ export default function QuoteListPage() {
 
   /**
    * 刪除按鈕的顯示條件，刻意與資料庫 RLS 政策同一套判斷：
-   * 主管可刪任何一張；同仁只能刪自己建立、且仍是草稿的單。
+   * 刪單不可逆，只有副部長可刪任何一張（處長有簽核與單價庫權限但不含刪單）；
+   * 同仁只能刪自己建立、且仍是草稿的單。
    */
   function canDelete(q: Quote): boolean {
-    if (isManager) return true
+    if (isAdmin) return true
     return !!profile && q.created_by === profile.id && q.status === 'draft'
   }
 
@@ -415,7 +417,7 @@ export default function QuoteListPage() {
               placeholder="輸入案名或單號搜尋…"
             />
           </div>
-          {isManager && selectedQuotes.length > 0 && (
+          {isAdmin && selectedQuotes.length > 0 && (
             <button
               type="button"
               className="btn btn-danger"

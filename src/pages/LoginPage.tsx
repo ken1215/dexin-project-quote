@@ -5,7 +5,7 @@ import { supabaseConfigured } from '../lib/supabase'
 
 export default function LoginPage() {
   const { session, signIn } = useAuth()
-  const [email, setEmail] = useState('')
+  const [loginId, setLoginId] = useState('')
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -17,7 +17,7 @@ export default function LoginPage() {
     if (submitting) return
     setSubmitting(true)
     setError(null)
-    const msg = await signIn(email, password)
+    const msg = await signIn(loginId, password)
     if (msg) setError(msg)
     setSubmitting(false)
   }
@@ -41,14 +41,20 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit}>
             <div className="mb-3">
-              <label className="label" htmlFor="login-email">Email</label>
+              <label className="label" htmlFor="login-id">工號</label>
+              {/* type 不能是 email——瀏覽器內建驗證會擋掉純數字的工號。
+                  inputMode="numeric" 讓手機直接跳數字鍵盤。 */}
               <input
-                id="login-email"
-                type="email"
+                id="login-id"
+                type="text"
+                inputMode="numeric"
                 className="field"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={loginId}
+                onChange={(e) => setLoginId(e.target.value)}
+                placeholder="6 碼數字"
                 autoComplete="username"
+                autoCapitalize="off"
+                spellCheck={false}
                 required
               />
             </div>
@@ -75,7 +81,8 @@ export default function LoginPage() {
           </form>
 
           <p className="mt-5 text-center text-xs text-ink-500">
-            帳號由工務處主管建立，忘記密碼請洽主管。
+            工號由行政管理部建立，初始密碼與工號相同，登入後請自行更改。<br />
+            忘記密碼請洽行政管理部。外部單位帳號請直接輸入 Email。
           </p>
         </div>
       </div>

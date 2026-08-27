@@ -60,7 +60,7 @@ const toDraftLine = (l: QuoteLine): DraftLine => ({
 export default function QuoteEditorPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { profile, isManager } = useAuth()
+  const { isManager, isDeptHead, isAdmin } = useAuth()
   const {
     categories, items, laborRates, laborBase, laborDiscount, mgmtFeeRate, taxRate,
     categoryOf, loading: refLoading, error: refError,
@@ -129,7 +129,11 @@ export default function QuoteEditorPage() {
   // 退回(rejected)單開放建立者修改重送（存檔時狀態會改回 draft，見 saveStatus）
   const editableByOwner = draft.status === 'draft' || draft.status === 'rejected'
   const locked = frozen || (!editableByOwner && !isManager)
-  const canReview = isManager && draft.status === 'submitted'
+  /** 第一關：工務處長核可待審單（副部長也看得到這組按鈕，可選擇越級核定） */
+  const canReviewL1 = (isDeptHead || isAdmin) && draft.status === 'submitted'
+  /** 第二關：副部長核定處長已過的單 */
+  const canReviewL2 = isAdmin && draft.status === 'approved_l1'
+  const canReview = canReviewL1 || canReviewL2
   /** 存檔時實際寫入的狀態：退回單一經修改存檔即回到草稿 */
   const saveStatus: QuoteStatus = draft.status === 'rejected' ? 'draft' : draft.status
 
@@ -398,7 +402,7 @@ export default function QuoteEditorPage() {
     setIssues(bad)
     if (bad.length) return
     const savedId = await persist('submitted')
-    if (savedId) setNotice('已送出，等候主管核可。')
+    if (savedId) setNotice('已送出，等候工務處長核可。')
   }
 
   const onPrint = async () => {
@@ -409,20 +413,31 @@ export default function QuoteEditorPage() {
     if (savedId) window.open(`#/print/${savedId}`)
   }
 
-  const onApprove = async () => {
+  /**
+   * 簽核往下一關推。approved_by / approved_l1_at 這些戳記一律由資料庫的
+   * quotes_transition_guard trigger 蓋，前端不寫——前端寫得進去就代表偽造得了。
+   * 合法性也在 trigger 裡擋，這裡送錯狀態會直接收到資料庫的錯誤。
+   */
+  const advance = async (next: QuoteStatus, okMsg: string) => {
     if (!draft.id) return
     setErr(null); setNotice(null); setSaving(true)
-    const r = await supabase.from('quotes').update({
-      status: 'approved',
-      approved_by: profile?.id ?? null,
-      approved_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }).eq('id', draft.id)
+    const r = await supabase.from('quotes')
+      .update({ status: next, updated_at: new Date().toISOString() })
+      .eq('id', draft.id).select('id')
     setSaving(false)
     if (r.error) { setErr(`核可失敗：${r.error.message}`); return }
-    patchDraft({ status: 'approved' })
-    setNotice('已核可。')
+    // RLS 擋下時 Supabase 不報錯只回 0 筆，所以要看實際影響筆數
+    if (!r.data?.length) { setErr('核可失敗：權限不足，或此單狀態已被他人變更。'); return }
+    patchDraft({ status: next })
+    setNotice(okMsg)
   }
+
+  const onApproveL1 = () => advance('approved_l1', '已核可，送行政管理部副部長核定。')
+  const onApproveFinal = () =>
+    advance('approved',
+      draft.status === 'submitted'
+        ? '已越級核定（未經工務處長），系統已留痕。'
+        : '已核定，可送醫院採購。')
 
   const onReject = async () => {
     if (!draft.id) return
@@ -432,9 +447,10 @@ export default function QuoteEditorPage() {
       status: 'rejected',
       review_note: reviewNote.trim(),
       updated_at: new Date().toISOString(),
-    }).eq('id', draft.id)
+    }).eq('id', draft.id).select('id')
     setSaving(false)
     if (r.error) { setErr(`退回失敗：${r.error.message}`); return }
+    if (!r.data?.length) { setErr('退回失敗：權限不足，或此單狀態已被他人變更。'); return }
     patchDraft({ status: 'rejected' })
     setNotice('已退回開單人。')
   }
@@ -469,12 +485,12 @@ export default function QuoteEditorPage() {
         <div className="rounded-md border border-ink-200 bg-ink-50 px-4 py-2.5 text-sm text-ink-500">
           {frozen
             ? '本單已進入議價／定案階段，在此改寫明細會清除議價紀錄，故已鎖定；金額異動請至「議價」頁處理。'
-            : '本單已送審，如需修改請洽主管退回。'}
+            : '本單已送審，如需修改請洽核決主管退回。'}
         </div>
       )}
       {draft.status === 'rejected' && reviewNote && (
         <div className="rounded-md border border-alert/40 bg-warn-bg px-4 py-2.5 text-sm text-alert">
-          主管退回意見：{reviewNote}
+          退回意見：{reviewNote}
         </div>
       )}
 
@@ -840,7 +856,7 @@ export default function QuoteEditorPage() {
                   <button
                     type="button" className="btn btn-primary w-full" disabled={saving}
                     onClick={() => void onSubmit()}
-                  >{draft.status === 'rejected' ? '修正後重新送審' : '送主管核可'}</button>
+                  >{draft.status === 'rejected' ? '修正後重新送審' : '送工務處長核可'}</button>
                 )}
               </>
             )}
@@ -851,10 +867,25 @@ export default function QuoteEditorPage() {
 
             {canReview && (
               <div className="space-y-2 border-t border-ink-200 pt-2">
-                <button
-                  type="button" className="btn btn-primary w-full" disabled={saving}
-                  onClick={() => void onApprove()}
-                >核可</button>
+                {canReviewL1 && (
+                  <button
+                    type="button" className="btn btn-primary w-full" disabled={saving}
+                    onClick={() => void onApproveL1()}
+                  >{isDeptHead ? '核可（第一關）' : '代處長核可（第一關）'}</button>
+                )}
+                {canReviewL2 && (
+                  <button
+                    type="button" className="btn btn-primary w-full" disabled={saving}
+                    onClick={() => void onApproveFinal()}
+                  >核定（第二關·可送採購）</button>
+                )}
+                {/* 處長請假時不要卡單：副部長從待審單直接核定，trigger 會記 l1_skipped */}
+                {canReviewL1 && isAdmin && (
+                  <button
+                    type="button" className="btn w-full" disabled={saving}
+                    onClick={() => void onApproveFinal()}
+                  >越級直接核定</button>
+                )}
                 <div>
                   <label className="label">退回意見（退回時必填）</label>
                   <textarea

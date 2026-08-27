@@ -13,15 +13,19 @@ import UsersPage from './pages/UsersPage'
 import ClientNegotiationPage from './pages/ClientNegotiationPage'
 
 /**
- * 未登入導去登入頁；managerOnly 擋非主管；internalOnly 擋醫院採購。
+ * 未登入導去登入頁；managerOnly 擋非核決層（處長與副部長皆可）；
+ * adminOnly 再收緊一階，只剩行政管理部副部長；internalOnly 擋醫院採購。
  * 醫院採購是對方的人，除了議價頁以外一律不得進入——真正的把關在資料庫 RLS，
  * 這裡只是不要讓他們看到一片空白的畫面而已。
  */
 function Guard(
-  { children, managerOnly = false, internalOnly = false }:
-  { children: React.ReactNode; managerOnly?: boolean; internalOnly?: boolean },
+  { children, managerOnly = false, adminOnly = false, internalOnly = false }:
+  {
+    children: React.ReactNode
+    managerOnly?: boolean; adminOnly?: boolean; internalOnly?: boolean
+  },
 ) {
-  const { session, profile, loading, isManager, isProcurement } = useAuth()
+  const { session, profile, loading, isManager, isAdmin, isProcurement } = useAuth()
   if (loading) return <div className="p-10 text-center text-ink-500">載入中…</div>
   if (!session) return <Navigate to="/login" replace />
   if (profile && !profile.active) {
@@ -29,6 +33,9 @@ function Guard(
   }
   // 採購登入後預設落到議價頁，不要讓他們卡在讀不到資料的畫面
   if (internalOnly && isProcurement) return <Navigate to="/client" replace />
+  if (adminOnly && !isAdmin) {
+    return <div className="p-10 text-center text-warn">此功能限行政管理部副部長使用。</div>
+  }
   if (managerOnly && !isManager) {
     return <div className="p-10 text-center text-warn">此功能限主管使用。</div>
   }
@@ -49,8 +56,8 @@ export default function App() {
               <Route path="quote/:id" element={<Guard internalOnly><QuoteEditorPage /></Guard>} />
               <Route path="catalog" element={<Guard managerOnly><PriceCatalogPage /></Guard>} />
               <Route path="indices" element={<Guard managerOnly><IndicesPage /></Guard>} />
-              <Route path="users" element={<Guard managerOnly><UsersPage /></Guard>} />
-              <Route path="nego/:id" element={<Guard managerOnly><NegotiationPage /></Guard>} />
+              <Route path="users" element={<Guard adminOnly><UsersPage /></Guard>} />
+              <Route path="nego/:id" element={<Guard adminOnly><NegotiationPage /></Guard>} />
               {/* 醫院採購專用：只看得到已送出的單，只能登錄還價 */}
               <Route path="client" element={<ClientNegotiationPage />} />
               <Route path="client/:id" element={<ClientNegotiationPage />} />

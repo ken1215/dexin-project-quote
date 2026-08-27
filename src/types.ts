@@ -1,8 +1,13 @@
-/** procurement = 聯新國際醫院採購單位（對方的人），權限與自家同仁完全不同 */
-export type Role = 'staff' | 'manager' | 'procurement'
+/**
+ * dept_head = 工務處長（簽核第一關 ＋ 單價庫維護，不能管帳號、不能議價定案）
+ * manager   = 行政管理部副部長（最終核決，可越級核定）
+ * procurement = 聯新國際醫院採購單位（對方的人），權限與自家同仁完全不同
+ */
+export type Role = 'staff' | 'dept_head' | 'manager' | 'procurement'
 export type CostType = 'material' | 'consumable' | 'labor' | 'other'
 export type QuoteStatus =
-  | 'draft' | 'submitted' | 'approved' | 'negotiating' | 'closed' | 'rejected'
+  | 'draft' | 'submitted' | 'approved_l1' | 'approved'
+  | 'negotiating' | 'closed' | 'rejected'
 export type NegoResponse = 'accept' | 'partial' | 'hold'
 export type EvidenceKind = 'index' | 'law' | 'market' | 'history'
 
@@ -104,8 +109,14 @@ export interface Quote {
   mgmt_fee_rate: number
   tax_rate: number
   created_by: string
+  /** 第一關：工務處長核可（戳記由資料庫 trigger 蓋，前端不寫） */
+  approved_l1_by: string | null
+  approved_l1_at: string | null
+  /** 第二關：行政管理部副部長核定 */
   approved_by: string | null
   approved_at: string | null
+  /** 副部長越過第一關直接核定 */
+  l1_skipped: boolean
   review_note: string
   created_at: string
   updated_at: string
@@ -181,10 +192,18 @@ export interface DraftQuote {
   sections: DraftSection[]
 }
 
+export const ROLE_LABEL: Record<Role, string> = {
+  staff: '同仁',
+  dept_head: '工務處長',
+  manager: '行政管理部副部長',
+  procurement: '醫院採購',
+}
+
 export const STATUS_LABEL: Record<QuoteStatus, string> = {
   draft: '草稿',
-  submitted: '待主管核可',
-  approved: '已核可',
+  submitted: '待處長核可',
+  approved_l1: '待副部長核定',
+  approved: '已核定',
   negotiating: '議價中',
   closed: '已定案',
   rejected: '已退回',

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { useAuth } from '../context/AuthContext'
+import { toEmployeeNo, useAuth } from '../context/AuthContext'
 import type { Role } from '../types'
 
 interface AccountRow {
@@ -145,7 +145,7 @@ export default function UsersPage() {
         setTimeout(() => { void signOut() }, 2500)
         return
       }
-      flash(`已重設 ${pwFor.email} 的密碼，請告知本人並提醒他登入後自行更改`)
+      flash(`已重設 ${toEmployeeNo(pwFor.email)} 的密碼，請告知本人並提醒他登入後自行更改`)
     } catch (e) { fail(e) }
     setBusy('')
   }
@@ -155,7 +155,7 @@ export default function UsersPage() {
     setBusy('del')
     try {
       await callAdmin('delete', { id: delFor.id })
-      flash(`已刪除帳號 ${delFor.email}`)
+      flash(`已刪除帳號 ${toEmployeeNo(delFor.email)}`)
       setDelFor(null)
       await load()
     } catch (e) { fail(e) }
@@ -262,9 +262,10 @@ export default function UsersPage() {
           <div className="mb-4 rounded-md border border-bright/40 bg-light/40 p-3">
             <div className="grid gap-3 md:grid-cols-4">
               <div>
-                <label className="label">Email（登入帳號）</label>
+                <label className="label">工號（登入帳號·6 碼數字）</label>
                 <input className="field" value={nf.email} autoComplete="off"
-                  onChange={(e) => setNf({ ...nf, email: e.target.value })} placeholder="someone@example.com" />
+                  inputMode="numeric" maxLength={6}
+                  onChange={(e) => setNf({ ...nf, email: e.target.value })} placeholder="016123" />
               </div>
               <div>
                 <label className="label">姓名</label>
@@ -272,16 +273,17 @@ export default function UsersPage() {
                   onChange={(e) => setNf({ ...nf, full_name: e.target.value })} placeholder="王小明" />
               </div>
               <div>
-                <label className="label">初始密碼（至少 8 碼）</label>
+                <label className="label">初始密碼（留空＝與工號相同）</label>
                 <input className="field" value={nf.password} autoComplete="new-password"
-                  onChange={(e) => setNf({ ...nf, password: e.target.value })} placeholder="請本人登入後自行更改" />
+                  onChange={(e) => setNf({ ...nf, password: e.target.value })} placeholder="留空即帶入工號" />
               </div>
               <div>
                 <label className="label">角色</label>
                 <select className="field" value={nf.role}
                   onChange={(e) => setNf({ ...nf, role: e.target.value as Role })}>
                   <option value="staff">同仁</option>
-                  <option value="manager">主管</option>
+                  <option value="dept_head">工務處長（簽核第一關）</option>
+                  <option value="manager">行政管理部副部長（最終核決）</option>
                   <option value="procurement">醫院採購（對方）</option>
                 </select>
               </div>
@@ -291,7 +293,7 @@ export default function UsersPage() {
                 {busy === 'create' ? '建立中…' : '建立帳號'}
               </button>
               <span className="text-xs text-ink-500">
-                帳號建立後即可使用，不需收信驗證。初始密碼請當面或以其他管道告知本人。
+                帳號建立後即可使用。初始密碼預設與工號相同，請提醒本人登入後從右上角「改密碼」自行更改。
               </span>
             </div>
           </div>
@@ -304,7 +306,7 @@ export default function UsersPage() {
             <table className="w-full">
               <thead>
                 <tr>
-                  <th className="th text-left">Email</th>
+                  <th className="th text-left">工號</th>
                   <th className="th text-left">姓名</th>
                   <th className="th">角色</th>
                   <th className="th">啟用</th>
@@ -317,7 +319,7 @@ export default function UsersPage() {
                 {rows.map((r) => (
                   <tr key={r.id} className={val(r, 'active') ? '' : 'opacity-50'}>
                     <td className="td">
-                      {r.email}
+                      {toEmployeeNo(r.email)}
                       {isSelf(r) && <span className="tag ml-1.5">你自己</span>}
                     </td>
                     <td className="td p-1">
@@ -329,7 +331,8 @@ export default function UsersPage() {
                         title={isSelf(r) ? '不能改自己的角色，避免把自己鎖在門外' : ''}
                         onChange={(e) => edit(r.id, { role: e.target.value as Role })}>
                         <option value="staff">同仁</option>
-                        <option value="manager">主管</option>
+                        <option value="dept_head">工務處長</option>
+                        <option value="manager">行政管理部副部長</option>
                         <option value="procurement">醫院採購（對方）</option>
                       </select>
                     </td>
@@ -364,7 +367,7 @@ export default function UsersPage() {
 
       {pwFor && (
         <div className="card border-bright/40">
-          <h2 className="card-title">重設密碼：{pwFor.email}</h2>
+          <h2 className="card-title">重設密碼：{toEmployeeNo(pwFor.email)}</h2>
           {pwFor.id === profile?.id ? (
             <p className="mb-3 rounded-md border border-alert/40 bg-alert/10 px-3 py-2 text-[13px] text-alert">
               這是<b>你自己的帳號</b>。改完之後目前的登入狀態會立即失效，
@@ -377,7 +380,7 @@ export default function UsersPage() {
           )}
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-[240px]">
-              <label className="label">新密碼（至少 8 碼）</label>
+              <label className="label">新密碼（至少 6 碼·建議帶回工號）</label>
               <input className="field" value={newPw} autoComplete="new-password"
                 onChange={(e) => setNewPw(e.target.value)} />
             </div>
@@ -394,7 +397,7 @@ export default function UsersPage() {
         <div className="card border-warn/40 bg-warn-bg">
           <h2 className="card-title text-warn">確認刪除帳號</h2>
           <p className="mb-3">
-            即將永久刪除 <b>{delFor.email}</b>（{delFor.full_name || '未命名'}）。此動作無法復原。
+            即將永久刪除 <b>{toEmployeeNo(delFor.email)}</b>（{delFor.full_name || '未命名'}）。此動作無法復原。
             若此人只是離職、資料還要留存，請改用「停用」。
           </p>
           <div className="flex gap-2">
