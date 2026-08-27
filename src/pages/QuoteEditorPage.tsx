@@ -501,8 +501,9 @@ export default function QuoteEditorPage() {
           {draft.quote_no && <span className="tag">{draft.quote_no}</span>}
           <span className="tag">{STATUS_LABEL[draft.status]}</span>
         </div>
-        <div className="grid gap-3 md:grid-cols-4">
-          <div className="md:col-span-2">
+        {/* 手機單欄、平板兩欄、桌機四欄（mobile-first 疊法，別只給 md 值） */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
+          <div className="sm:col-span-2">
             <label className="label">工程地點／案名（必填）</label>
             <input
               className="field" value={draft.project} disabled={locked}
@@ -545,7 +546,9 @@ export default function QuoteEditorPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="space-y-4">
+        {/* min-w-0 不能省：grid/flex 子項的 min-width 預設是 auto，會被裡面
+            min-w-[860px] 的明細表撐開，.table-scroll 的 overflow 就白設了 */}
+        <div className="min-w-0 space-y-4">
           {/* 品項挑選。挑選區走亮藍系、明細區走深藍系——兩塊都是白卡片時，
               同仁常把「還在挑」當成「已經加進單子」 */}
           {!locked && (
@@ -572,8 +575,9 @@ export default function QuoteEditorPage() {
                 value={kw}
                 onChange={(e) => setKw(e.target.value)}
               />
-              <div className="max-h-72 overflow-auto rounded-md border border-ink-200">
-                <table className="w-full border-collapse">
+              {/* 挑選區是「顯示＋一顆加入鈕」，手機轉卡片（rwd-table）比橫捲好按 */}
+              <div className="max-h-[60vh] overflow-auto rounded-md border border-ink-200 sm:max-h-72">
+                <table className="rwd-table w-full border-collapse">
                   <thead className="sticky top-0">
                     <tr>
                       <th className="th text-left">品名／規格</th>
@@ -598,20 +602,27 @@ export default function QuoteEditorPage() {
                       )}
                       <tr className="hover:bg-light/40">
                         <td className="td">
-                          <span className="text-ink-900">{it.name}</span>
-                          {it.needs_area && (
-                            <span className="ml-1.5 rounded bg-alert/10 px-1.5 py-0.5 text-[11px] text-alert">
-                              待轉 m²
-                            </span>
-                          )}
-                          {it.spec && (
-                            <div className="text-[11px] text-ink-500">{it.spec}</div>
-                          )}
+                          {/* 卡片模式下 td 會變成 flex，內容要包一層才會維持原本的直向堆疊 */}
+                          <div className="min-w-0">
+                            <span className="break-words text-ink-900">{it.name}</span>
+                            {it.needs_area && (
+                              <span className="ml-1.5 rounded bg-alert/10 px-1.5 py-0.5 text-[11px] text-alert">
+                                待轉 m²
+                              </span>
+                            )}
+                            {it.spec && (
+                              <div className="break-words text-[11px] text-ink-500">{it.spec}</div>
+                            )}
+                          </div>
                         </td>
-                        <td className="td text-center">{it.unit}</td>
-                        <td className="td num">{money(it.std_price)}</td>
+                        <td className="td text-center" data-label="單位">{it.unit}</td>
+                        <td className="td num" data-label="標準單價">{money(it.std_price)}</td>
                         <td className="td text-center">
-                          <button type="button" className="btn" onClick={() => addItem(it)}>加入</button>
+                          <button
+                            type="button"
+                            className="btn w-full sm:w-auto"
+                            onClick={() => addItem(it)}
+                          >加入</button>
                         </td>
                       </tr>
                       </Fragment>
@@ -637,7 +648,7 @@ export default function QuoteEditorPage() {
                   {CN[si] || si + 1}、
                 </span>
                 <input
-                  className="field max-w-xs"
+                  className="field w-full sm:max-w-xs"
                   value={sec.title}
                   disabled={locked}
                   placeholder="工程大項名稱"
@@ -656,8 +667,10 @@ export default function QuoteEditorPage() {
                 )}
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
+              {/* 明細列每格都是輸入框，屬密集輸入型：手機用 .table-scroll 橫捲，
+                  不轉卡片（轉了反而更難連續輸入數量／單價） */}
+              <div className="table-scroll">
+                <table className="w-full min-w-[860px] border-collapse">
                   <thead>
                     <tr>
                       <th className="th w-12">項次</th>
@@ -693,8 +706,8 @@ export default function QuoteEditorPage() {
                               />
                             ) : (
                               <>
-                                <div className="text-ink-900">{l.name}</div>
-                                {l.spec && <div className="text-[11px] text-ink-500">{l.spec}</div>}
+                                <div className="break-words text-ink-900">{l.name}</div>
+                                {l.spec && <div className="break-words text-[11px] text-ink-500">{l.spec}</div>}
                               </>
                             )}
                             {isLabor && (
@@ -797,7 +810,11 @@ export default function QuoteEditorPage() {
 
               {!locked && (
                 <div className="mt-2">
-                  <button type="button" className="btn btn-danger" onClick={() => addCustomLine(sec.key)}>
+                  <button
+                    type="button"
+                    className="btn btn-danger w-full sm:w-auto"
+                    onClick={() => addCustomLine(sec.key)}
+                  >
                     ＋ 臨時項目（非標準品）
                   </button>
                 </div>
@@ -806,7 +823,9 @@ export default function QuoteEditorPage() {
           ))}
 
           {!locked && (
-            <button type="button" className="btn" onClick={addSection}>＋ 新增工程大項</button>
+            <button type="button" className="btn w-full sm:w-auto" onClick={addSection}>
+              ＋ 新增工程大項
+            </button>
           )}
         </div>
 
@@ -844,17 +863,20 @@ export default function QuoteEditorPage() {
             </table>
           </div>
 
+          {/* 手機上「儲存草稿／送核可／兩關核可」這四顆已經在釘底動作列了，
+              這裡一律 hidden sm:inline-flex，不要讓同一顆按鈕在一支手機上出現兩次。
+              釘底列沒有的（列印預覽、越級核定、退回）才在手機顯示。 */}
           <div className="card space-y-2">
-            <div className="card-title">動作</div>
+            <div className="card-title hidden sm:block">動作</div>
             {!locked && (
               <>
                 <button
-                  type="button" className="btn w-full" disabled={saving}
+                  type="button" className="btn hidden w-full sm:inline-flex" disabled={saving}
                   onClick={() => void onSaveDraft()}
                 >{saving ? '儲存中…' : '儲存草稿'}</button>
                 {(draft.status === 'draft' || draft.status === 'rejected') && (
                   <button
-                    type="button" className="btn btn-primary w-full" disabled={saving}
+                    type="button" className="btn btn-primary hidden w-full sm:inline-flex" disabled={saving}
                     onClick={() => void onSubmit()}
                   >{draft.status === 'rejected' ? '修正後重新送審' : '送工務處長核可'}</button>
                 )}
@@ -869,13 +891,13 @@ export default function QuoteEditorPage() {
               <div className="space-y-2 border-t border-ink-200 pt-2">
                 {canReviewL1 && (
                   <button
-                    type="button" className="btn btn-primary w-full" disabled={saving}
+                    type="button" className="btn btn-primary hidden w-full sm:inline-flex" disabled={saving}
                     onClick={() => void onApproveL1()}
                   >{isDeptHead ? '核可（第一關）' : '代處長核可（第一關）'}</button>
                 )}
                 {canReviewL2 && (
                   <button
-                    type="button" className="btn btn-primary w-full" disabled={saving}
+                    type="button" className="btn btn-primary hidden w-full sm:inline-flex" disabled={saving}
                     onClick={() => void onApproveFinal()}
                   >核定（第二關·可送採購）</button>
                 )}
@@ -902,6 +924,39 @@ export default function QuoteEditorPage() {
           </div>
         </div>
       </div>
+
+      {/* 手機專用的釘底動作列：右側「動作」卡在手機會被推到整頁最下面，
+          同仁在工地捲到一半想送審得先捲到底。這裡把最主要的兩顆鈕釘在
+          畫面底部（sm 以上隱藏，桌機仍只有右側那一組）。
+          按鈕與右側卡片共用同一組 handler，僅版面重複、不含任何額外邏輯。 */}
+      {(!locked || canReview) && (
+        <div className="action-bar no-print sm:hidden">
+          {!locked && (
+            <button
+              type="button" className="btn" disabled={saving}
+              onClick={() => void onSaveDraft()}
+            >{saving ? '儲存中…' : '儲存草稿'}</button>
+          )}
+          {!locked && (draft.status === 'draft' || draft.status === 'rejected') && (
+            <button
+              type="button" className="btn btn-primary" disabled={saving}
+              onClick={() => void onSubmit()}
+            >{draft.status === 'rejected' ? '重新送審' : '送核可'}</button>
+          )}
+          {canReviewL1 && (
+            <button
+              type="button" className="btn btn-primary" disabled={saving}
+              onClick={() => void onApproveL1()}
+            >{isDeptHead ? '核可' : '代處長核可'}</button>
+          )}
+          {canReviewL2 && (
+            <button
+              type="button" className="btn btn-primary" disabled={saving}
+              onClick={() => void onApproveFinal()}
+            >核定</button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

@@ -77,8 +77,11 @@ body {
   /* ── 手機版共用樣板（全站一致，各頁不要自己另發明一套）────────
      用法見下方 @media 區塊的註解。 */
 
-  /* 寬表格的橫捲容器。捲動只發生在容器內，body 永遠不得橫捲。 */
-  .table-scroll { @apply -mx-1 overflow-x-auto px-1; }
+  /* 寬表格的橫捲容器。捲動只發生在容器內，body 永遠不得橫捲。
+     ⚠️ 只加這個 class 不一定夠：只要它的任一祖層是 grid/flex 子項，
+     那層的 min-width 預設 auto 會被表格的 min-content 撐開，
+     overflow 等於白設。祖層那一格要補 min-w-0（或 minmax(0,1fr)）。 */
+  .table-scroll { @apply -mx-1 min-w-0 overflow-x-auto px-1; }
 
   /* 手機版釘在底部的主要動作列（送審／核可／存檔這類） */
   .action-bar {
@@ -131,6 +134,15 @@ body {
   /* 沒有欄位名的格子（通常是操作按鈕）佔整行 */
   .rwd-table td:not([data-label]) { justify-content: flex-start; }
   .rwd-table td.num { justify-content: space-between; }
+}
+
+/* 列印預覽在小螢幕：不要讓 A4 被壓成 390px——那個預覽跟印出來的東西不一樣，
+   看了會誤判版面。改成維持真正的 A4 寬度，由容器自己橫捲。
+   限定 screen：列印時的媒體寬度可能也落在這個門檻內，若不限定會把
+   min-width 帶進實體紙張、擠出多餘的頁。 */
+@media screen and (max-width: 839px) {
+  .print-preview { overflow-x: auto; }
+  .print-preview > .print-sheet, .print-preview > * > .print-sheet { min-width: 210mm; }
 }
 
 /* 觸控裝置：點擊目標放大到手指按得到的尺寸（44px 是 Apple HIG 的建議值，

@@ -637,31 +637,31 @@ export default function PriceCatalogPage() {
       {/* ── 篩選 ───────────────────────────────────────────── */}
       <div className="card">
         <div className="card-title">篩選與合理化待辦</div>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="w-48">
+        <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
+          <div className="w-full sm:w-48">
             <label className="label" htmlFor="f-cat">分類</label>
             <select id="f-cat" className="field" value={filterCat} onChange={(e) => setFilterCat(e.target.value)}>
               <option value="">全部分類</option>
               {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
-          <div className="w-64">
+          <div className="w-full sm:w-64">
             <label className="label" htmlFor="f-kw">搜尋（品名／規格／代碼）</label>
             <input id="f-kw" className="field" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="例：電纜、風管、PVC" />
           </div>
-          <label className="flex items-center gap-1.5 pb-1.5 text-sm text-ink-700">
+          <label className="flex items-center gap-1.5 py-1 text-sm text-ink-700 sm:pb-1.5">
             <input type="checkbox" checked={onlyNoEvidence} onChange={(e) => setOnlyNoEvidence(e.target.checked)} />
             只看無佐證
           </label>
-          <label className="flex items-center gap-1.5 pb-1.5 text-sm text-ink-700">
+          <label className="flex items-center gap-1.5 py-1 text-sm text-ink-700 sm:pb-1.5">
             <input type="checkbox" checked={onlyNeedsArea} onChange={(e) => setOnlyNeedsArea(e.target.checked)} />
             只看待轉 m²
           </label>
-          <label className="flex items-center gap-1.5 pb-1.5 text-sm text-ink-700">
+          <label className="flex items-center gap-1.5 py-1 text-sm text-ink-700 sm:pb-1.5">
             <input type="checkbox" checked={onlyFewSamples} onChange={(e) => setOnlyFewSamples(e.target.checked)} />
             只看樣本數 &lt; 3
           </label>
-          <div className="ml-auto pb-1.5 text-sm text-ink-500">
+          <div className="w-full text-sm text-ink-500 sm:ml-auto sm:w-auto sm:pb-1.5">
             顯示 <span className="num">{shown.length}</span> / {items.length} 項
           </div>
         </div>
@@ -670,8 +670,8 @@ export default function PriceCatalogPage() {
       {/* ── 批次調整 ───────────────────────────────────────── */}
       <div className="card">
         <div className="card-title">批次調整</div>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="w-56">
+        <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
+          <div className="w-full sm:w-56">
             <label className="label" htmlFor="b-cat">分類</label>
             <select
               id="b-cat" className="field" value={batchCat}
@@ -681,7 +681,7 @@ export default function PriceCatalogPage() {
               {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
-          <div className="w-36">
+          <div className="w-full sm:w-36">
             <label className="label" htmlFor="b-pct">調整百分比 (%)</label>
             <input
               id="b-pct" type="number" step="0.1" className="field num" value={batchPct}
@@ -689,10 +689,10 @@ export default function PriceCatalogPage() {
               placeholder="例 3 或 -2.5"
             />
           </div>
-          <button className="btn mb-0.5" disabled={!batchValid || batchBusy} onClick={() => setBatchAsk(true)}>
+          <button className="btn w-full sm:mb-0.5 sm:w-auto" disabled={!batchValid || batchBusy} onClick={() => setBatchAsk(true)}>
             批次調整
           </button>
-          <div className="mb-1.5 text-xs text-ink-500">
+          <div className="w-full text-xs text-ink-500 sm:mb-1.5 sm:w-auto">
             對該分類全部品項 std_price × (1 + %/100) 後四捨五入，直接寫入單價庫。
           </div>
         </div>
@@ -708,7 +708,7 @@ export default function PriceCatalogPage() {
               </span>
               嗎？此動作會立即寫入資料庫並留下調價軌跡。
             </div>
-            <div className="mt-2 flex gap-2">
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
               <button className="btn btn-primary" disabled={batchBusy} onClick={() => void runBatch()}>
                 {batchBusy ? '調整中…' : '確認調整'}
               </button>
@@ -720,14 +720,14 @@ export default function PriceCatalogPage() {
 
       {/* ── 新增品項 ───────────────────────────────────────── */}
       <div className="card">
-        <div className="flex items-center justify-between border-b border-ink-200 pb-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-200 pb-2">
           <div className="text-[15px] font-semibold text-deep">新增品項</div>
           <button className="btn" onClick={() => { setShowNew((v) => !v); setErr(null) }}>
             {showNew ? '收合' : '＋ 新增品項'}
           </button>
         </div>
         {showNew && (
-          <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
             <div>
               <label className="label" htmlFor="n-cat">分類</label>
               <select id="n-cat" className="field" value={newItem.category_id}
@@ -780,11 +780,11 @@ export default function PriceCatalogPage() {
               <input id="n-note" className="field" value={newItem.evidence_note}
                 onChange={(e) => setNewItem((p) => ({ ...p, evidence_note: e.target.value }))} />
             </div>
-            <div className="col-span-2 md:col-span-4">
-              <button className="btn btn-primary" disabled={newBusy} onClick={() => void addItem()}>
+            <div className="flex flex-col gap-2 sm:col-span-2 sm:flex-row sm:items-center md:col-span-4">
+              <button className="btn btn-primary w-full sm:w-auto" disabled={newBusy} onClick={() => void addItem()}>
                 {newBusy ? '新增中…' : '確認新增'}
               </button>
-              <span className="ml-3 text-xs text-ink-500">
+              <span className="text-xs break-words text-ink-500 sm:ml-3">
                 代碼將自動產生為 {newItem.category_id || '(分類)'}-new-流水號
               </span>
             </div>
@@ -794,7 +794,7 @@ export default function PriceCatalogPage() {
 
       {/* ── 單價表 ─────────────────────────────────────────── */}
       <div className="card">
-        <div className="mb-3 flex flex-wrap items-center gap-3 border-b border-ink-200 pb-2">
+        <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-ink-200 pb-2 sm:gap-3">
           <div className="text-[15px] font-semibold text-deep">標準單價維護</div>
           <span className="text-xs text-ink-500">底價欄僅主管可見</span>
           <button
@@ -811,18 +811,18 @@ export default function PriceCatalogPage() {
           >
             全部收合
           </button>
-          <div className="ml-auto flex items-center gap-3">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:gap-3">
             {selectedIds.length > 0 && (
               <>
-                <span className="text-sm text-ink-500">已選取 {selectedIds.length} 項</span>
+                <span className="w-full text-sm text-ink-500 sm:w-auto">已選取 {selectedIds.length} 項</span>
                 <button
-                  className="btn" disabled={bulkBusy || delBusy}
+                  className="btn flex-1 sm:flex-none" disabled={bulkBusy || delBusy}
                   onClick={() => { setSelected(new Set()); setBulkAsk(false) }}
                 >
                   清除選取
                 </button>
                 <button
-                  className="btn btn-danger" disabled={bulkBusy || delBusy}
+                  className="btn btn-danger flex-1 sm:flex-none" disabled={bulkBusy || delBusy}
                   onClick={() => void openBulkDelete()}
                 >
                   刪除選取的 {selectedIds.length} 項
@@ -830,14 +830,14 @@ export default function PriceCatalogPage() {
               </>
             )}
             {dirtyItems.length > 0 && (
-              <span className="text-sm text-alert">尚有 {dirtyItems.length} 筆未儲存</span>
+              <span className="w-full text-sm text-alert sm:w-auto">尚有 {dirtyItems.length} 筆未儲存</span>
             )}
             {dirtyItems.length > 0 && (
-              <button className="btn" disabled={saving} onClick={() => { setEdits({}); setMsg(null) }}>
+              <button className="btn flex-1 sm:flex-none" disabled={saving} onClick={() => { setEdits({}); setMsg(null) }}>
                 放棄變更
               </button>
             )}
-            <button className="btn btn-primary" disabled={saving || !dirtyItems.length} onClick={() => void save()}>
+            <button className="btn btn-primary w-full sm:w-auto" disabled={saving || !dirtyItems.length} onClick={() => void save()}>
               {saving ? '儲存中…' : '儲存變更'}
             </button>
           </div>
@@ -878,7 +878,7 @@ export default function PriceCatalogPage() {
                   </div>
                 )}
                 {bulkUsageOpen && usedSelected.length > 0 && (
-                  <ul className="mt-2 max-h-48 overflow-y-auto rounded border border-ink-200 bg-white px-3 py-2 text-[13px] text-ink-700">
+                  <ul className="mt-2 max-h-48 overflow-y-auto rounded border border-ink-200 bg-white px-3 py-2 text-[13px] break-words text-ink-700">
                     {usedSelected.map((i) => {
                       const u = bulkUsage?.[i.id]
                       return (
@@ -896,7 +896,7 @@ export default function PriceCatalogPage() {
               </>
             )}
 
-            <div className="mt-2 flex gap-2">
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
               <button
                 className="btn btn-danger"
                 disabled={bulkBusy || bulkUsageLoading || overBulkLimit}
@@ -909,8 +909,11 @@ export default function PriceCatalogPage() {
           </div>
         )}
 
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
+        {/* 每格幾乎都是輸入框的密集編輯表格——手機轉卡片反而更難用，改用 .table-scroll 橫捲。
+            .field 是 w-full，欄位本身沒有最小內容寬度，不給 min-w 會在窄螢幕被壓成一條線，
+            所以表格與幾個文字欄一併設下最小寬度。 */}
+        <div className="table-scroll">
+          <table className="w-full min-w-[60rem] border-collapse">
             <thead>
               <tr>
                 <th className="th w-8">
@@ -923,14 +926,14 @@ export default function PriceCatalogPage() {
                     onChange={(ev) => toggleAllShown(ev.target.checked)}
                   />
                 </th>
-                <th className="th text-left">品名</th>
-                <th className="th text-left">規格</th>
+                <th className="th min-w-[9rem] text-left">品名</th>
+                <th className="th min-w-[9rem] text-left">規格</th>
                 <th className="th">單位</th>
                 <th className="th">性質</th>
                 <th className="th num">標準單價</th>
                 <th className="th num">底價</th>
-                <th className="th text-left">歷史參考</th>
-                <th className="th text-left">指數連動</th>
+                <th className="th min-w-[13rem] text-left">歷史參考</th>
+                <th className="th min-w-[8rem] text-left">指數連動</th>
                 <th className="th text-left">佐證</th>
                 <th className="th">啟用</th>
                 <th className="th">軌跡</th>
@@ -961,7 +964,9 @@ export default function PriceCatalogPage() {
                     }}
                   >
                     <td className="td" colSpan={COL_COUNT}>
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      {/* 這一列跨滿 60rem 的表格寬度；手機把內容釘在可視區左緣，
+                          否則右側的群組全選勾選框要橫捲到底才點得到。 */}
+                      <div className="sticky left-0 flex max-w-[calc(100vw-4rem)] flex-wrap items-center gap-x-3 gap-y-1 sm:static sm:max-w-none">
                         <span className="text-deep" aria-hidden="true">{open ? '▾' : '▸'}</span>
                         <span className="text-[14px] font-semibold text-deep">{g.name}</span>
                         <span className="text-xs text-ink-700">
@@ -1036,7 +1041,7 @@ export default function PriceCatalogPage() {
                               aria-label={`${it.name} 品名`}
                               onChange={(ev) => patch(it, { name: ev.target.value })}
                             />
-                            <div className="mt-0.5 text-[11px] text-ink-500">
+                            <div className="mt-0.5 text-[11px] break-words text-ink-500">
                               {categoryOf(it.category_id)?.name ?? it.category_id}
                               {it.needs_area && <span className="ml-1 text-alert">・待轉 m²</span>}
                             </div>
@@ -1107,6 +1112,7 @@ export default function PriceCatalogPage() {
                           <td className="td">
                             <button
                               type="button"
+                              className="inline-flex min-h-8 items-center"
                               title={e.evidence_note || src?.note || '點擊編輯佐證'}
                               onClick={() => setEvOpen((v) => (v === it.id ? null : it.id))}
                             >
@@ -1142,8 +1148,10 @@ export default function PriceCatalogPage() {
                         {delAsk === it.id && (
                           <tr className="bg-warn-bg">
                             <td className="td" colSpan={COL_COUNT}>
+                              {/* 跨欄面板同樣釘在可視區左緣，手機不必橫捲就能讀完並按到按鈕 */}
+                              <div className="sticky left-0 max-w-[calc(100vw-4rem)] sm:static sm:max-w-none">
                               <div className="text-sm font-semibold text-warn">確認刪除此品項？</div>
-                              <div className="mt-1 grid gap-x-4 gap-y-0.5 text-[13px] text-ink-900 md:grid-cols-4">
+                              <div className="mt-1 grid grid-cols-1 gap-x-4 gap-y-0.5 text-[13px] break-words text-ink-900 sm:grid-cols-2 md:grid-cols-4">
                                 <div>品名：{it.name}</div>
                                 <div>規格：{it.spec || '—'}</div>
                                 <div>單位：{it.unit}</div>
@@ -1167,7 +1175,7 @@ export default function PriceCatalogPage() {
                               <div className="mt-1 text-[13px] text-ink-700">
                                 若只是暫時不用，建議改用「停用」而不是刪除。
                               </div>
-                              <div className="mt-2 flex gap-2">
+                              <div className="mt-2 flex flex-col gap-2 sm:flex-row">
                                 <button
                                   className="btn btn-danger"
                                   disabled={delBusy || delUsageLoading}
@@ -1182,6 +1190,7 @@ export default function PriceCatalogPage() {
                                   取消
                                 </button>
                               </div>
+                              </div>
                             </td>
                           </tr>
                         )}
@@ -1189,7 +1198,9 @@ export default function PriceCatalogPage() {
                         {evOpen === it.id && (
                           <tr className="bg-ink-50">
                             <td className="td" colSpan={COL_COUNT}>
-                              <div className="grid gap-3 md:grid-cols-3">
+                              {/* 同上：釘左，避免 textarea 被拉成整個表格寬 */}
+                              <div className="sticky left-0 max-w-[calc(100vw-4rem)] sm:static sm:max-w-none">
+                              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                                 <div>
                                   <label className="label" htmlFor={`ev-${it.id}`}>佐證來源</label>
                                   <select
@@ -1226,6 +1237,7 @@ export default function PriceCatalogPage() {
                               <div className="mt-2 text-[11px] text-ink-500">
                                 修改後請按上方「儲存變更」寫入資料庫。
                               </div>
+                              </div>
                             </td>
                           </tr>
                         )}
@@ -1233,6 +1245,8 @@ export default function PriceCatalogPage() {
                         {histOpen === it.id && (
                           <tr className="bg-ink-50">
                             <td className="td" colSpan={COL_COUNT}>
+                              {/* 同上：釘左；內層軌跡表自己再包一層橫捲容器 */}
+                              <div className="sticky left-0 max-w-[calc(100vw-4rem)] sm:static sm:max-w-none">
                               <div className="mb-1 text-xs font-semibold text-deep">調價軌跡（最近 20 筆）</div>
                               {histErr && <div className="text-xs text-warn">{histErr}</div>}
                               {histLoading && <div className="text-xs text-ink-500">載入中…</div>}
@@ -1240,7 +1254,8 @@ export default function PriceCatalogPage() {
                                 <div className="text-xs text-ink-500">尚無調價紀錄</div>
                               )}
                               {!histLoading && hist.length > 0 && (
-                                <table className="w-full border-collapse">
+                                <div className="table-scroll">
+                                <table className="w-full min-w-[36rem] border-collapse">
                                   <thead>
                                     <tr>
                                       <th className="th num">舊價</th>
@@ -1270,7 +1285,9 @@ export default function PriceCatalogPage() {
                                     })}
                                   </tbody>
                                 </table>
+                                </div>
                               )}
+                              </div>
                             </td>
                           </tr>
                         )}

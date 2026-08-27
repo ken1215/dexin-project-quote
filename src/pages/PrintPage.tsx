@@ -494,9 +494,11 @@ export default function PrintPage() {
   const sheetProps = { quote, stamp, catalogVersion, feeRate, busRate, total: totalPages }
 
   return (
-    <div className="min-h-screen bg-ink-50 py-6 print:bg-white print:py-0">
-      {/* ── 螢幕工具列 ── */}
-      <div className="no-print mx-auto mb-5 flex w-full max-w-[210mm] flex-wrap items-center gap-2 px-2">
+    <div className="print-preview min-h-screen bg-ink-50 py-6 print:bg-white print:py-0">
+      {/* ── 螢幕工具列 ──
+          手機上這排會換行，所以把單號那組推到下一行整排顯示（ml-auto 在
+          換行後沒有意義），列印時整排隱藏（no-print）。 */}
+      <div className="no-print sticky top-0 z-10 mx-auto mb-5 flex w-full max-w-[210mm] flex-wrap items-center gap-2 bg-ink-50/95 px-3 py-2 backdrop-blur">
         <button type="button" className="btn btn-primary" onClick={() => window.print()}>
           列印 / 轉 PDF
         </button>
@@ -514,7 +516,7 @@ export default function PrintPage() {
             附工率分析頁
           </label>
         )}
-        <span className="ml-auto flex items-center gap-2 text-xs text-ink-500">
+        <span className="flex w-full flex-wrap items-center gap-2 text-xs text-ink-500 sm:ml-auto sm:w-auto">
           單號 <span className="num text-ink-900">{quote.quote_no || '—'}</span>
           <span className={'rounded-full border px-2 py-[1px] text-[11px] ' + stamp.cls}>
             {stamp.label.replace('　', '')}

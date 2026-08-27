@@ -203,7 +203,8 @@ export default function UsersPage() {
           在這裡直接建立、停用、刪除帳號與重設密碼，不需要進 Supabase 後台。
           新帳號預設為「同仁」，要維護單價得改成「主管」。
         </p>
-        <div className="mt-3 overflow-x-auto">
+        {/* 角色說明表：兩欄敘述型表格，手機保留原本上下對照的排版，只做橫捲保險 */}
+        <div className="mt-3 table-scroll">
           <table className="w-full">
             <thead>
               <tr>
@@ -240,18 +241,19 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {error && <div className="rounded-md border border-warn/30 bg-warn-bg px-3 py-2 text-warn">{error}</div>}
-      {ok && <div className="rounded-md border border-green/30 bg-green/10 px-3 py-2 text-green">{ok}</div>}
+      {error && <div className="rounded-md border border-warn/30 bg-warn-bg px-3 py-2 text-warn break-words">{error}</div>}
+      {ok && <div className="rounded-md border border-green/30 bg-green/10 px-3 py-2 text-green break-words">{ok}</div>}
 
       <div className="card">
         <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-ink-200 pb-2">
           <h2 className="text-[15px] font-semibold text-deep">帳號清單</h2>
           <span className="tag">{rows.length} 個帳號</span>
-          <div className="ml-auto flex gap-2">
-            <button className="btn" onClick={() => setShowNew((v) => !v)}>
+          {/* 手機：兩顆按鈕自成一列並等寬撐開，避免被擠成迷你按鈕 */}
+          <div className="ml-auto flex w-full gap-2 sm:w-auto">
+            <button className="btn flex-1 sm:flex-none" onClick={() => setShowNew((v) => !v)}>
               {showNew ? '取消新增' : '＋ 新增帳號'}
             </button>
-            <button className="btn btn-primary" disabled={!dirtyIds.length || busy === 'save'}
+            <button className="btn btn-primary flex-1 sm:flex-none" disabled={!dirtyIds.length || busy === 'save'}
               onClick={() => void saveProfiles()}>
               {busy === 'save' ? '儲存中…' : dirtyIds.length ? `儲存 ${dirtyIds.length} 筆變更` : '儲存變更'}
             </button>
@@ -260,7 +262,8 @@ export default function UsersPage() {
 
         {showNew && (
           <div className="mb-4 rounded-md border border-bright/40 bg-light/40 p-3">
-            <div className="grid gap-3 md:grid-cols-4">
+            {/* 手機單欄 → 平板雙欄 → 桌機四欄（mobile-first，手機不再被塞成 4 欄） */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
               <div>
                 <label className="label">工號（登入帳號·6 碼數字）</label>
                 <input className="field" value={nf.email} autoComplete="off"
@@ -288,8 +291,8 @@ export default function UsersPage() {
                 </select>
               </div>
             </div>
-            <div className="mt-3 flex items-center gap-2">
-              <button className="btn btn-primary" disabled={busy === 'create'} onClick={() => void createUser()}>
+            <div className="mt-3 flex flex-col items-start gap-2 sm:flex-row sm:items-center">
+              <button className="btn btn-primary w-full sm:w-auto" disabled={busy === 'create'} onClick={() => void createUser()}>
                 {busy === 'create' ? '建立中…' : '建立帳號'}
               </button>
               <span className="text-xs text-ink-500">
@@ -302,8 +305,9 @@ export default function UsersPage() {
         {loading ? (
           <div className="py-8 text-center text-ink-500">載入中…</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          /* 手機（<640px）每一列變成一張卡片，欄位名由 td 的 data-label 長出來 */
+          <div className="table-scroll">
+            <table className="w-full rwd-table">
               <thead>
                 <tr>
                   <th className="th text-left">工號</th>
@@ -318,15 +322,17 @@ export default function UsersPage() {
               <tbody>
                 {rows.map((r) => (
                   <tr key={r.id} className={val(r, 'active') ? '' : 'opacity-50'}>
-                    <td className="td">
-                      {toEmployeeNo(r.email)}
-                      {isSelf(r) && <span className="tag ml-1.5">你自己</span>}
+                    <td className="td" data-label="工號">
+                      <span className="break-words">
+                        {toEmployeeNo(r.email)}
+                        {isSelf(r) && <span className="tag ml-1.5">你自己</span>}
+                      </span>
                     </td>
-                    <td className="td p-1">
+                    <td className="td p-1" data-label="姓名">
                       <input className="field" value={val(r, 'full_name')}
                         onChange={(e) => edit(r.id, { full_name: e.target.value })} />
                     </td>
-                    <td className="td p-1">
+                    <td className="td p-1" data-label="角色">
                       <select className="field" value={val(r, 'role')} disabled={isSelf(r)}
                         title={isSelf(r) ? '不能改自己的角色，避免把自己鎖在門外' : ''}
                         onChange={(e) => edit(r.id, { role: e.target.value as Role })}>
@@ -336,21 +342,25 @@ export default function UsersPage() {
                         <option value="procurement">醫院採購（對方）</option>
                       </select>
                     </td>
-                    <td className="td text-center">
+                    <td className="td text-center" data-label="啟用">
                       <input type="checkbox" checked={val(r, 'active')} disabled={isSelf(r)}
                         title={isSelf(r) ? '不能停用自己' : ''}
                         onChange={(e) => edit(r.id, { active: e.target.checked })} />
                     </td>
-                    <td className="td num">{fmtDate(r.created_at)}</td>
-                    <td className="td num">{fmtDate(r.last_sign_in_at)}</td>
+                    <td className="td num" data-label="建立日">{fmtDate(r.created_at)}</td>
+                    <td className="td num" data-label="最後登入">{fmtDate(r.last_sign_in_at)}</td>
+                    {/* 操作格不給 data-label：手機卡片模式下會獨佔整行，兩顆按鈕等寬好按 */}
                     <td className="td whitespace-nowrap">
-                      <button className="btn px-2 py-0.5 text-xs" onClick={() => { setPwFor(r); setNewPw('') }}>
-                        重設密碼
-                      </button>
-                      <button className="btn btn-danger ml-1 px-2 py-0.5 text-xs" disabled={isSelf(r)}
-                        title={isSelf(r) ? '不能刪除自己' : ''} onClick={() => setDelFor(r)}>
-                        刪除
-                      </button>
+                      <div className="flex w-full gap-1">
+                        <button className="btn flex-1 px-2 py-0.5 text-xs sm:flex-none"
+                          onClick={() => { setPwFor(r); setNewPw('') }}>
+                          重設密碼
+                        </button>
+                        <button className="btn btn-danger flex-1 px-2 py-0.5 text-xs sm:flex-none" disabled={isSelf(r)}
+                          title={isSelf(r) ? '不能刪除自己' : ''} onClick={() => setDelFor(r)}>
+                          刪除
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -367,7 +377,7 @@ export default function UsersPage() {
 
       {pwFor && (
         <div className="card border-bright/40">
-          <h2 className="card-title">重設密碼：{toEmployeeNo(pwFor.email)}</h2>
+          <h2 className="card-title break-words">重設密碼：{toEmployeeNo(pwFor.email)}</h2>
           {pwFor.id === profile?.id ? (
             <p className="mb-3 rounded-md border border-alert/40 bg-alert/10 px-3 py-2 text-[13px] text-alert">
               這是<b>你自己的帳號</b>。改完之後目前的登入狀態會立即失效，
@@ -378,17 +388,20 @@ export default function UsersPage() {
               改完之後對方目前的登入狀態會失效，需重新登入。請以其他管道告知新密碼。
             </p>
           )}
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="min-w-[240px]">
+          {/* 手機：輸入框整行、按鈕自成一列等寬；sm 以上恢復原本的橫排 */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+            <div className="w-full sm:w-auto sm:min-w-[240px]">
               <label className="label">新密碼（至少 6 碼·建議帶回工號）</label>
               <input className="field" value={newPw} autoComplete="new-password"
                 onChange={(e) => setNewPw(e.target.value)} />
             </div>
-            <button className="btn btn-primary" disabled={newPw.length < 8 || busy === 'pw'}
-              onClick={() => void resetPw()}>
-              {busy === 'pw' ? '處理中…' : '確認重設'}
-            </button>
-            <button className="btn" onClick={() => { setPwFor(null); setNewPw('') }}>取消</button>
+            <div className="flex gap-2">
+              <button className="btn btn-primary flex-1 sm:flex-none" disabled={newPw.length < 8 || busy === 'pw'}
+                onClick={() => void resetPw()}>
+                {busy === 'pw' ? '處理中…' : '確認重設'}
+              </button>
+              <button className="btn flex-1 sm:flex-none" onClick={() => { setPwFor(null); setNewPw('') }}>取消</button>
+            </div>
           </div>
         </div>
       )}
@@ -396,15 +409,15 @@ export default function UsersPage() {
       {delFor && (
         <div className="card border-warn/40 bg-warn-bg">
           <h2 className="card-title text-warn">確認刪除帳號</h2>
-          <p className="mb-3">
+          <p className="mb-3 break-words">
             即將永久刪除 <b>{toEmployeeNo(delFor.email)}</b>（{delFor.full_name || '未命名'}）。此動作無法復原。
             若此人只是離職、資料還要留存，請改用「停用」。
           </p>
-          <div className="flex gap-2">
-            <button className="btn btn-danger" disabled={busy === 'del'} onClick={() => void removeUser()}>
+          <div className="flex flex-wrap gap-2">
+            <button className="btn btn-danger flex-1 sm:flex-none" disabled={busy === 'del'} onClick={() => void removeUser()}>
               {busy === 'del' ? '刪除中…' : '確認刪除'}
             </button>
-            <button className="btn" onClick={() => setDelFor(null)}>取消</button>
+            <button className="btn flex-1 sm:flex-none" onClick={() => setDelFor(null)}>取消</button>
           </div>
         </div>
       )}

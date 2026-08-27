@@ -268,22 +268,22 @@ export default function NegotiationPage() {
   return (
     <div className="space-y-4">
       <div className="card">
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <h2 className="text-[17px] font-semibold text-deep">議價回應</h2>
-          <span className="tag">{quote.quote_no}</span>
+          <span className="tag max-w-full truncate">{quote.quote_no}</span>
           <span className="tag">{STATUS_LABEL[quote.status]}</span>
           <Link to={`/quote/${quote.id}`} className="btn ml-auto">回單據</Link>
           <Link to={`/print/${quote.id}`} className="btn">列印</Link>
         </div>
 
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div>
+          <div className="min-w-0">
             <div className="label">案名／工程地點</div>
-            <div className="text-ink-900">{quote.project || '—'}</div>
+            <div className="break-words text-ink-900">{quote.project || '—'}</div>
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="label">申請單位／現場窗口</div>
-            <div className="text-ink-900">{quote.dept || '—'}／{quote.contact || '—'}</div>
+            <div className="break-words text-ink-900">{quote.dept || '—'}／{quote.contact || '—'}</div>
           </div>
           <div>
             <div className="label">報價日期</div>
@@ -328,12 +328,15 @@ export default function NegotiationPage() {
 
       <div className="grid gap-4 lg:grid-cols-[1fr_310px]">
         <div className="space-y-4">
-          <div className="card overflow-x-auto">
+          <div className="card">
             <div className="card-title">逐項議價</div>
             {lines.length === 0 ? (
               <div className="text-ink-500">本單沒有任何項目。</div>
             ) : (
-              <table className="w-full min-w-[1120px] border-collapse">
+              /* 手機：rwd-table 把每一列變成一張品項卡（欄位名由 data-label 長出來）；
+                 sm 以上恢復寬表格，橫捲交給 .table-scroll，body 不會橫捲。 */
+              <div className="table-scroll">
+              <table className="rwd-table w-full border-collapse sm:min-w-[1120px]">
                 <thead>
                   <tr>
                     <th className="th w-10">項次</th>
@@ -371,18 +374,23 @@ export default function NegotiationPage() {
                           : pct > 10 ? 'text-alert font-semibold' : 'text-ink-700'
                         return (
                           <tr key={l.id} className={under ? 'bg-warn-bg' : undefined}>
-                            <td className="td num">{seq}</td>
+                            <td className="td num" data-label="項次">{seq}</td>
+                            {/* 品名不給 data-label：手機時佔滿整行，當成這張卡的標題 */}
                             <td className="td">
-                              <div className="text-ink-900">{l.name}</div>
-                              {l.spec && <div className="text-[11px] text-ink-500">{l.spec}</div>}
-                              {fp !== null && (
-                                <div className="text-[11px] text-ink-500">底價 {money(fp)}</div>
-                              )}
+                              <div className="w-full min-w-0">
+                                <div className="break-words text-ink-900">{l.name}</div>
+                                {l.spec && (
+                                  <div className="break-words text-[11px] text-ink-500">{l.spec}</div>
+                                )}
+                                {fp !== null && (
+                                  <div className="text-[11px] text-ink-500">底價 {money(fp)}</div>
+                                )}
+                              </div>
                             </td>
-                            <td className="td">{l.unit}</td>
-                            <td className="td num">{Number(l.qty)}</td>
-                            <td className="td num">{money(orig)}</td>
-                            <td className="td">
+                            <td className="td" data-label="單位">{l.unit}</td>
+                            <td className="td num" data-label="數量">{Number(l.qty)}</td>
+                            <td className="td num" data-label="我方原單價">{money(orig)}</td>
+                            <td className="td" data-label="院方還價">
                               <input
                                 type="number"
                                 className="field num"
@@ -390,7 +398,7 @@ export default function NegotiationPage() {
                                 onChange={(e) => setRow(l.id, { client_offer: e.target.value })}
                               />
                             </td>
-                            <td className="td">
+                            <td className="td" data-label="我方回應">
                               <select
                                 className="field"
                                 value={r ? r.response : ''}
@@ -402,35 +410,44 @@ export default function NegotiationPage() {
                                 <option value="hold">{RESPONSE_LABEL.hold}</option>
                               </select>
                             </td>
-                            <td className="td">
-                              <input
-                                type="number"
-                                className="field num"
-                                value={r ? r.final_price : ''}
-                                onChange={(e) => setRow(l.id, { final_price: e.target.value })}
-                              />
-                              {under && fp !== null && (
-                                <div className="mt-1 text-[11px] font-semibold text-warn">
-                                  低於底價 {money(fp - fin)} 元
-                                </div>
-                              )}
+                            <td className="td" data-label="定案單價">
+                              {/* 手機時這格是 flex 容器，多個子元素要先包成一個 */}
+                              <div className="min-w-0 flex-1">
+                                <input
+                                  type="number"
+                                  className="field num"
+                                  value={r ? r.final_price : ''}
+                                  onChange={(e) => setRow(l.id, { final_price: e.target.value })}
+                                />
+                                {under && fp !== null && (
+                                  <div className="mt-1 text-[11px] font-semibold text-warn">
+                                    低於底價 {money(fp - fin)} 元
+                                  </div>
+                                )}
+                              </div>
                             </td>
-                            <td className={`td num ${pctClass}`}>{pct.toFixed(1)}%</td>
+                            <td className={`td num ${pctClass}`} data-label="讓步幅度">
+                              {pct.toFixed(1)}%
+                            </td>
+                            {/* 理由欄不給 data-label：手機時佔整行，欄位名改用行內小標 */}
                             <td className="td">
-                              <textarea
-                                className="field"
-                                rows={2}
-                                value={r ? r.rationale : ''}
-                                onChange={(e) => setRow(l.id, { rationale: e.target.value })}
-                                placeholder="說明堅持原價或讓步的理由"
-                              />
-                              <button
-                                type="button"
-                                className="btn mt-1 w-full text-xs"
-                                onClick={() => appendEvidence(l)}
-                              >
-                                帶入佐證
-                              </button>
+                              <div className="w-full min-w-0">
+                                <div className="label sm:hidden">理由／佐證</div>
+                                <textarea
+                                  className="field"
+                                  rows={2}
+                                  value={r ? r.rationale : ''}
+                                  onChange={(e) => setRow(l.id, { rationale: e.target.value })}
+                                  placeholder="說明堅持原價或讓步的理由"
+                                />
+                                <button
+                                  type="button"
+                                  className="btn mt-1 w-full text-sm sm:text-xs"
+                                  onClick={() => appendEvidence(l)}
+                                >
+                                  帶入佐證
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         )
@@ -439,6 +456,7 @@ export default function NegotiationPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
 
@@ -458,8 +476,9 @@ export default function NegotiationPage() {
                         <span className="text-xs text-ink-500">{when ? timeText(when) : ''}</span>
                         <span className="ml-auto text-xs text-ink-500">{group.length} 項</span>
                       </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full min-w-[720px] border-collapse">
+                      {/* 手機：歷程也走 rwd-table 卡片化；sm 以上維持寬表格橫捲 */}
+                      <div className="table-scroll">
+                        <table className="rwd-table w-full border-collapse sm:min-w-[720px]">
                           <thead>
                             <tr>
                               <th className="th min-w-[140px]">品名</th>
@@ -472,18 +491,26 @@ export default function NegotiationPage() {
                           <tbody>
                             {group.map((n) => (
                               <tr key={n.id}>
-                                <td className="td">{nameOfLine(n.line_id)}</td>
-                                <td className="td num">
+                                {/* 品名不給 data-label，手機時佔整行當卡片標題 */}
+                                <td className="td">
+                                  <div className="w-full min-w-0 break-words font-semibold text-ink-900 sm:font-normal">
+                                    {nameOfLine(n.line_id)}
+                                  </div>
+                                </td>
+                                <td className="td num" data-label="院方還價">
                                   {n.client_offer === null ? '—' : money(Number(n.client_offer))}
                                 </td>
-                                <td className="td">
+                                <td className="td" data-label="我方回應">
                                   {n.response ? RESPONSE_LABEL[n.response] : '—'}
                                 </td>
-                                <td className="td num">
+                                <td className="td num" data-label="定案價">
                                   {n.final_price === null ? '—' : money(Number(n.final_price))}
                                 </td>
-                                <td className="td whitespace-pre-wrap text-[12px] text-ink-700">
-                                  {n.rationale || '—'}
+                                <td className="td text-[12px] text-ink-700">
+                                  <div className="w-full min-w-0 whitespace-pre-wrap break-words">
+                                    <span className="label sm:hidden">理由</span>
+                                    {n.rationale || '—'}
+                                  </div>
                                 </td>
                               </tr>
                             ))}
@@ -553,7 +580,8 @@ export default function NegotiationPage() {
               </div>
             )}
 
-            <div className="mt-3 space-y-2">
+            {/* 手機：主要動作釘在畫面底部（.action-bar）；sm 以上改回上下堆疊的整寬按鈕 */}
+            <div className="action-bar mt-3 sm:flex-col">
               <button
                 type="button"
                 className="btn btn-primary w-full"
@@ -590,10 +618,10 @@ export default function NegotiationPage() {
                   注意：其中 {belowFloor.length} 項低於底價。
                 </p>
               )}
-              <div className="mt-3 flex gap-2">
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                 <button
                   type="button"
-                  className="btn btn-danger"
+                  className="btn btn-danger w-full sm:w-auto"
                   disabled={busy}
                   onClick={() => void closeCase()}
                 >
@@ -601,7 +629,7 @@ export default function NegotiationPage() {
                 </button>
                 <button
                   type="button"
-                  className="btn"
+                  className="btn w-full sm:w-auto"
                   disabled={busy}
                   onClick={() => setConfirmClose(false)}
                 >

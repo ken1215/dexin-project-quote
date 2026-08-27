@@ -309,11 +309,11 @@ export default function QuoteListPage() {
             <div className="card-title text-warn">確認刪除報價單</div>
             <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[13px]">
               <dt className="text-ink-500">單號</dt>
-              <dd className="font-semibold text-ink-900">{confirmOne.quote_no}</dd>
+              <dd className="min-w-0 break-words font-semibold text-ink-900">{confirmOne.quote_no}</dd>
               <dt className="text-ink-500">案名</dt>
-              <dd className="text-ink-900">{confirmOne.project}</dd>
+              <dd className="min-w-0 break-words text-ink-900">{confirmOne.project}</dd>
               <dt className="text-ink-500">狀態</dt>
-              <dd>
+              <dd className="min-w-0">
                 <span className={`tag ${STATUS_TAG_CLASS[confirmOne.status]}`}>
                   {STATUS_LABEL[confirmOne.status]}
                 </span>
@@ -329,7 +329,7 @@ export default function QuoteListPage() {
                 此單已送審／核可／議價過，刪除後將失去該筆往來紀錄。若只是不再進行，建議保留存查。
               </p>
             )}
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
                 className="btn btn-danger"
@@ -353,9 +353,9 @@ export default function QuoteListPage() {
         {confirmBatch && (
           <div className="card border-warn/40">
             <div className="card-title text-warn">確認刪除選取的 {selectedQuotes.length} 張報價單</div>
-            <p className="text-[13px] text-ink-700">
+            <p className="text-[13px] break-words text-ink-700">
               將刪除下列單號：
-              <span className="num font-semibold text-ink-900">{confirmNoList.join('、')}</span>
+              <span className="num break-words font-semibold text-ink-900">{confirmNoList.join('、')}</span>
               {confirmNoRest > 0 && (
                 <span className="text-ink-500">…等 {selectedQuotes.length} 張</span>
               )}
@@ -369,7 +369,7 @@ export default function QuoteListPage() {
                 若只是不再進行，建議保留存查。
               </p>
             )}
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
                 className="btn btn-danger"
@@ -394,11 +394,12 @@ export default function QuoteListPage() {
       <div className="card">
         <h2 className="card-title">報價單列表</h2>
 
-        <div className="mb-3 flex flex-wrap items-end gap-3">
-          <div>
+        {/* 篩選列：手機直排（每個欄位各佔滿一行），sm 以上才回到橫排 */}
+        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+          <div className="w-full sm:w-auto">
             <label className="label">狀態</label>
             <select
-              className="field w-40"
+              className="field w-full sm:w-40"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as QuoteStatus | 'all')}
             >
@@ -408,7 +409,7 @@ export default function QuoteListPage() {
               ))}
             </select>
           </div>
-          <div className="flex-1 min-w-[200px]">
+          <div className="w-full sm:min-w-[200px] sm:flex-1">
             <label className="label">關鍵字（案名或單號）</label>
             <input
               className="field"
@@ -420,14 +421,14 @@ export default function QuoteListPage() {
           {isAdmin && selectedQuotes.length > 0 && (
             <button
               type="button"
-              className="btn btn-danger"
+              className="btn btn-danger w-full sm:w-auto"
               disabled={busy}
               onClick={openConfirmBatch}
             >
               刪除選取的 {selectedQuotes.length} 張
             </button>
           )}
-          <Link to="/quote/new" className="btn btn-primary">＋ 開新單</Link>
+          <Link to="/quote/new" className="btn btn-primary w-full sm:w-auto">＋ 開新單</Link>
         </div>
 
         {error && (
@@ -462,86 +463,118 @@ export default function QuoteListPage() {
             <Link to="/quote/new" className="btn btn-primary">＋ 開新單</Link>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr>
-                  {isManager && (
-                    <th className="th w-8">
-                      <input
-                        type="checkbox"
-                        aria-label="全選目前篩選後的報價單"
-                        checked={allVisibleSelected}
-                        disabled={busy || filtered.length === 0}
-                        onChange={(e) => toggleAllVisible(e.target.checked)}
-                      />
-                    </th>
-                  )}
-                  <th className="th">單號</th>
-                  <th className="th">案名</th>
-                  <th className="th">申請單位</th>
-                  {isManager && <th className="th">建立人</th>}
-                  <th className="th">日期</th>
-                  <th className="th">狀態</th>
-                  <th className="th num">合計金額</th>
-                  <th className="th">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.length === 0 ? (
+          <>
+            {/* 手機把表格轉成卡片後 <thead> 會被隱藏，連帶失去表頭的全選框，
+                這裡補一個只在手機出現的全選控制，行為與表頭那顆完全相同。 */}
+            {isManager && filtered.length > 0 && (
+              <label className="mb-2 flex items-center gap-2 text-[13px] text-ink-700 sm:hidden">
+                <input
+                  type="checkbox"
+                  aria-label="全選目前篩選後的報價單"
+                  checked={allVisibleSelected}
+                  disabled={busy || filtered.length === 0}
+                  onChange={(e) => toggleAllVisible(e.target.checked)}
+                />
+                全選目前篩選的 {filtered.length} 張
+              </label>
+            )}
+            <div className="table-scroll">
+              <table className="rwd-table w-full border-collapse">
+                <thead>
                   <tr>
-                    <td className="td text-center text-ink-500" colSpan={isManager ? 9 : 7}>
-                      無符合篩選條件的報價單。
-                    </td>
+                    {isManager && (
+                      <th className="th w-8">
+                        <input
+                          type="checkbox"
+                          aria-label="全選目前篩選後的報價單"
+                          checked={allVisibleSelected}
+                          disabled={busy || filtered.length === 0}
+                          onChange={(e) => toggleAllVisible(e.target.checked)}
+                        />
+                      </th>
+                    )}
+                    <th className="th">單號</th>
+                    <th className="th">案名</th>
+                    <th className="th">申請單位</th>
+                    {isManager && <th className="th">建立人</th>}
+                    <th className="th">日期</th>
+                    <th className="th">狀態</th>
+                    <th className="th num">合計金額</th>
+                    <th className="th">操作</th>
                   </tr>
-                ) : (
-                  filtered.map((q) => (
-                    <tr key={q.id}>
-                      {isManager && (
-                        <td className="td text-center">
-                          <input
-                            type="checkbox"
-                            aria-label={`選取 ${q.quote_no}`}
-                            checked={selected.has(q.id)}
-                            disabled={busy}
-                            onChange={(e) => toggleOne(q.id, e.target.checked)}
-                          />
-                        </td>
-                      )}
-                      <td className="td">{q.quote_no}</td>
-                      <td className="td">{q.project}</td>
-                      <td className="td">{q.dept}</td>
-                      {isManager && <td className="td">{creators[q.created_by] || '—'}</td>}
-                      <td className="td">{q.quote_date}</td>
-                      <td className="td">
-                        <span className={`tag ${STATUS_TAG_CLASS[q.status]}`}>{STATUS_LABEL[q.status]}</span>
-                      </td>
-                      <td className="td num">{money(totals[q.id] ?? 0)}</td>
-                      <td className="td">
-                        <div className="flex flex-wrap gap-1.5">
-                          <Link to={`/quote/${q.id}`} className="btn">編輯</Link>
-                          <a href={`#/print/${q.id}`} target="_blank" rel="noopener noreferrer" className="btn">列印</a>
-                          {isManager && (
-                            <Link to={`/nego/${q.id}`} className="btn">議價</Link>
-                          )}
-                          {canDelete(q) && (
-                            <button
-                              type="button"
-                              className="btn btn-danger"
-                              disabled={busy}
-                              onClick={() => openConfirmOne(q)}
-                            >
-                              刪除
-                            </button>
-                          )}
-                        </div>
+                </thead>
+                <tbody>
+                  {filtered.length === 0 ? (
+                    <tr>
+                      <td className="td text-center text-ink-500" colSpan={isManager ? 9 : 7}>
+                        {/* 手機卡片模式下 td 變成 flex，要靠 w-full 的 span 才置中得了 */}
+                        <span className="block w-full text-center">無符合篩選條件的報價單。</span>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ) : (
+                    filtered.map((q) => (
+                      <tr key={q.id}>
+                        {isManager && (
+                          /* 勾選格不給 data-label：手機卡片上用內嵌文字說明即可 */
+                          <td className="td text-center">
+                            <label className="inline-flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                aria-label={`選取 ${q.quote_no}`}
+                                checked={selected.has(q.id)}
+                                disabled={busy}
+                                onChange={(e) => toggleOne(q.id, e.target.checked)}
+                              />
+                              <span className="text-[11px] text-ink-500 sm:hidden">選取此單</span>
+                            </label>
+                          </td>
+                        )}
+                        <td className="td" data-label="單號">
+                          <span className="min-w-0 break-words">{q.quote_no}</span>
+                        </td>
+                        <td className="td" data-label="案名">
+                          <span className="min-w-0 break-words">{q.project}</span>
+                        </td>
+                        <td className="td" data-label="申請單位">
+                          <span className="min-w-0 break-words">{q.dept}</span>
+                        </td>
+                        {isManager && (
+                          <td className="td" data-label="建立人">
+                            <span className="min-w-0 break-words">{creators[q.created_by] || '—'}</span>
+                          </td>
+                        )}
+                        <td className="td" data-label="日期">{q.quote_date}</td>
+                        <td className="td" data-label="狀態">
+                          <span className={`tag ${STATUS_TAG_CLASS[q.status]}`}>{STATUS_LABEL[q.status]}</span>
+                        </td>
+                        <td className="td num" data-label="合計金額">{money(totals[q.id] ?? 0)}</td>
+                        {/* 操作格不給 data-label：手機會自動佔滿整行，按鈕改 2 欄排列比較好按 */}
+                        <td className="td">
+                          <div className="grid w-full grid-cols-2 gap-1.5 sm:flex sm:w-auto sm:flex-wrap">
+                            <Link to={`/quote/${q.id}`} className="btn">編輯</Link>
+                            <a href={`#/print/${q.id}`} target="_blank" rel="noopener noreferrer" className="btn">列印</a>
+                            {isManager && (
+                              <Link to={`/nego/${q.id}`} className="btn">議價</Link>
+                            )}
+                            {canDelete(q) && (
+                              <button
+                                type="button"
+                                className="btn btn-danger"
+                                disabled={busy}
+                                onClick={() => openConfirmOne(q)}
+                              >
+                                刪除
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </div>

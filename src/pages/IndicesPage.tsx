@@ -307,7 +307,8 @@ export default function IndicesPage() {
   if (loading) return <div className="p-6 text-ink-500">載入中…</div>
 
   return (
-    <div className="space-y-6 p-6">
+    // 手機縮小外距，把寬度讓給表格內容；sm 以上維持原本的 p-6
+    <div className="space-y-4 p-3 sm:space-y-6 sm:p-6">
       <div className="card">
         <div className="card-title">物價指數維護</div>
         <p className="mb-3 text-sm text-ink-700">
@@ -318,7 +319,8 @@ export default function IndicesPage() {
             <div className="mb-1 text-xs text-ink-500">官方查詢連結</div>
             <ul className="list-disc space-y-1 pl-5">
               {linkedSources.map((s) => (
-                <li key={s.id}>
+                // 手機：網址沒有空白可斷行，必須 break-all 才不會把版面撐出橫捲
+                <li key={s.id} className="break-words">
                   {s.name}（{s.publisher}）
                   {s.url ? (
                     <>
@@ -327,7 +329,7 @@ export default function IndicesPage() {
                         href={s.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-bright underline hover:text-deep"
+                        className="break-all text-bright underline hover:text-deep"
                       >
                         {s.url}
                       </a>
@@ -344,14 +346,15 @@ export default function IndicesPage() {
       </div>
 
       <div className="card">
-        <div className="mb-3 flex items-center justify-between">
+        {/* 手機：標題與儲存區直排，儲存鈕整列寬（好按）；sm 以上恢復左右分置 */}
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="card-title mb-0 border-0 pb-0">指數清單</div>
-          <div className="flex items-center gap-3">
+          <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
             {idxSaved && !idxDirty && <span className="text-sm text-green">已儲存</span>}
-            {idxError && <span className="text-sm text-warn">{idxError}</span>}
+            {idxError && <span className="break-words text-sm text-warn">{idxError}</span>}
             <button
               type="button"
-              className="btn btn-primary"
+              className="btn btn-primary w-full sm:w-auto"
               disabled={!idxDirty || savingIdx}
               onClick={() => void saveIndices()}
             >
@@ -360,8 +363,9 @@ export default function IndicesPage() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
+        {/* 手機：本表以唯讀欄位為主（只有兩格可輸入），走 .rwd-table 卡片化 */}
+        <div className="table-scroll">
+          <table className="rwd-table w-full border-collapse">
             <thead>
               <tr>
                 <th className="th text-left">指數名稱</th>
@@ -386,18 +390,18 @@ export default function IndicesPage() {
                 const src = evidenceOf(r.source_id)
                 return (
                   <tr key={r.id}>
-                    <td className="td">{r.name}</td>
-                    <td className="td">{r.unit}</td>
-                    <td className="td">{r.base_period}</td>
-                    <td className="td num">{r.base_value}</td>
-                    <td className="td">
+                    <td className="td break-words font-medium">{r.name}</td>
+                    <td className="td" data-label="單位">{r.unit}</td>
+                    <td className="td" data-label="基準期別">{r.base_period}</td>
+                    <td className="td num" data-label="基準值">{r.base_value}</td>
+                    <td className="td" data-label="現值期別">
                       <input
                         className="field"
                         value={r.period}
                         onChange={(e) => updateRow(r.id, { period: e.target.value })}
                       />
                     </td>
-                    <td className="td">
+                    <td className="td" data-label="現值">
                       <input
                         type="number"
                         step="0.01"
@@ -406,10 +410,10 @@ export default function IndicesPage() {
                         onChange={(e) => updateRow(r.id, { value: Number(e.target.value) })}
                       />
                     </td>
-                    <td className={`td num ${pctClass(pct)}`}>
+                    <td className={`td num ${pctClass(pct)}`} data-label="較基準變動%">
                       {pct >= 0 ? '+' : ''}{pct.toFixed(1)}%
                     </td>
-                    <td className="td">
+                    <td className="td break-words" data-label="來源">
                       {src ? (
                         src.url ? (
                           <a
@@ -427,7 +431,7 @@ export default function IndicesPage() {
                         <span className="text-ink-500">—</span>
                       )}
                     </td>
-                    <td className="td">{fmtDateTime(r.updated_at)}</td>
+                    <td className="td" data-label="最後更新">{fmtDateTime(r.updated_at)}</td>
                   </tr>
                 )
               })}
@@ -437,14 +441,15 @@ export default function IndicesPage() {
       </div>
 
       <div className="card">
-        <div className="mb-3 flex items-center justify-between">
+        {/* 手機：標題與儲存區直排，儲存鈕整列寬（好按）；sm 以上恢復左右分置 */}
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="card-title mb-0 border-0 pb-0">工資時段加成表</div>
-          <div className="flex items-center gap-3">
+          <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
             {laborSaved && !laborDirty && <span className="text-sm text-green">已儲存</span>}
-            {laborError && <span className="text-sm text-warn">{laborError}</span>}
+            {laborError && <span className="break-words text-sm text-warn">{laborError}</span>}
             <button
               type="button"
-              className="btn btn-primary"
+              className="btn btn-primary w-full sm:w-auto"
               disabled={!laborDirty || savingLabor}
               onClick={() => void saveLabor()}
             >
@@ -453,31 +458,30 @@ export default function IndicesPage() {
           </div>
         </div>
 
-        <div className="mb-4 flex flex-wrap items-start gap-6">
-          <div>
+        {/* 手機單欄、sm 以上雙欄；輸入框手機整列寬，避免被長標籤擠成細條 */}
+        <div className="mb-4 grid grid-cols-1 items-start gap-4 sm:grid-cols-2 sm:gap-6">
+          <div className="min-w-0">
             <label className="label">技術工日薪牌價（元／日，來自 settings.labor_base_daily）</label>
             <input
               type="number"
               step="1"
-              className="field num"
-              style={{ width: '10rem' }}
+              className="field num w-full sm:w-40"
               value={baseDaily}
               onChange={(e) => { setBaseDaily(Number(e.target.value)); setLaborSaved(false) }}
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="label">物業管理合約優惠折數（來自 settings.labor_discount）</label>
             <input
               type="number"
               step="0.01"
               min={0.5}
               max={1}
-              className="field num"
-              style={{ width: '10rem' }}
+              className="field num w-full sm:w-40"
               value={discount}
               onChange={(e) => { setDiscount(Number(e.target.value)); setLaborSaved(false) }}
             />
-            <div className="mt-1 text-xs text-ink-500">
+            <div className="mt-1 break-words text-xs text-ink-500">
               牌價 {money(baseDaily)} 元／工，
               {discountLabel(discount)
                 ? `因院方已訂有物業管理合約，按 ${discountLabel(discount)} 計價`
@@ -488,8 +492,9 @@ export default function IndicesPage() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
+        {/* 手機：僅「倍率」可輸入，其餘唯讀 → 卡片化 */}
+        <div className="table-scroll">
+          <table className="rwd-table w-full border-collapse">
             <thead>
               <tr>
                 <th className="th text-left">名稱</th>
@@ -507,8 +512,8 @@ export default function IndicesPage() {
               )}
               {laborRows.map((r) => (
                 <tr key={r.id}>
-                  <td className="td">{r.name}</td>
-                  <td className="td">
+                  <td className="td break-words font-medium">{r.name}</td>
+                  <td className="td" data-label="倍率">
                     <input
                       type="number"
                       step="0.01"
@@ -517,9 +522,9 @@ export default function IndicesPage() {
                       onChange={(e) => updateLaborRow(r.id, Number(e.target.value))}
                     />
                   </td>
-                  <td className="td">{r.legal_basis}</td>
-                  <td className="td num text-ink-500">{money(laborListPrice(Number(baseDaily) || 0, r))}</td>
-                  <td className="td num text-deep">
+                  <td className="td break-words" data-label="法源依據">{r.legal_basis}</td>
+                  <td className="td num text-ink-500" data-label="牌價">{money(laborListPrice(Number(baseDaily) || 0, r))}</td>
+                  <td className="td num text-deep" data-label="折後報價">
                     {money(laborPrice(Number(baseDaily) || 0, r, discount))}
                   </td>
                 </tr>
@@ -551,17 +556,18 @@ export default function IndicesPage() {
       </div>
 
       <div className="card">
-        <div className="mb-3 flex items-center justify-between">
+        {/* 手機：標題與儲存區直排，儲存鈕整列寬（好按）；sm 以上恢復左右分置 */}
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="card-title mb-0 border-0 pb-0">工率基準</div>
-          <div className="flex items-center gap-3">
+          <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
             {prodSaved && !prodDirty && <span className="text-sm text-green">已儲存</span>}
-            {prodError && <span className="text-sm text-warn">{prodError}</span>}
+            {prodError && <span className="break-words text-sm text-warn">{prodError}</span>}
             {prodBadCount > 0 && (
-              <span className="text-sm text-warn">有 {prodBadCount} 列工率不大於 0，無法儲存</span>
+              <span className="break-words text-sm text-warn">有 {prodBadCount} 列工率不大於 0，無法儲存</span>
             )}
             <button
               type="button"
-              className="btn btn-primary"
+              className="btn btn-primary w-full sm:w-auto"
               disabled={!prodDirty || savingProd || prodBadCount > 0}
               onClick={() => void saveProductivity()}
             >
@@ -575,8 +581,9 @@ export default function IndicesPage() {
           調整工率會直接改變該工項的應攤工資：<span className="font-semibold">工率調高＝單價變低</span>。
         </p>
 
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
+        {/* 手機：八欄橫捲太寬，且每列僅工率與啟用可改 → 卡片化 */}
+        <div className="table-scroll">
+          <table className="rwd-table w-full border-collapse">
             <thead>
               <tr>
                 <th className="th text-left">工項</th>
@@ -615,35 +622,42 @@ export default function IndicesPage() {
                     const tooLow = ok && net < LOW_UNIT_PRICE
                     return (
                       <tr key={r.id} className={ok ? undefined : 'bg-warn-bg'}>
-                        <td className="td">
-                          <div>{r.work_item}</div>
-                          {r.note && <div className="text-[11px] text-ink-500">{r.note}</div>}
+                        {/* 手機卡片化後同一格內的多個元素會變成橫排，故一律包成單一子元素；
+                            另外 .rwd-table 的卡片會給 tr 白底，列級 bg-warn-bg 在手機會被蓋掉，
+                            所以異常列的底色補在首格（桌機同色不影響觀感） */}
+                        <td className={`td${ok ? '' : ' bg-warn-bg'}`}>
+                          <div className="min-w-0 break-words">
+                            <div className="font-medium">{r.work_item}</div>
+                            {r.note && <div className="text-[11px] text-ink-500">{r.note}</div>}
+                          </div>
                         </td>
-                        <td className="td">{r.unit}</td>
-                        <td className="td">
-                          <input
-                            type="number"
-                            step="0.1"
-                            min={0.1}
-                            className={`field num ${ok ? '' : 'border-warn text-warn'}`}
-                            value={r.output_per_manday}
-                            onChange={(e) => updateProdRow(r.id, {
-                              output_per_manday: Number(e.target.value),
-                            })}
-                          />
-                          {!ok && <div className="mt-1 text-[11px] text-warn">工率必須大於 0</div>}
-                          {tooLow && (
-                            <div className="mt-1 text-[11px] text-alert">工率偏高，請確認</div>
-                          )}
+                        <td className="td" data-label="單位">{r.unit}</td>
+                        <td className="td" data-label="工率（每工日產出）">
+                          <div className="min-w-0 flex-1">
+                            <input
+                              type="number"
+                              step="0.1"
+                              min={0.1}
+                              className={`field num ${ok ? '' : 'border-warn text-warn'}`}
+                              value={r.output_per_manday}
+                              onChange={(e) => updateProdRow(r.id, {
+                                output_per_manday: Number(e.target.value),
+                              })}
+                            />
+                            {!ok && <div className="mt-1 text-[11px] text-warn">工率必須大於 0</div>}
+                            {tooLow && (
+                              <div className="mt-1 text-[11px] text-alert">工率偏高，請確認</div>
+                            )}
+                          </div>
                         </td>
-                        <td className="td num text-ink-500">{ok ? money(list) : '—'}</td>
-                        <td className={`td num ${tooLow ? 'text-alert' : 'text-deep'}`}>
+                        <td className="td num text-ink-500" data-label="工資牌價／單位">{ok ? money(list) : '—'}</td>
+                        <td className={`td num ${tooLow ? 'text-alert' : 'text-deep'}`} data-label="折後單價／單位">
                           {ok ? money(net) : '—'}
                         </td>
-                        <td className="td" title={r.source || undefined}>
+                        <td className="td break-words" data-label="依據" title={r.source || undefined}>
                           {BASIS_LABEL[r.basis] || r.basis}
                         </td>
-                        <td className="td">
+                        <td className="td" data-label="可信度">
                           <span
                             className={
                               'inline-block rounded-full border px-2 py-0.5 text-[11px] '
@@ -653,7 +667,7 @@ export default function IndicesPage() {
                             {CONFIDENCE_LABEL[r.confidence] || r.confidence}
                           </span>
                         </td>
-                        <td className="td">
+                        <td className="td" data-label="啟用">
                           <input
                             type="checkbox"
                             checked={r.active}
