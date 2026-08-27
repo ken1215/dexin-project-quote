@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types src/lib/calc.test.ts",
+    "test": "node scripts/check-css.mjs && node --experimental-strip-types src/lib/calc.test.ts",
     "deploy": "npm run build && node scripts/deploy.mjs",
     "deploy:cf": "node scripts/deploy-cloudflare.mjs"
   },

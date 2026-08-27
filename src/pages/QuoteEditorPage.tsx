@@ -589,12 +589,14 @@ export default function QuoteEditorPage() {
               {/* 挑選區是「顯示＋一顆加入鈕」，手機轉卡片（rwd-table）比橫捲好按 */}
               <div className="max-h-[60vh] overflow-auto rounded-md border border-ink-200 sm:max-h-72">
                 <table className="rwd-table w-full border-collapse">
-                  <thead className="sticky top-0">
+                  {/* sticky 下在每個 th（見 index.css 的 .th-sticky），不是 thead——
+                      collapse 表格對 thead 的背景繪製各家瀏覽器不一致 */}
+                  <thead>
                     <tr>
-                      <th className="th text-left">品名／規格</th>
-                      <th className="th w-16">單位</th>
-                      <th className="th w-24">標準單價</th>
-                      <th className="th w-20">加入</th>
+                      <th className="th th-sticky text-left">品名／規格</th>
+                      <th className="th th-sticky w-16">單位</th>
+                      <th className="th th-sticky w-24">標準單價</th>
+                      <th className="th th-sticky w-20">加入</th>
                     </tr>
                   </thead>
                   <tbody>
