@@ -8,7 +8,7 @@
 可選：--keep-negotiating 會留下一張 negotiating 狀態的測試單並印出 id，
 供手動檢視議價頁版面，用完自己刪。
 
-測試帳號 990001/990002/990003 與測試單跑完即刪。
+測試帳號 990001~990005 與測試單跑完即刪。
 """
 import json, subprocess, sys, urllib.request, urllib.error
 
@@ -123,8 +123,9 @@ if st == 200 and b:
     check("  越級有留痕 l1_skipped=true", b[0].get("l1_skipped") is True)
 
 # ── 權限邊界 ──────────────────────────────────────────────────
+# 2026-08-27 起處長也能管帳號（範圍限 staff，細節見下方專段），所以 list 應該通
 st, b = req("/functions/v1/admin-users", {"action": "list"}, key=ANON, bearer=head_tok)
-check("【擋】處長呼叫帳號管理", st == 403, f"HTTP {st}")
+check("處長可列出帳號清單", st == 200, f"HTTP {st}")
 st, b = req("/rest/v1/price_items?select=id&limit=1", key=ANON, bearer=head_tok)
 check("處長讀得到單價庫", st == 200 and isinstance(b, list) and len(b) == 1)
 st, b = req(f"/rest/v1/quotes?id=eq.{q1}", method="DELETE",
@@ -134,6 +135,74 @@ check("【擋】處長不能刪報價單", st != 200 or not b, f"HTTP {st}")
 q3 = new_quote("-C")
 st, b = req(f"/rest/v1/quotes?id=eq.{q3}", key=ANON, bearer=created["procurement"]["token"])
 check("【擋】醫院採購看不到未核定的單", st == 200 and b == [], str(b)[:160])
+
+# ── 處長的帳號管理權限（2026-08-27 追加，範圍限 staff）─────────
+def admin_fn(payload, tok):
+    return req("/functions/v1/admin-users", payload, key=ANON, bearer=tok)
+
+
+# 建同仁：可以
+st, b = admin_fn({"action": "create", "email": "990004",
+                  "full_name": "測試同仁B", "role": "staff"}, head_tok)
+check("處長可建立「同仁」帳號", st == 200, f"HTTP {st} {str(b)[:160]}")
+staff_b_id = (b or {}).get("id") if st == 200 else None
+check("  該帳號可用工號當密碼登入", bool(login("990004", "990004")))
+
+# 建其他角色：一律擋
+for role, label in (("manager", "副部長"), ("dept_head", "處長"), ("procurement", "醫院採購")):
+    st, b = admin_fn({"action": "create", "email": "990005",
+                      "full_name": "不該被建出來", "role": role}, head_tok)
+    check(f"【擋】處長不能建立「{label}」帳號（提權）", st == 403, f"HTTP {st} {str(b)[:120]}")
+
+# 停用同仁：可以
+if staff_b_id:
+    st, b = req(f"/rest/v1/profiles?id=eq.{staff_b_id}", {"active": False}, method="PATCH",
+                key=ANON, bearer=head_tok, prefer="return=representation")
+    check("處長可停用同仁", st == 200 and b, f"HTTP {st} {str(b)[:160]}")
+    # 把同仁升成副部長：with check 要擋
+    st, b = req(f"/rest/v1/profiles?id=eq.{staff_b_id}", {"role": "manager"}, method="PATCH",
+                key=ANON, bearer=head_tok, prefer="return=representation")
+    check("【擋】處長不能把同仁升成副部長（提權）", st != 200 or not b, f"HTTP {st} {str(b)[:120]}")
+
+# 動副部長那一列：using 要擋
+st, us2 = req("/auth/v1/admin/users?page=1&per_page=200", key=SVC)
+mgr_id = next(u["id"] for u in us2["users"] if u["email"] == f"{MGR_NO}@{DOMAIN}")
+st, b = req(f"/rest/v1/profiles?id=eq.{mgr_id}", {"active": False}, method="PATCH",
+            key=ANON, bearer=head_tok, prefer="return=representation")
+check("【擋】處長不能停用副部長", st != 200 or not b, f"HTTP {st} {str(b)[:120]}")
+
+# 自己升自己：using 也要擋（處長那一列 role 不是 staff）
+st, b = req(f"/rest/v1/profiles?id=eq.{created['dept_head']['id']}", {"role": "manager"},
+            method="PATCH", key=ANON, bearer=head_tok, prefer="return=representation")
+check("【擋】處長不能把自己升成副部長", st != 200 or not b, f"HTTP {st} {str(b)[:120]}")
+
+# 重設密碼：同仁可以、副部長不行
+if staff_b_id:
+    st, b = admin_fn({"action": "reset_password", "id": staff_b_id, "password": "990004"}, head_tok)
+    check("處長可重設同仁密碼", st == 200, f"HTTP {st} {str(b)[:120]}")
+st, b = admin_fn({"action": "reset_password", "id": mgr_id, "password": "zzzzzz"}, head_tok)
+check("【擋】處長不能重設副部長密碼", st == 403, f"HTTP {st} {str(b)[:120]}")
+
+# 刪帳號：一律擋（不可逆，留給副部長；處長請改用停用）
+if staff_b_id:
+    st, b = admin_fn({"action": "delete", "id": staff_b_id}, head_tok)
+    check("【擋】處長不能刪除帳號（改用停用）", st == 403, f"HTTP {st} {str(b)[:120]}")
+
+# 管理單價：處長本來就有（db/19 的 is_manager() 語意擴大），這裡實證而非假設
+st, items = req("/rest/v1/price_items?select=id,sort&limit=1", key=ANON, bearer=head_tok)
+if st == 200 and items:
+    it = items[0]
+    st, b = req(f"/rest/v1/price_items?id=eq.{it['id']}", {"sort": it["sort"]},
+                method="PATCH", key=ANON, bearer=head_tok, prefer="return=representation")
+    check("處長可寫入單價庫 price_items", st == 200 and b, f"HTTP {st} {str(b)[:120]}")
+st, floors = req("/rest/v1/price_floors?select=item_id,floor_price&limit=1", key=ANON, bearer=head_tok)
+check("處長讀得到底價 price_floors", st == 200 and isinstance(floors, list), f"HTTP {st}")
+
+# 收掉本段建出來的帳號（990005 理論上都被擋下沒建成，保險起見一併清）
+st, us3 = req("/auth/v1/admin/users?page=1&per_page=200", key=SVC)
+for u in us3["users"]:
+    if u["email"].startswith(("990004@", "990005@")):
+        req(f"/auth/v1/admin/users/{u['id']}", method="DELETE", key=SVC)
 
 # ── 收尾 ──────────────────────────────────────────────────────
 keep_id = None

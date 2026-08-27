@@ -56,7 +56,8 @@ export default function App() {
               <Route path="quote/:id" element={<Guard internalOnly><QuoteEditorPage /></Guard>} />
               <Route path="catalog" element={<Guard managerOnly><PriceCatalogPage /></Guard>} />
               <Route path="indices" element={<Guard managerOnly><IndicesPage /></Guard>} />
-              <Route path="users" element={<Guard adminOnly><UsersPage /></Guard>} />
+              {/* 處長也進得來，但他只動得了同仁——把關在 RLS 與 Edge Function，不在這裡 */}
+              <Route path="users" element={<Guard managerOnly><UsersPage /></Guard>} />
               <Route path="nego/:id" element={<Guard adminOnly><NegotiationPage /></Guard>} />
               {/* 醫院採購專用：只看得到已送出的單，只能登錄還價 */}
               <Route path="client" element={<ClientNegotiationPage />} />

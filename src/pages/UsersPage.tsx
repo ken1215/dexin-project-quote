@@ -49,7 +49,14 @@ async function callAdmin<T>(action: string, payload: Record<string, unknown> = {
 const fmtDate = (s: string | null) => (s ? s.slice(0, 10) : '—')
 
 export default function UsersPage() {
-  const { profile, signOut } = useAuth()
+  const { profile, isAdmin, signOut } = useAuth()
+  /**
+   * 工務處長只能管「同仁」。收在 staff 是為了擋提權——處長若建得出 manager，
+   * 就能把自己升成副部長並取得議價定案與刪單權。
+   * 這裡只是不要顯示按不動的按鈕；真正的把關在資料庫政策 profiles_dept_head_staff
+   * 與 Edge Function admin-users，前端拿掉也擋得住。
+   */
+  const mayTouch = (r: AccountRow) => isAdmin || val(r, 'role') === 'staff'
   /** 改完自己的密碼後的過場：顯示提示並自動登出，不要讓人卡在看不懂的 401 */
   const [selfPwDone, setSelfPwDone] = useState(false)
   const [expired, setExpired] = useState(false)
@@ -200,8 +207,11 @@ export default function UsersPage() {
       <div className="card">
         <h2 className="card-title">帳號管理</h2>
         <p className="text-ink-500">
-          在這裡直接建立、停用、刪除帳號與重設密碼，不需要進 Supabase 後台。
-          新帳號預設為「同仁」，要維護單價得改成「主管」。
+          在這裡直接建立、停用帳號與重設密碼，不需要進 Supabase 後台。輸入 6 碼工號即可建帳號，
+          初始密碼欄留空會自動帶入工號。
+          {isAdmin
+            ? '刪除帳號僅副部長可用；名下還有報價單的帳號會被擋下，請改為停用。'
+            : '您是工務處長：可建立、停用、重設密碼，但範圍限「同仁」；其他角色與刪除帳號請洽行政管理部副部長。'}
         </p>
         {/* 角色說明表：兩欄敘述型表格，手機保留原本上下對照的排版，只做橫捲保險 */}
         <div className="mt-3 table-scroll">
@@ -282,12 +292,13 @@ export default function UsersPage() {
               </div>
               <div>
                 <label className="label">角色</label>
-                <select className="field" value={nf.role}
+                <select className="field" value={nf.role} disabled={!isAdmin}
+                  title={isAdmin ? '' : '工務處長只能建立「同仁」帳號'}
                   onChange={(e) => setNf({ ...nf, role: e.target.value as Role })}>
                   <option value="staff">同仁</option>
-                  <option value="dept_head">工務處長（簽核第一關）</option>
-                  <option value="manager">行政管理部副部長（最終核決）</option>
-                  <option value="procurement">醫院採購（對方）</option>
+                  {isAdmin && <option value="dept_head">工務處長（簽核第一關）</option>}
+                  {isAdmin && <option value="manager">行政管理部副部長（最終核決）</option>}
+                  {isAdmin && <option value="procurement">醫院採購（對方）</option>}
                 </select>
               </div>
             </div>
@@ -333,8 +344,10 @@ export default function UsersPage() {
                         onChange={(e) => edit(r.id, { full_name: e.target.value })} />
                     </td>
                     <td className="td p-1" data-label="角色">
-                      <select className="field" value={val(r, 'role')} disabled={isSelf(r)}
-                        title={isSelf(r) ? '不能改自己的角色，避免把自己鎖在門外' : ''}
+                      <select className="field" value={val(r, 'role')}
+                        disabled={isSelf(r) || !isAdmin}
+                        title={isSelf(r) ? '不能改自己的角色，避免把自己鎖在門外'
+                          : !isAdmin ? '變更角色限行政管理部副部長' : ''}
                         onChange={(e) => edit(r.id, { role: e.target.value as Role })}>
                         <option value="staff">同仁</option>
                         <option value="dept_head">工務處長</option>
@@ -343,8 +356,10 @@ export default function UsersPage() {
                       </select>
                     </td>
                     <td className="td text-center" data-label="啟用">
-                      <input type="checkbox" checked={val(r, 'active')} disabled={isSelf(r)}
-                        title={isSelf(r) ? '不能停用自己' : ''}
+                      <input type="checkbox" checked={val(r, 'active')}
+                        disabled={isSelf(r) || !mayTouch(r)}
+                        title={isSelf(r) ? '不能停用自己'
+                          : !mayTouch(r) ? '工務處長只能停用「同仁」' : ''}
                         onChange={(e) => edit(r.id, { active: e.target.checked })} />
                     </td>
                     <td className="td num" data-label="建立日">{fmtDate(r.created_at)}</td>
@@ -353,13 +368,18 @@ export default function UsersPage() {
                     <td className="td whitespace-nowrap">
                       <div className="flex w-full gap-1">
                         <button className="btn flex-1 px-2 py-0.5 text-xs sm:flex-none"
+                          disabled={!mayTouch(r)}
+                          title={mayTouch(r) ? '' : '工務處長只能重設「同仁」的密碼'}
                           onClick={() => { setPwFor(r); setNewPw('') }}>
                           重設密碼
                         </button>
-                        <button className="btn btn-danger flex-1 px-2 py-0.5 text-xs sm:flex-none" disabled={isSelf(r)}
-                          title={isSelf(r) ? '不能刪除自己' : ''} onClick={() => setDelFor(r)}>
-                          刪除
-                        </button>
+                        {/* 刪除不可逆，只留副部長；處長請改用「停用」 */}
+                        {isAdmin && (
+                          <button className="btn btn-danger flex-1 px-2 py-0.5 text-xs sm:flex-none" disabled={isSelf(r)}
+                            title={isSelf(r) ? '不能刪除自己' : ''} onClick={() => setDelFor(r)}>
+                            刪除
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

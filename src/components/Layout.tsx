@@ -10,7 +10,7 @@ const link = ({ isActive }: { isActive: boolean }) =>
   (isActive ? 'bg-white/20 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white')
 
 export default function Layout() {
-  const { profile, isManager, isAdmin, isProcurement, signOut } = useAuth()
+  const { profile, isManager, isProcurement, signOut } = useAuth()
   const { settings, error } = useRefData()
   const version = String(settings.catalog_version ?? '')
   const [pwOpen, setPwOpen] = useState(false)
@@ -33,8 +33,8 @@ export default function Layout() {
       )}
       {isManager && <NavLink to="/catalog" className={link}>單價維護</NavLink>}
       {isManager && <NavLink to="/indices" className={link}>物價指數</NavLink>}
-      {/* 帳號管理只有副部長，處長沒有 */}
-      {isAdmin && <NavLink to="/users" className={link}>人員權限</NavLink>}
+      {/* 帳號管理：副部長管全部，處長只管得動同仁（把關在 RLS 與 Edge Function） */}
+      {isManager && <NavLink to="/users" className={link}>人員權限</NavLink>}
     </>
   )
 

@@ -50,10 +50,22 @@ Deno.serve(async (req) => {
   const { data: profile } = await admin
     .from('profiles').select('role, active').eq('id', me.user.id).maybeSingle()
 
-  // 只認 manager（行政管理部副部長）。工務處長 dept_head 有簽核與單價庫權限，
-  // 但不得管帳號——這裡與資料庫的 is_admin() 政策是同一條界線的兩道鎖。
-  if (!profile || profile.role !== 'manager' || !profile.active) {
-    return json({ error: '此功能限行政管理部副部長使用' }, 403)
+  // 副部長：全部帳號都能管。工務處長：只能管 staff，且不能刪帳號。
+  // 收在 staff 的理由是**提權**——處長若能建立或改成 manager，
+  // 就能把自己升成副部長，兩關簽核與「不可逆三件事」的界線同時失效。
+  // 這是與資料庫政策 profiles_dept_head_staff 同一條界線的第二道鎖。
+  const isAdmin = profile?.role === 'manager' && profile.active
+  const isDeptHead = profile?.role === 'dept_head' && profile.active
+  if (!isAdmin && !isDeptHead) {
+    return json({ error: '此功能限行政管理部副部長或工務處長使用' }, 403)
+  }
+
+  /** 這個呼叫者能不能動「角色為 r」的帳號 */
+  const mayTouchRole = (r: string) => isAdmin || r === 'staff'
+  /** 查某個帳號目前的角色（處長只能動 staff，要先查了才知道） */
+  const roleOf = async (id: string): Promise<string | null> => {
+    const { data } = await admin.from('profiles').select('role').eq('id', id).maybeSingle()
+    return (data?.role as string | undefined) ?? null
   }
 
   // ── 3. 執行動作 ────────────────────────────────────────────
@@ -91,6 +103,9 @@ Deno.serve(async (req) => {
         const fullName = String(body.full_name ?? '').trim()
         const role = ['manager', 'dept_head', 'procurement'].includes(String(body.role))
           ? String(body.role) : 'staff'
+        if (!mayTouchRole(role)) {
+          return json({ error: '工務處長只能建立「同仁」帳號，其他角色請洽行政管理部副部長' }, 403)
+        }
 
         if (!isEmployeeNo(loginId) && !loginId.includes('@')) {
           return json({ error: '請填 6 碼數字工號，外部單位帳號才填 Email' }, 400)
@@ -120,12 +135,20 @@ Deno.serve(async (req) => {
         const id = String(body.id ?? '')
         const password = String(body.password ?? '')
         if (password.length < MIN_PW) return json({ error: `密碼至少 ${MIN_PW} 碼` }, 400)
+        const target = await roleOf(id)
+        if (target && !mayTouchRole(target)) {
+          return json({ error: '工務處長只能重設「同仁」的密碼' }, 403)
+        }
         const { error } = await admin.auth.admin.updateUserById(id, { password })
         if (error) throw error
         return json({ ok: true })
       }
 
       case 'delete': {
+        // 刪除不可逆，與「不可逆的事只留副部長」一致；處長請改用「停用」
+        if (!isAdmin) {
+          return json({ error: '刪除帳號限行政管理部副部長；工務處長請改用「停用」（停用即無法登入，且可回復）' }, 403)
+        }
         const id = String(body.id ?? '')
         if (id === me.user.id) return json({ error: '不能刪除自己的帳號' }, 400)
         // 這個人開過的報價單還在，刪帳號會讓 created_by 的外鍵失效，先擋下來
