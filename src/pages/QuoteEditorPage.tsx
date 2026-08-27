@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
@@ -77,6 +77,15 @@ export default function QuoteEditorPage() {
   const [l1Skipped, setL1Skipped] = useState(false)
   const [cat, setCat] = useState<string>('all')
   const [kw, setKw] = useState('')
+  /**
+   * 剛按下「加入」的品項與加完的累計數量，用來給即時回饋。
+   * 手機上明細區在螢幕外，不給回饋的話按了完全看不出有沒有進去；
+   * 而且再按一次是「數量 +1」，那個變化更看不到——所以要把數量一起講。
+   */
+  const [justAdded, setJustAdded] = useState<{ id: string; qty: number } | null>(null)
+  const addedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // 元件卸載時清掉計時器，否則會對已卸載的元件 setState
+  useEffect(() => () => { if (addedTimer.current) clearTimeout(addedTimer.current) }, [])
 
   /* ── 載入既有單據 ───────────────────────────────────────── */
   useEffect(() => {
@@ -218,6 +227,16 @@ export default function QuoteEditorPage() {
 
   /** 加入標準品項：依 category.section_title 自動找／自動開大項 */
   const addItem = (item: PriceItem) => {
+    // 加完會是幾件：同一個品項只會落在它所屬分類的那個大項裡，
+    // 所以直接跨大項找就夠，不必重跑一次下面的大項歸屬邏輯。
+    const nextQty = 1 + Number(
+      draft.sections.flatMap((s) => s.lines)
+        .find((l) => !l.is_custom && l.item_id === item.id)?.qty ?? 0,
+    )
+    setJustAdded({ id: item.id, qty: nextQty })
+    if (addedTimer.current) clearTimeout(addedTimer.current)
+    addedTimer.current = setTimeout(() => setJustAdded(null), 1600)
+
     const c = categoryOf(item.category_id)
     const title = (c?.section_title || c?.name || '其他工程').trim()
     // 「牌價 × 物管合約折數 × 時段」只適用於按「工」計價的工資項（技術工日薪）。
@@ -613,7 +632,14 @@ export default function QuoteEditorPage() {
                           </td>
                         </tr>
                       )}
-                      <tr className="hover:bg-light/40">
+                      <tr
+                        className={
+                          'transition-colors duration-300 ' +
+                          (justAdded?.id === it.id
+                            ? 'row-added'
+                            : 'hover:bg-light/40')
+                        }
+                      >
                         <td className="td">
                           {/* 卡片模式下 td 會變成 flex，內容要包一層才會維持原本的直向堆疊 */}
                           <div className="min-w-0">
@@ -631,11 +657,24 @@ export default function QuoteEditorPage() {
                         <td className="td text-center" data-label="單位">{it.unit}</td>
                         <td className="td num" data-label="標準單價">{money(it.std_price)}</td>
                         <td className="td text-center">
+                          {/* 按下後就地變成「已加入 ×N」——同時回答「有沒有進去」
+                              與「我剛剛按了幾次」。1.6 秒後復原。
+                              active:scale 給按壓的觸感，手機上尤其明顯。 */}
                           <button
                             type="button"
-                            className="btn w-full sm:w-auto"
+                            aria-live="polite"
+                            className={
+                              'btn w-full transition active:scale-[0.97] sm:w-auto ' +
+                              (justAdded?.id === it.id
+                                ? 'border-green bg-green text-white hover:border-green hover:text-white'
+                                : '')
+                            }
                             onClick={() => addItem(it)}
-                          >加入</button>
+                          >
+                            {justAdded?.id === it.id
+                              ? `已加入${justAdded.qty > 1 ? ` ×${justAdded.qty}` : ''}`
+                              : '加入'}
+                          </button>
                         </td>
                       </tr>
                       </Fragment>

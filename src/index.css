@@ -165,6 +165,15 @@ body {
   .print-preview > .print-sheet, .print-preview > * > .print-sheet { min-width: 210mm; }
 }
 
+/* 剛按下「加入」的那一列閃一下。
+   刻意不分層、且用兩段選擇器：卡片模式的 `.rwd-table tr` 寫死了白底又是
+   未分層規則，分層的 utility（bg-green/15 之類）蓋不過去，手機上會完全看不到。
+   同層 ＋ 更高權重才壓得住。這也是它沒被列進 scripts/check-css.mjs 元件清單的原因。 */
+tr.row-added,
+.rwd-table tr.row-added {
+  background-color: color-mix(in oklab, var(--color-green) 16%, #fff);
+}
+
 /* 觸控裝置：點擊目標放大到手指按得到的尺寸（44px 是 Apple HIG 的建議值，
    這裡取 40px 兼顧密集表格的可讀性）。用 pointer:coarse 判斷，
    不要用螢幕寬度——外接觸控螢幕的桌機也該放大。 */
