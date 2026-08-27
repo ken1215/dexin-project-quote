@@ -10,6 +10,7 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, copyFileSync, writeFileSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { loadEnv } from 'vite'
 
 const ROOT = resolve(import.meta.dirname, '..')
 const DIST = resolve(ROOT, 'dist')
@@ -27,16 +28,30 @@ const assets = execFileSync('node', ['-e',
 ], { maxBuffer: 64 * 1024 * 1024 }).toString()
 
 // 不能只找 '.supabase.co'——supabase-js 函式庫本身就含這段字串，等於沒檢查。
-// 要找的是「真的被 Vite 替換進去的專案網址」，同時確認 fallback 沒有留在產出裡。
-const projectUrl = assets.match(/https:\/\/[a-z0-9]{15,}\.supabase\.co/)
+// 要找的是「真的被 Vite 替換進去的那個網址」。
+// 也不能寫死 *.supabase.co：走自有域名反向代理時（見 functions/_middleware.js，
+// 因醫院網路把 supabase.co 整類擋掉而設），VITE_SUPABASE_URL 會是 quote.<域名>，
+// 寫死就會在換域名的那天拒絕部署、而且錯誤訊息完全指錯方向。
+// 改成拿建置當下實際設定的值來找——這才真的是「這次執行才會出現的具體值」。
+// 用 Vite 自己的解析，而不是只看 process.env——.env.local 只有 Vite 讀得到，
+// 只看 process.env 的話本機跑 npm run deploy 一定誤判成「沒設定」。
+const viteEnv = loadEnv('production', ROOT, 'VITE_')
+const expected = (process.env.VITE_SUPABASE_URL || viteEnv.VITE_SUPABASE_URL)?.replace(/\/+$/, '')
+if (!expected) {
+  console.error('❌ 環境變數 VITE_SUPABASE_URL 沒設定，無法驗證 build 產出。')
+  console.error('   本機請建立 .env.local；CI 請確認 GitHub Actions secret 有帶進 build。')
+  process.exit(1)
+}
+const projectUrl = assets.includes(expected) ? [expected] : null
 const hasFallback = assets.includes('localhost:54321')
 
 if (!projectUrl || hasFallback) {
   console.error('❌ build 產出沒有帶到 Supabase 連線設定，拒絕部署（推上去會是一個連不上後端的空殼）。')
   console.error(`   找到的專案網址：${projectUrl ? projectUrl[0] : '（無）'}`)
   console.error(`   仍含 localhost fallback：${hasFallback ? '是' : '否'}`)
+  console.error(`   期待在產出裡找到：${expected}`)
   console.error('   請在專案根目錄建立 .env.local：')
-  console.error('     VITE_SUPABASE_URL=https://xjylpaqvdxmxzehvwreg.supabase.co')
+  console.error('     VITE_SUPABASE_URL=https://xjylpaqvdxmxzehvwreg.supabase.co  # 或自有域名')
   console.error('     VITE_SUPABASE_ANON_KEY=<anon key>')
   console.error('   然後重跑 npm run deploy。')
   process.exit(1)
