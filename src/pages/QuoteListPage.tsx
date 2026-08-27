@@ -546,6 +546,9 @@ export default function QuoteListPage() {
                         <td className="td" data-label="日期">{q.quote_date}</td>
                         <td className="td" data-label="狀態">
                           <span className={`tag ${STATUS_TAG_CLASS[q.status]}`}>{STATUS_LABEL[q.status]}</span>
+                          {q.l1_skipped && (
+                            <span className="tag ml-1 bg-alert/15 text-alert" title="未經工務處長核可，由副部長直接核定">越級</span>
+                          )}
                         </td>
                         <td className="td num" data-label="合計金額">{money(totals[q.id] ?? 0)}</td>
                         {/* 操作格不給 data-label：手機會自動佔滿整行，按鈕改 2 欄排列比較好按 */}
@@ -553,7 +556,8 @@ export default function QuoteListPage() {
                           <div className="grid w-full grid-cols-2 gap-1.5 sm:flex sm:w-auto sm:flex-wrap">
                             <Link to={`/quote/${q.id}`} className="btn">編輯</Link>
                             <a href={`#/print/${q.id}`} target="_blank" rel="noopener noreferrer" className="btn">列印</a>
-                            {isManager && (
+                            {/* 議價頁是 adminOnly，處長看得到卻進不去只會撞拒絕畫面 */}
+                            {isAdmin && (
                               <Link to={`/nego/${q.id}`} className="btn">議價</Link>
                             )}
                             {canDelete(q) && (

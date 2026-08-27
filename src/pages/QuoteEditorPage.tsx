@@ -73,12 +73,14 @@ export default function QuoteEditorPage() {
   const [issues, setIssues] = useState<string[]>([])
   const [notice, setNotice] = useState<string | null>(null)
   const [reviewNote, setReviewNote] = useState('')
+  /** 這張單是否由副部長越過工務處長直接核定（戳記在資料庫，這裡只負責顯示） */
+  const [l1Skipped, setL1Skipped] = useState(false)
   const [cat, setCat] = useState<string>('all')
   const [kw, setKw] = useState('')
 
   /* ── 載入既有單據 ───────────────────────────────────────── */
   useEffect(() => {
-    if (!id) { setDraft(emptyDraft()); setReviewNote(''); setLoading(false); return }
+    if (!id) { setDraft(emptyDraft()); setReviewNote(''); setL1Skipped(false); setLoading(false); return }
     let cancelled = false
     setLoading(true)
     setErr(null)
@@ -116,6 +118,7 @@ export default function QuoteEditorPage() {
           : [blankSection()],
       })
       setReviewNote(quote.review_note)
+      setL1Skipped(quote.l1_skipped)
       setLoading(false)
     })()
     return () => { cancelled = true }
@@ -418,26 +421,30 @@ export default function QuoteEditorPage() {
    * quotes_transition_guard trigger 蓋，前端不寫——前端寫得進去就代表偽造得了。
    * 合法性也在 trigger 裡擋，這裡送錯狀態會直接收到資料庫的錯誤。
    */
-  const advance = async (next: QuoteStatus, okMsg: string) => {
-    if (!draft.id) return
+  const advance = async (next: QuoteStatus, okMsg: string): Promise<boolean> => {
+    if (!draft.id) return false
     setErr(null); setNotice(null); setSaving(true)
     const r = await supabase.from('quotes')
       .update({ status: next, updated_at: new Date().toISOString() })
       .eq('id', draft.id).select('id')
     setSaving(false)
-    if (r.error) { setErr(`核可失敗：${r.error.message}`); return }
+    if (r.error) { setErr(`核可失敗：${r.error.message}`); return false }
     // RLS 擋下時 Supabase 不報錯只回 0 筆，所以要看實際影響筆數
-    if (!r.data?.length) { setErr('核可失敗：權限不足，或此單狀態已被他人變更。'); return }
+    if (!r.data?.length) { setErr('核可失敗：權限不足，或此單狀態已被他人變更。'); return false }
     patchDraft({ status: next })
     setNotice(okMsg)
+    return true
   }
 
   const onApproveL1 = () => advance('approved_l1', '已核可，送行政管理部副部長核定。')
-  const onApproveFinal = () =>
-    advance('approved',
-      draft.status === 'submitted'
-        ? '已越級核定（未經工務處長），系統已留痕。'
-        : '已核定，可送醫院採購。')
+  const onApproveFinal = async () => {
+    const skipping = draft.status === 'submitted'
+    const ok = await advance('approved', skipping
+      ? '已越級核定（未經工務處長），系統已留痕。'
+      : '已核定，可送醫院採購。')
+    // 只有真的成功才點亮越級標記——失敗時畫面不能謊報
+    if (ok && skipping) setL1Skipped(true)
+  }
 
   const onReject = async () => {
     if (!draft.id) return
@@ -500,6 +507,10 @@ export default function QuoteEditorPage() {
           <span>報價單表頭</span>
           {draft.quote_no && <span className="tag">{draft.quote_no}</span>}
           <span className="tag">{STATUS_LABEL[draft.status]}</span>
+          {/* 越級核定要在單子上看得出來，否則稽核時只剩資料庫欄位知道 */}
+          {l1Skipped && (
+            <span className="tag bg-alert/15 text-alert">越級核定（未經工務處長）</span>
+          )}
         </div>
         {/* 手機單欄、平板兩欄、桌機四欄（mobile-first 疊法，別只給 md 值） */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
