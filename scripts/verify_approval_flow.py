@@ -12,9 +12,21 @@
 """
 import json, subprocess, sys, urllib.request, urllib.error
 
+# Windows console 預設是 cp950，直接 print 繁中檢查項名稱會整片變亂碼、
+# 出事時根本看不出哪一項紅了。兩個輸出串流都轉成 UTF-8。
+for _s in (sys.stdout, sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError):
+        pass
+
 REF = "xjylpaqvdxmxzehvwreg"
 URL = f"https://{REF}.supabase.co"
-MGR_NO = "016123"          # 行政管理部副部長
+# 驗證用的臨時副部長。**刻意不用真人帳號**（原本寫死 016123／密碼同工號）——
+# 那個人一旦自行改了密碼，整支腳本就從第一行開始失敗，而且失敗訊息看起來像權限壞掉。
+# 改成每次跑之前用 service_role 現開一個、跑完刪掉，誰的密碼都不影響。
+TEST_MGR_NO = "990000"
+TEST_MGR_PW = "vf9000x"
 DOMAIN = "dexin.local"
 KEEP = "--keep-negotiating" in sys.argv
 
@@ -66,13 +78,28 @@ def login(no, pw):
     return (b or {}).get("access_token") if st == 200 else None
 
 
-admin_tok = login(MGR_NO, MGR_NO)
-check(f"以工號 {MGR_NO} 登入", bool(admin_tok))
-if not admin_tok:
-    raise SystemExit("主管登入失敗（密碼可能已被更改），後續不跑")
-
 st, users = req("/auth/v1/admin/users?page=1&per_page=200", key=SVC)
 existing = {u["email"]: u["id"] for u in users["users"]}
+
+# ── 現開一個臨時副部長（service_role 直接建，不經 Edge Function）──────
+if f"{TEST_MGR_NO}@{DOMAIN}" in existing:
+    req(f"/auth/v1/admin/users/{existing[f'{TEST_MGR_NO}@{DOMAIN}']}", method="DELETE", key=SVC)
+st, b = req("/auth/v1/admin/users",
+            {"email": f"{TEST_MGR_NO}@{DOMAIN}", "password": TEST_MGR_PW,
+             "email_confirm": True, "user_metadata": {"full_name": "驗證用副部長"}},
+            key=SVC)
+mgr_id = (b or {}).get("id")
+check(f"建臨時驗證用副部長 {TEST_MGR_NO}", bool(mgr_id), f"HTTP {st} {str(b)[:160]}")
+if not mgr_id:
+    raise SystemExit("臨時主管帳號建立失敗，後續不跑")
+# handle_new_user trigger 會建 profile 但預設停用；這裡明確設成啟用的副部長
+req(f"/rest/v1/profiles?id=eq.{mgr_id}",
+    {"role": "manager", "active": True, "must_change_password": False},
+    method="PATCH", key=SVC)
+admin_tok = login(TEST_MGR_NO, TEST_MGR_PW)
+check("臨時副部長可登入", bool(admin_tok))
+if not admin_tok:
+    raise SystemExit("臨時主管登入失敗，後續不跑")
 
 # ── 建四個測試帳號（處長／同仁／醫院採購／部長）────────────────
 created = {}
@@ -185,9 +212,7 @@ if staff_b_id:
                 key=ANON, bearer=head_tok, prefer="return=representation")
     check("【擋】處長不能把同仁升成副部長（提權）", st != 200 or not b, f"HTTP {st} {str(b)[:120]}")
 
-# 動副部長那一列：using 要擋
-st, us2 = req("/auth/v1/admin/users?page=1&per_page=200", key=SVC)
-mgr_id = next(u["id"] for u in us2["users"] if u["email"] == f"{MGR_NO}@{DOMAIN}")
+# 動副部長那一列：using 要擋（mgr_id 就是最上面現開的臨時副部長）
 st, b = req(f"/rest/v1/profiles?id=eq.{mgr_id}", {"active": False}, method="PATCH",
             key=ANON, bearer=head_tok, prefer="return=representation")
 check("【擋】處長不能停用副部長", st != 200 or not b, f"HTTP {st} {str(b)[:120]}")
@@ -538,9 +563,13 @@ if not KEEP:
     for r in created.values():
         if r["id"]:
             req(f"/auth/v1/admin/users/{r['id']}", method="DELETE", key=SVC)
+    # 臨時副部長排最後刪：上面每一個帳號的刪除都還可能用到他建立的資料
+    req(f"/auth/v1/admin/users/{mgr_id}", method="DELETE", key=SVC)
     print("\n測試帳號與測試單已刪除")
 else:
-    print(f"\n保留議價中測試單 id={keep_id}，測試帳號 990001-990003、990006 亦保留（記得刪）")
+    print("\n保留議價中測試單 id=" + str(keep_id)
+          + f"；測試帳號 990001-990003、990006 與臨時副部長 {TEST_MGR_NO}"
+          + f"（密碼 {TEST_MGR_PW}）亦保留，用完記得刪")
 
 print(f"\n通過 {len(PASS)} 項，失敗 {len(FAIL)} 項")
 if FAIL:
