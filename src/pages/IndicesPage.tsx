@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 import { useRefData } from '../context/RefDataContext'
 import { laborListPrice, laborPrice, money } from '../lib/calc'
 import type { LaborRate, MaterialIndex } from '../types'
@@ -91,6 +92,8 @@ function unitNetPrice(baseDaily: number, discount: number, output: number): numb
 
 export default function IndicesPage() {
   const refData = useRefData()
+  /** 行政管理部長看得到本頁但改不動；真正的鎖在 RLS（db/21 is_price_editor） */
+  const ro = !useAuth().canEditPrices
   const {
     indices, evidence, laborRates, laborBase, laborDiscount, evidenceOf, loading, error, reload,
   } = refData
@@ -309,6 +312,11 @@ export default function IndicesPage() {
   return (
     // 手機縮小外距，把寬度讓給表格內容；sm 以上維持原本的 p-6
     <div className="space-y-4 p-3 sm:space-y-6 sm:p-6">
+      {ro && (
+        <div className="rounded-md border border-ink-200 bg-light/60 px-3 py-2 text-sm text-ink-700">
+          唯讀模式：您的角色看得到計價基礎，但不能修改。要調整指數、日薪或工率請洽行政管理部副部長或工務處長。
+        </div>
+      )}
       <div className="card">
         <div className="card-title">物價指數維護</div>
         <p className="mb-3 text-sm text-ink-700">
@@ -355,7 +363,7 @@ export default function IndicesPage() {
             <button
               type="button"
               className="btn btn-primary w-full sm:w-auto"
-              disabled={!idxDirty || savingIdx}
+              disabled={ro || !idxDirty || savingIdx}
               onClick={() => void saveIndices()}
             >
               {savingIdx ? '儲存中…' : '儲存'}
@@ -397,6 +405,7 @@ export default function IndicesPage() {
                     <td className="td" data-label="現值期別">
                       <input
                         className="field"
+                        disabled={ro}
                         value={r.period}
                         onChange={(e) => updateRow(r.id, { period: e.target.value })}
                       />
@@ -406,6 +415,7 @@ export default function IndicesPage() {
                         type="number"
                         step="0.01"
                         className="field num"
+                        disabled={ro}
                         value={r.value}
                         onChange={(e) => updateRow(r.id, { value: Number(e.target.value) })}
                       />
@@ -450,7 +460,7 @@ export default function IndicesPage() {
             <button
               type="button"
               className="btn btn-primary w-full sm:w-auto"
-              disabled={!laborDirty || savingLabor}
+              disabled={ro || !laborDirty || savingLabor}
               onClick={() => void saveLabor()}
             >
               {savingLabor ? '儲存中…' : '儲存'}
@@ -466,6 +476,7 @@ export default function IndicesPage() {
               type="number"
               step="1"
               className="field num w-full sm:w-40"
+              disabled={ro}
               value={baseDaily}
               onChange={(e) => { setBaseDaily(Number(e.target.value)); setLaborSaved(false) }}
             />
@@ -478,6 +489,7 @@ export default function IndicesPage() {
               min={0.5}
               max={1}
               className="field num w-full sm:w-40"
+              disabled={ro}
               value={discount}
               onChange={(e) => { setDiscount(Number(e.target.value)); setLaborSaved(false) }}
             />
@@ -518,6 +530,7 @@ export default function IndicesPage() {
                       type="number"
                       step="0.01"
                       className="field num"
+                      disabled={ro}
                       value={r.multiplier}
                       onChange={(e) => updateLaborRow(r.id, Number(e.target.value))}
                     />
@@ -568,7 +581,7 @@ export default function IndicesPage() {
             <button
               type="button"
               className="btn btn-primary w-full sm:w-auto"
-              disabled={!prodDirty || savingProd || prodBadCount > 0}
+              disabled={ro || !prodDirty || savingProd || prodBadCount > 0}
               onClick={() => void saveProductivity()}
             >
               {savingProd ? '儲存中…' : '儲存工率'}
@@ -639,6 +652,7 @@ export default function IndicesPage() {
                               step="0.1"
                               min={0.1}
                               className={`field num ${ok ? '' : 'border-warn text-warn'}`}
+                              disabled={ro}
                               value={r.output_per_manday}
                               onChange={(e) => updateProdRow(r.id, {
                                 output_per_manday: Number(e.target.value),
@@ -670,6 +684,7 @@ export default function IndicesPage() {
                         <td className="td" data-label="啟用">
                           <input
                             type="checkbox"
+                            disabled={ro}
                             checked={r.active}
                             onChange={(e) => updateProdRow(r.id, { active: e.target.checked })}
                           />

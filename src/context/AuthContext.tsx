@@ -23,12 +23,14 @@ interface AuthValue {
   session: Session | null
   profile: Profile | null
   loading: boolean
-  /** 核決層（工務處長或副部長）：單價庫、物價指數、看得到底價與全部單據 */
+  /** 核決層（處長／副部長／部長）：進得去單價庫與物價指數、看得到底價與全部單據 */
   isManager: boolean
   /** 工務處長：簽核第一關 */
   isDeptHead: boolean
-  /** 行政管理部副部長：最終核決，可越級、可管帳號、可議價定案 */
+  /** 最終核決（行政管理部副部長或部長）：可越級、可管帳號、可議價定案 */
   isAdmin: boolean
+  /** 能改單價的人＝副部長或工務處長。部長只能看（見 db/21 is_price_editor） */
+  canEditPrices: boolean
   /** 醫院採購：只能看已送出的單並登錄還價，看不到單價庫與底價 */
   isProcurement: boolean
   /** 自家人（同仁或主管） */
@@ -42,7 +44,7 @@ interface AuthValue {
 
 const Ctx = createContext<AuthValue>({
   session: null, profile: null, loading: true, isManager: false,
-  isDeptHead: false, isAdmin: false,
+  isDeptHead: false, isAdmin: false, canEditPrices: false,
   isProcurement: false, isInternal: false,
   signIn: async () => '未初始化', signOut: async () => {},
   changePassword: async () => '未初始化',
@@ -84,13 +86,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     session,
     profile,
     loading,
-    isManager: (profile?.role === 'manager' || profile?.role === 'dept_head') && profile.active,
+    isManager: (profile?.role === 'manager' || profile?.role === 'dept_head' ||
+                profile?.role === 'admin_head') && profile.active,
     isDeptHead: profile?.role === 'dept_head' && profile.active,
-    isAdmin: profile?.role === 'manager' && profile.active,
+    isAdmin: (profile?.role === 'manager' || profile?.role === 'admin_head') && profile.active,
+    canEditPrices: (profile?.role === 'manager' || profile?.role === 'dept_head') && profile.active,
     isProcurement: profile?.role === 'procurement' && profile.active,
     isInternal:
       (profile?.role === 'manager' || profile?.role === 'dept_head' ||
-       profile?.role === 'staff') && profile.active,
+       profile?.role === 'admin_head' || profile?.role === 'staff') && profile.active,
     async signIn(loginId, password) {
       const { error } = await supabase.auth.signInWithPassword({
         email: toLoginEmail(loginId), password,

@@ -54,10 +54,11 @@ Deno.serve(async (req) => {
   // 收在 staff 的理由是**提權**——處長若能建立或改成 manager，
   // 就能把自己升成副部長，兩關簽核與「不可逆三件事」的界線同時失效。
   // 這是與資料庫政策 profiles_dept_head_staff 同一條界線的第二道鎖。
-  const isAdmin = profile?.role === 'manager' && profile.active
+  // 行政管理部長（admin_head）權限等同副部長，差別只在單價維護唯讀（DB 層 is_price_editor）
+  const isAdmin = ['manager', 'admin_head'].includes(profile?.role ?? '') && !!profile?.active
   const isDeptHead = profile?.role === 'dept_head' && profile.active
   if (!isAdmin && !isDeptHead) {
-    return json({ error: '此功能限行政管理部副部長或工務處長使用' }, 403)
+    return json({ error: '此功能限行政管理部（部長／副部長）或工務處長使用' }, 403)
   }
 
   /** 這個呼叫者能不能動「角色為 r」的帳號 */
@@ -101,10 +102,10 @@ Deno.serve(async (req) => {
       case 'create': {
         const loginId = String(body.email ?? '').trim()
         const fullName = String(body.full_name ?? '').trim()
-        const role = ['manager', 'dept_head', 'procurement'].includes(String(body.role))
+        const role = ['manager', 'admin_head', 'dept_head', 'procurement'].includes(String(body.role))
           ? String(body.role) : 'staff'
         if (!mayTouchRole(role)) {
-          return json({ error: '工務處長只能建立「同仁」帳號，其他角色請洽行政管理部副部長' }, 403)
+          return json({ error: '工務處長只能建立「同仁」帳號，其他角色請洽行政管理部' }, 403)
         }
 
         if (!isEmployeeNo(loginId) && !loginId.includes('@')) {
@@ -147,7 +148,7 @@ Deno.serve(async (req) => {
       case 'delete': {
         // 刪除不可逆，與「不可逆的事只留副部長」一致；處長請改用「停用」
         if (!isAdmin) {
-          return json({ error: '刪除帳號限行政管理部副部長；工務處長請改用「停用」（停用即無法登入，且可回復）' }, 403)
+          return json({ error: '刪除帳號限行政管理部（部長／副部長）；工務處長請改用「停用」（停用即無法登入，且可回復）' }, 403)
         }
         const id = String(body.id ?? '')
         if (id === me.user.id) return json({ error: '不能刪除自己的帳號' }, 400)

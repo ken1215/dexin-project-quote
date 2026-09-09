@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 import { useRefData } from '../context/RefDataContext'
 import { indexedPrice, money } from '../lib/calc'
 import {
@@ -135,6 +136,9 @@ export default function PriceCatalogPage() {
   const {
     categories, items, evidence, loading, reload, categoryOf, indexOf, evidenceOf,
   } = useRefData()
+  /** 行政管理部長進得來看，但改不動——真正的鎖在 RLS（db/21 is_price_editor），
+   *  這裡只是不讓他按了才吃紅字。ro 為 true 時所有會寫入的控制項一律關掉。 */
+  const ro = !useAuth().canEditPrices
 
   // ── 就地編輯 ────────────────────────────────────────────────
   const [edits, setEdits] = useState<Record<string, RowEdit>>({})
@@ -625,6 +629,12 @@ export default function PriceCatalogPage() {
         <Stat label="待轉 m² 的裝修項" value={String(stats.needsArea)} sub="歷史以「式」報價" />
       </div>
 
+      {ro && (
+        <div className="rounded-md border border-ink-200 bg-light/60 px-3 py-2 text-sm text-ink-700">
+          唯讀模式：您的角色看得到全部單價與底價，但不能修改。調整單價請洽行政管理部副部長或工務處長。
+        </div>
+      )}
+
       {(err || floorErr || delErr) && (
         <div className="rounded-md border border-warn/30 bg-warn-bg px-3 py-2 text-sm text-warn">
           {[err, floorErr, delErr].filter((t) => Boolean(t)).join('　')}
@@ -668,6 +678,7 @@ export default function PriceCatalogPage() {
       </div>
 
       {/* ── 批次調整 ───────────────────────────────────────── */}
+      {!ro && (
       <div className="card">
         <div className="card-title">批次調整</div>
         <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
@@ -717,8 +728,10 @@ export default function PriceCatalogPage() {
           </div>
         )}
       </div>
+      )}
 
       {/* ── 新增品項 ───────────────────────────────────────── */}
+      {!ro && (
       <div className="card">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-200 pb-2">
           <div className="text-[0.9375rem] font-semibold text-deep">新增品項</div>
@@ -791,6 +804,7 @@ export default function PriceCatalogPage() {
           </div>
         )}
       </div>
+      )}
 
       {/* ── 單價表 ─────────────────────────────────────────── */}
       <div className="card">
@@ -812,7 +826,7 @@ export default function PriceCatalogPage() {
             全部收合
           </button>
           <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:gap-3">
-            {selectedIds.length > 0 && (
+            {!ro && selectedIds.length > 0 && (
               <>
                 <span className="w-full text-sm text-ink-500 sm:w-auto">已選取 {selectedIds.length} 項</span>
                 <button
@@ -837,9 +851,11 @@ export default function PriceCatalogPage() {
                 放棄變更
               </button>
             )}
-            <button className="btn btn-primary w-full sm:w-auto" disabled={saving || !dirtyItems.length} onClick={() => void save()}>
-              {saving ? '儲存中…' : '儲存變更'}
-            </button>
+            {!ro && (
+              <button className="btn btn-primary w-full sm:w-auto" disabled={saving || !dirtyItems.length} onClick={() => void save()}>
+                {saving ? '儲存中…' : '儲存變更'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -994,6 +1010,7 @@ export default function PriceCatalogPage() {
                         <input
                           type="checkbox"
                           className="ml-auto"
+                          disabled={ro}
                           aria-label={`全選「${g.name}」目前顯示的 ${g.rows.length} 項`}
                           checked={allSel}
                           ref={(el) => { if (el) el.indeterminate = !allSel && someSel }}
@@ -1030,6 +1047,7 @@ export default function PriceCatalogPage() {
                           <td className="td text-center">
                             <input
                               type="checkbox"
+                              disabled={ro}
                               aria-label={`選取 ${it.name}`}
                               checked={selected.has(it.id)}
                               onChange={(ev) => toggleOne(it.id, ev.target.checked)}
@@ -1038,6 +1056,7 @@ export default function PriceCatalogPage() {
                           <td className="td">
                             <input
                               className="field px-1.5 py-1" value={e.name}
+                              disabled={ro}
                               aria-label={`${it.name} 品名`}
                               onChange={(ev) => patch(it, { name: ev.target.value })}
                             />
@@ -1049,6 +1068,7 @@ export default function PriceCatalogPage() {
                           <td className="td">
                             <input
                               className="field px-1.5 py-1" value={e.spec}
+                              disabled={ro}
                               placeholder="規格／說明"
                               aria-label={`${it.name} 規格`}
                               onChange={(ev) => patch(it, { spec: ev.target.value })}
@@ -1061,6 +1081,7 @@ export default function PriceCatalogPage() {
                               className={'field w-16 px-1.5 py-1 text-center '
                                 + (e.unit !== it.unit ? 'border-alert text-alert' : '')}
                               value={e.unit}
+                              disabled={ro}
                               aria-label={`${it.name} 單位`}
                               onChange={(ev) => patch(it, { unit: ev.target.value })}
                             />
@@ -1069,6 +1090,7 @@ export default function PriceCatalogPage() {
                           <td className="td num">
                             <input
                               type="number" className="field num w-24 px-1.5 py-1" value={e.std_price}
+                              disabled={ro}
                               aria-label={`${it.name} 標準單價`}
                               onChange={(ev) => patch(it, { std_price: ev.target.value })}
                             />
@@ -1077,7 +1099,7 @@ export default function PriceCatalogPage() {
                             <input
                               type="number" className="field num w-24 px-1.5 py-1" value={floorVal}
                               aria-label={`${it.name} 底價`}
-                              disabled={floorBusy === it.id}
+                              disabled={ro || floorBusy === it.id}
                               onChange={(ev) => setFloorEdits((p) => ({ ...p, [it.id]: ev.target.value }))}
                               onBlur={() => void saveFloor(it)}
                             />
@@ -1100,7 +1122,8 @@ export default function PriceCatalogPage() {
                                 {suggested !== null && suggested !== cur && (
                                   <button
                                     type="button"
-                                    className="mt-0.5 rounded border border-bright px-1.5 py-0.5 text-[0.6875rem] text-bright hover:bg-bright hover:text-white"
+                                    className="mt-0.5 rounded border border-bright px-1.5 py-0.5 text-[0.6875rem] text-bright hover:bg-bright hover:text-white disabled:opacity-50"
+                                    disabled={ro}
                                     onClick={() => patch(it, { std_price: String(suggested) })}
                                   >
                                     建議 {money(suggested)} {suggested > cur ? '↑' : '↓'}
@@ -1113,7 +1136,8 @@ export default function PriceCatalogPage() {
                             <button
                               type="button"
                               className="inline-flex min-h-8 items-center"
-                              title={e.evidence_note || src?.note || '點擊編輯佐證'}
+                              disabled={ro}
+                              title={e.evidence_note || src?.note || (ro ? '' : '點擊編輯佐證')}
                               onClick={() => setEvOpen((v) => (v === it.id ? null : it.id))}
                             >
                               {src
@@ -1123,7 +1147,7 @@ export default function PriceCatalogPage() {
                           </td>
                           <td className="td text-center">
                             <input
-                              type="checkbox" checked={e.active}
+                              type="checkbox" checked={e.active} disabled={ro}
                               aria-label={`${it.name} 啟用`}
                               onChange={(ev) => patch(it, { active: ev.target.checked })}
                             />
@@ -1137,7 +1161,7 @@ export default function PriceCatalogPage() {
                             <button
                               type="button"
                               className="btn btn-danger px-2 py-0.5 text-[0.6875rem]"
-                              disabled={delBusy || bulkBusy}
+                              disabled={ro || delBusy || bulkBusy}
                               onClick={() => void openDelete(it)}
                             >
                               刪除

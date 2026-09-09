@@ -210,8 +210,8 @@ export default function UsersPage() {
           在這裡直接建立、停用帳號與重設密碼，不需要進 Supabase 後台。輸入 6 碼工號即可建帳號，
           初始密碼欄留空會自動帶入工號。
           {isAdmin
-            ? '刪除帳號僅副部長可用；名下還有報價單的帳號會被擋下，請改為停用。'
-            : '您是工務處長：可建立、停用、重設密碼，但範圍限「同仁」；其他角色與刪除帳號請洽行政管理部副部長。'}
+            ? '刪除帳號限行政管理部（部長／副部長）；名下還有報價單的帳號會被擋下，請改為停用。'
+            : '您是工務處長：可建立、停用、重設密碼，但範圍限「同仁」；其他角色與刪除帳號請洽行政管理部。'}
         </p>
         {/* 角色說明表：兩欄敘述型表格，手機保留原本上下對照的排版，只做橫捲保險 */}
         <div className="mt-3 table-scroll">
@@ -232,9 +232,24 @@ export default function UsersPage() {
                 </td>
               </tr>
               <tr>
-                <td className="td whitespace-nowrap font-semibold">主管</td>
+                <td className="td whitespace-nowrap font-semibold">工務處長</td>
                 <td className="td">
-                  同仁全部功能 ＋ 維護標準單價與底價 ＋ 物價指數與工資係數 ＋ 議價回應 ＋ 核可／退回 ＋ 帳號管理。
+                  同仁全部功能 ＋ 維護標準單價與底價 ＋ 物價指數與工資係數 ＋ 簽核第一關。
+                  帳號管理範圍限「同仁」，不能議價定案、不能刪單。
+                </td>
+              </tr>
+              <tr>
+                <td className="td whitespace-nowrap font-semibold">行政管理部副部長</td>
+                <td className="td">
+                  全部功能 ＋ 簽核第二關（核定）＋ 越級核定 ＋ 議價定案 ＋ 管理所有角色的帳號。
+                </td>
+              </tr>
+              <tr>
+                <td className="td whitespace-nowrap font-semibold">行政管理部長</td>
+                <td className="td">
+                  權限等同副部長，
+                  <span className="text-warn">但單價維護與物價指數只能看、不能改</span>
+                  （含標準單價、底價、工率與日薪）。
                 </td>
               </tr>
               <tr>
@@ -298,6 +313,7 @@ export default function UsersPage() {
                   <option value="staff">同仁</option>
                   {isAdmin && <option value="dept_head">工務處長（簽核第一關）</option>}
                   {isAdmin && <option value="manager">行政管理部副部長（最終核決）</option>}
+                  {isAdmin && <option value="admin_head">行政管理部長（同副部長，單價唯讀）</option>}
                   {isAdmin && <option value="procurement">醫院採購（對方）</option>}
                 </select>
               </div>
@@ -347,11 +363,12 @@ export default function UsersPage() {
                       <select className="field" value={val(r, 'role')}
                         disabled={isSelf(r) || !isAdmin}
                         title={isSelf(r) ? '不能改自己的角色，避免把自己鎖在門外'
-                          : !isAdmin ? '變更角色限行政管理部副部長' : ''}
+                          : !isAdmin ? '變更角色限行政管理部（部長／副部長）' : ''}
                         onChange={(e) => edit(r.id, { role: e.target.value as Role })}>
                         <option value="staff">同仁</option>
                         <option value="dept_head">工務處長</option>
                         <option value="manager">行政管理部副部長</option>
+                        <option value="admin_head">行政管理部長</option>
                         <option value="procurement">醫院採購（對方）</option>
                       </select>
                     </td>

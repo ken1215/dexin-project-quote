@@ -1,9 +1,10 @@
 /**
  * dept_head = 工務處長（簽核第一關 ＋ 單價庫維護，不能管帳號、不能議價定案）
  * manager   = 行政管理部副部長（最終核決，可越級核定）
+ * admin_head = 行政管理部長（權限等同副部長，但單價維護只能讀不能改）
  * procurement = 聯新國際醫院採購單位（對方的人），權限與自家同仁完全不同
  */
-export type Role = 'staff' | 'dept_head' | 'manager' | 'procurement'
+export type Role = 'staff' | 'dept_head' | 'manager' | 'admin_head' | 'procurement'
 export type CostType = 'material' | 'consumable' | 'labor' | 'other'
 export type QuoteStatus =
   | 'draft' | 'submitted' | 'approved_l1' | 'approved'
@@ -196,6 +197,7 @@ export const ROLE_LABEL: Record<Role, string> = {
   staff: '同仁',
   dept_head: '工務處長',
   manager: '行政管理部副部長',
+  admin_head: '行政管理部長',
   procurement: '醫院採購',
 }
 
