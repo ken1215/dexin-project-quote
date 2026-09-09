@@ -48,6 +48,26 @@ async function callAdmin<T>(action: string, payload: Record<string, unknown> = {
 
 const fmtDate = (s: string | null) => (s ? s.slice(0, 10) : '—')
 
+/**
+ * Supabase 的 PostgrestError 是**普通物件**不是 Error 實例，直接 String() 會變成
+ * 「[object Object]」——使用者看到這串完全不知道發生什麼事。這裡統一把
+ * message／details／hint 拆出來，並把最容易撞到的兩個 code 翻成人話。
+ */
+function errText(e: unknown): string {
+  if (e instanceof Error) return e.message
+  if (e && typeof e === 'object') {
+    const o = e as { message?: string; details?: string; hint?: string; code?: string }
+    // 23514＝check constraint。角色欄撞到這個，幾乎都是資料庫還沒套用新增角色的那支 migration
+    if (o.code === '23514' && /profiles_role_check/.test(o.message ?? '')) {
+      return '資料庫還不認得這個角色——請先在 Supabase 執行 db/21_admin_head_role.sql，再重試一次。'
+    }
+    const parts = [o.message, o.details, o.hint].filter(Boolean)
+    if (parts.length) return parts.join('／')
+    if (o.code) return `資料庫錯誤（代碼 ${o.code}）`
+  }
+  return String(e)
+}
+
 export default function UsersPage() {
   const { profile, isAdmin, signOut } = useAuth()
   /**
@@ -83,7 +103,7 @@ export default function UsersPage() {
       setRows(users.sort((a, b) => a.created_at.localeCompare(b.created_at)))
       setDraft({})
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(errText(e))
     }
     setLoading(false)
   }, [])
@@ -92,7 +112,7 @@ export default function UsersPage() {
 
   const flash = (msg: string) => { setOk(msg); setError(null); setTimeout(() => setOk(null), 4000) }
   const fail = (e: unknown) => {
-    const msg = e instanceof Error ? e.message : String(e)
+    const msg = errText(e)
     setOk(null)
     if (msg === SESSION_EXPIRED) { setExpired(true); setError(null); return }
     setError(msg)
