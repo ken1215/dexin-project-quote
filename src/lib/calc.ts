@@ -105,6 +105,11 @@ export function validateQuote(draft: DraftQuote): string[] {
     s.lines.forEach((l, li) => {
       const at = `${CN[si] || si + 1}、第 ${li + 1} 項`
       if (!(Number(l.qty) > 0)) bad.push(`${at} 數量必須大於 0`)
+      // 零元品項多半是漏填單價，真的要送 0 元（贈送／業主自購／待報價）就得寫清楚，
+      // 否則採購看到 0 元無從判斷是免費還是漏報。訊息字串與資料庫 A5 的 raise 對齊。
+      if (!(Number(l.unit_price) > 0) && !l.reason.trim()) {
+        bad.push(`${at} 單價 0 元須在理由欄註明（例：贈送／業主自購／待報價）`)
+      }
       if (l.is_custom) {
         if (!l.name.trim()) bad.push(`${at} 臨時項目未填品名`)
         if (!(Number(l.unit_price) > 0)) bad.push(`${at} 臨時項目未填單價`)

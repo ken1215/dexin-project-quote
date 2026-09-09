@@ -232,17 +232,37 @@ export default function NegotiationPage() {
   const closeCase = async () => {
     if (!quote) return
     setBusy(true); setError(null); setMsg(null)
-    const results = await Promise.all(lines.map((l) =>
-      supabase.from('quote_lines').update({ unit_price: finalOf(l) }).eq('id', l.id)))
-    const upErr = results.find((r) => r.error)?.error
-    if (upErr) { setBusy(false); setError(`定案單價寫回失敗：${upErr.message}`); return }
-    const { error: e } = await supabase.from('quotes')
-      .update({ status: 'closed', updated_at: new Date().toISOString() })
-      .eq('id', quote.id)
+    // 核定後的 quote_lines／母單狀態前端已寫不進去，改由 RPC 在同一交易內完成，
+    // 不會再出現「單價寫回一半、狀態沒改」的半套結果。
+    // 畫面上每一列都送（含沒填的），由 RPC 決定哪幾列要寫歷程、哪幾列跳過不改價，
+    // 前端不先過濾才不會漏掉使用者還沒按「儲存本輪議價」的內容。
+    const payload = lines.map((l) => {
+      const r = rows[l.id]
+      const offer = r ? r.client_offer.trim() : ''
+      const fin = r ? r.final_price.trim() : ''
+      // 理由一律送原文，連空字串也照送——saveRound 寫進 negotiations 的就是原字串，
+      // 這裡若把空值轉成 null，RPC 比對「與最新一筆完全相同」時 '' 與 null 不相等，
+      // 先按「儲存本輪議價」再定案就會在歷程上多出一筆重複回合。
+      // 空理由算不算「有內容」由 RPC 判定（契約允許 null／空字串），前端不代為判空。
+      return {
+        line_id: l.id,
+        client_offer: offer === '' ? null : numOf(offer),
+        response: r && r.response !== '' ? r.response : null,
+        final_price: fin === '' ? null : numOf(fin),
+        rationale: r ? r.rationale : '',
+      }
+    })
+    const { data, error: e } = await supabase.rpc('close_quote_case', {
+      p_quote_id: quote.id,
+      p_rows: payload,
+    })
     setBusy(false)
-    if (e) { setError(`狀態更新失敗（單價已寫回）：${e.message}`); return }
+    if (e) { setError(`定案失敗：${e.message}`); return }
+    const res = (data ?? {}) as { round?: number; rows_logged?: number; lines_updated?: number }
     setConfirmClose(false)
-    setMsg('本案已定案：報價單單價已更新為定案單價，狀態改為「已定案」。')
+    // 不報 rows_logged：先按「儲存本輪議價」再定案時，RPC 會判定重複而全數跳過，
+    // 顯示「寫入 0 筆」會被誤讀成失敗。
+    setMsg(`本案已定案：第 ${Number(res.round ?? 0)} 輪、寫回 ${Number(res.lines_updated ?? 0)} 項單價。`)
     await load()
   }
 

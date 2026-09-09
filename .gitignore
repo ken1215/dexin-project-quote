@@ -36,3 +36,7 @@ supabase/.temp/
 # 報價專用章：含公司印章圖，repo 是 public 的絕不能進版控
 db/14_quote_stamp.sql
 stamp-preview.png
+
+# 內部審查包：逐條寫著修補前的權限漏洞在哪，repo 是 public 的不進版控。
+# 正本在雲端記憶夾 H:\我的雲端硬碟\KEN ANGENT\CLAUDE CODE\dexin-project-quote\optimization-review-2026-09-09\
+docs/

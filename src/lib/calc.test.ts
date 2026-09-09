@@ -124,6 +124,18 @@ assert.ok(
     .some((m) => m.includes('數量')),
   '數量 0 要擋',
 )
+// 零元標準品項：沒註明理由要擋、註明了才放行（與資料庫 draft->submitted 的檢查同一條規則）
+assert.ok(
+  validateQuote(draft([{ key: 'a', title: 'X', lines: [line({ unit_price: 0, qty: 1 })] }]))
+    .some((m) => m.includes('單價 0 元須在理由欄註明')),
+  '零元且未註明理由要擋',
+)
+assert.deepEqual(
+  validateQuote(draft([
+    { key: 'a', title: 'X', lines: [line({ unit_price: 0, qty: 1, reason: '業主自購' })] },
+  ])),
+  [], '零元但已註明理由要放行',
+)
 {
   // 臨時項目三個必填欄位各缺一個都要擋
   const custom = (o: Record<string, unknown>) =>

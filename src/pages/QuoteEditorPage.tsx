@@ -137,7 +137,10 @@ export default function QuoteEditorPage() {
   // 議價中／已定案的單一律凍結（主管也不例外）：本頁存檔是「整段砍掉重寫」，
   // 明細列會換成新 id，negotiations.line_id 會被 on delete cascade 連帶清光。
   // 這兩種狀態的金額異動只能在議價頁做。
-  const frozen = draft.status === 'negotiating' || draft.status === 'closed'
+  // 核定(approved)之後金額已由 db/22 A3 在資料庫層鎖死，明細寫不進去；
+  // 畫面若還開著「儲存草稿」，使用者按下去只會拿到看不懂的「寫入工程大項失敗」。
+  const frozen = draft.status === 'approved'
+    || draft.status === 'negotiating' || draft.status === 'closed'
   // 退回(rejected)單開放建立者修改重送（存檔時狀態會改回 draft，見 saveStatus）
   const editableByOwner = draft.status === 'draft' || draft.status === 'rejected'
   const locked = frozen || (!editableByOwner && !isManager)
@@ -311,25 +314,50 @@ export default function QuoteEditorPage() {
         if (!(Number(l.qty) > 0)) bad.push(`${at} 數量必須大於 0`)
         if (!l.name.trim()) bad.push(`${at} 未填品名`)
         if (l.is_custom && !l.reason.trim()) bad.push(`${at} 臨時項目必須填寫理由`)
+        // 零元品項的檢查刻意**不放在這裡**：那是「送審」才擋的規則（資料庫端也只掛在
+        // draft->submitted 的轉換上），放進 dbGuard 會連草稿存檔與列印都擋掉，
+        // 同仁還在填單就存不了。送審路徑走 validateQuote()，訊息與資料庫 raise 一致。
       })
     })
     return bad
   }
 
+  /**
+   * 存檔。順序是刻意的，不可為了少一次 round-trip 而合併：
+   * 先把單子帶回可寫狀態 → 更新表頭 → 寫明細 → **最後**才改狀態。
+   * 反過來（舊寫法：表頭順便帶 status）會讓送審時的零元檢查掃到還沒寫入的空明細而永遠通過，
+   * 資料庫端 draft->submitted 的把關就形同虛設。
+   */
   const persist = async (nextStatus: QuoteStatus): Promise<string | null> => {
     setErr(null)
     setNotice(null)
     setSaving(true)
     try {
+      const isNew = !draft.id
       let quoteId = draft.id ?? ''
+      // 表頭不再帶 status——狀態一律留到最後一步單獨改
       const head = {
         project: draft.project.trim(),
         dept: draft.dept.trim(),
         contact: draft.contact.trim(),
         quote_date: draft.quote_date || today(),
-        status: nextStatus,
       }
 
+      // 已有議價紀錄的單不可在此重寫明細：明細會換新 id，
+      // negotiations.line_id 的 on delete cascade 會把議價歷程整批帶走。
+      // 這是「一個字都還沒寫」時就該擋下的前置閘門，所以放在所有寫入之前。
+      if (quoteId) {
+        const ng = await supabase.from('negotiations')
+          .select('id', { count: 'exact', head: true }).eq('quote_id', quoteId)
+        if (ng.error) { setErr(`議價紀錄檢查失敗：${ng.error.message}`); return null }
+        if ((ng.count ?? 0) > 0) {
+          setErr('本單已有議價紀錄，於此儲存會清除議價歷程，已擋下；金額異動請至「議價」頁處理。')
+          return null
+        }
+      }
+
+      // ① 新單一律以草稿建立。按「送審」時也不直接寫 submitted，
+      //    要等明細落地後才由第 ⑤ 步推上去，零元檢查才掃得到東西。
       if (!quoteId) {
         const no = await supabase.rpc('next_quote_no')
         if (no.error) { setErr(`取得單號失敗：${no.error.message}`); return null }
@@ -337,37 +365,45 @@ export default function QuoteEditorPage() {
         if (!quoteNo) { setErr('取得單號失敗：伺服器未回傳單號。'); return null }
 
         const ins = await supabase.from('quotes')
-          .insert({ ...head, quote_no: quoteNo, mgmt_fee_rate: mgmtFeeRate, tax_rate: taxRate })
+          .insert({
+            ...head, status: 'draft', quote_no: quoteNo,
+            mgmt_fee_rate: mgmtFeeRate, tax_rate: taxRate,
+          })
           .select('id').single()
         if (ins.error) { setErr(`建立報價單失敗：${ins.error.message}`); return null }
         quoteId = (ins.data as { id: string }).id
-        setDraft((d) => ({ ...d, id: quoteId, quote_no: quoteNo, status: nextStatus }))
-      } else {
+        setDraft((d) => ({ ...d, id: quoteId, quote_no: quoteNo, status: 'draft' }))
+      } else if (draft.status === 'rejected') {
+        // ② 退回單必須先單獨轉回草稿，不能等表頭更新順便帶：
+        //    quotes_update 的 with check 只認 draft／submitted，退回單直接更新表頭會匹配 0 筆，
+        //    連帶後面的明細也因子表政策同樣只認這兩個狀態而寫不進去。
+        const back = await supabase.from('quotes')
+          .update({ status: 'draft', updated_at: new Date().toISOString() })
+          .eq('id', quoteId).select('id')
+        if (back.error) { setErr(`退回單改回草稿失敗：${back.error.message}`); return null }
+        if (!back.data?.length) {
+          setErr('退回單改回草稿失敗：目前狀態下您沒有修改此單的權限。')
+          return null
+        }
+        setDraft((d) => ({ ...d, status: 'draft' }))
+      }
+
+      // ③ 更新表頭（不帶 status）
+      if (!isNew) {
         const upd = await supabase.from('quotes')
           .update({ ...head, updated_at: new Date().toISOString() })
           .eq('id', quoteId)
           .select('id')
         if (upd.error) { setErr(`更新報價單失敗：${upd.error.message}`); return null }
         // RLS 擋下時不會報錯、只會匹配 0 筆——這裡必須擋住，
-        // 否則下面會把明細刪掉卻寫不回去（母單狀態沒改成功，子表寫入會被政策拒絕）
+        // 否則下面會把明細刪掉卻寫不回去（子表寫入會被同一組政策拒絕）
         if (((upd.data ?? []) as { id: string }[]).length === 0) {
           setErr('更新報價單失敗：目前狀態下您沒有修改此單的權限。')
           return null
         }
-        setDraft((d) => ({ ...d, status: nextStatus }))
       }
 
-      // 已有議價紀錄的單不可在此重寫明細：明細會換新 id，
-      // negotiations.line_id 的 on delete cascade 會把議價歷程整批帶走。
-      const ng = await supabase.from('negotiations')
-        .select('id', { count: 'exact', head: true }).eq('quote_id', quoteId)
-      if (ng.error) { setErr(`議價紀錄檢查失敗：${ng.error.message}`); return null }
-      if ((ng.count ?? 0) > 0) {
-        setErr('本單已有議價紀錄，於此儲存會清除議價歷程，已擋下；金額異動請至「議價」頁處理。')
-        return null
-      }
-
-      // 單據很小，不做 diff：整段砍掉重寫（quote_lines 有 on delete cascade）
+      // ④ 明細：單據很小，不做 diff，整段砍掉重寫（quote_lines 有 on delete cascade）
       const del = await supabase.from('quote_sections').delete().eq('quote_id', quoteId)
       if (del.error) { setErr(`清除舊明細失敗：${del.error.message}`); return null }
 
@@ -404,7 +440,30 @@ export default function QuoteEditorPage() {
         if (rl.error) { setErr(`寫入明細失敗：${rl.error.message}`); return null }
       }
 
-      if (!draft.id) navigate(`/quote/${quoteId}`, { replace: true })
+      // ⑤ 明細都落地了，才動狀態。走到這裡資料庫裡的狀態必定是：
+      //    新單＝draft、退回單＝已在第 ② 步轉成 draft、其餘＝原狀態。
+      //    送審就是在這一步觸發資料庫的零元品項檢查——明細要先在，檢查才有東西可掃。
+      const statusNow: QuoteStatus =
+        isNew || draft.status === 'rejected' ? 'draft' : draft.status
+      let statusErr: string | null = null
+      if (nextStatus !== statusNow) {
+        const st = await supabase.from('quotes')
+          .update({ status: nextStatus, updated_at: new Date().toISOString() })
+          .eq('id', quoteId).select('id')
+        // 明細已經寫進去了，這裡失敗只是狀態沒推上去——訊息要講清楚，
+        // 不然使用者會以為整批白存而重打一次
+        if (st.error) {
+          statusErr = `狀態更新失敗：${st.error.message}（明細已儲存，狀態未變更）`
+        } else if (!st.data?.length) {
+          statusErr = '狀態更新失敗：權限不足，或此單狀態已被他人變更（明細已儲存，狀態未變更）。'
+        } else {
+          setDraft((d) => ({ ...d, status: nextStatus }))
+        }
+      }
+
+      // 新單即使狀態沒推成功也要把網址換過去，否則使用者再按一次會又開一張新單
+      if (isNew) navigate(`/quote/${quoteId}`, { replace: true })
+      if (statusErr) { setErr(statusErr); return null }
       return quoteId
     } finally {
       setSaving(false)
@@ -509,9 +568,11 @@ export default function QuoteEditorPage() {
       )}
       {locked && (
         <div className="rounded-md border border-ink-200 bg-ink-50 px-4 py-2.5 text-sm text-ink-500">
-          {frozen
-            ? '本單已進入議價／定案階段，在此改寫明細會清除議價紀錄，故已鎖定；金額異動請至「議價」頁處理。'
-            : '本單已送審，如需修改請洽核決主管退回。'}
+          {draft.status === 'approved'
+            ? '本單已核定，金額與明細已鎖定；要調整金額請至「議價」頁處理，或退回草稿重跑簽核。'
+            : frozen
+              ? '本單已進入議價／定案階段，在此改寫明細會清除議價紀錄，故已鎖定；金額異動請至「議價」頁處理。'
+              : '本單已送審，如需修改請洽核決主管退回。'}
         </div>
       )}
       {draft.status === 'rejected' && reviewNote && (
