@@ -29,6 +29,18 @@
 
 權限由 Supabase Row Level Security 在資料庫層把關，不是靠前端藏按鈕。
 
+## 帳號與密碼
+
+登入輸入 6 碼工號（系統合成 `工號@dexin.local` 送 Supabase Auth），外部單位沿用真實 Email。
+建帳號時初始密碼欄留空＝密碼同工號。
+
+**主管發出的帳號，本人第一次登入必須改密碼**（`db/23`）：`profiles.must_change_password`
+為 true 期間，七支身分判斷函式一律回 false，等於在資料庫層關掉全部業務資料——
+不是只擋畫面，直接打 API 也讀不到。唯一保留的縫是 `profiles_self`，讓本人讀得到自己那一列，
+前端才知道要顯示「請設定新密碼」。改密碼與解鎖在 Edge Function 的
+`change_own_password` 同一支裡完成（旗標若由前端關，一行 console 指令就能跳過）。
+主管重設密碼之後旗標會回到 true。既有帳號預設 false，不受影響。
+
 ## 架構
 
 ```

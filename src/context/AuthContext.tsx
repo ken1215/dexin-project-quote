@@ -33,6 +33,8 @@ interface AuthValue {
   canEditPrices: boolean
   /** 醫院採購：只能看已送出的單並登錄還價，看不到單價庫與底價 */
   isProcurement: boolean
+  /** 主管發出的初始密碼還沒換掉：資料庫層已把業務資料全關掉，畫面要擋在改密碼頁 */
+  mustChangePassword: boolean
   /** 自家人（同仁或主管） */
   isInternal: boolean
   /** 帶入工號（6 碼）或 email 皆可 */
@@ -40,11 +42,14 @@ interface AuthValue {
   signOut: () => Promise<void>
   /** 自行更改密碼。成功後 Supabase 會撤銷本人 session，呼叫端要導回登入頁 */
   changePassword: (newPassword: string) => Promise<string | null>
+  /** 重新讀一次自己的 profile。強制改密碼完成後要靠它把畫面放行 */
+  reloadProfile: () => Promise<void>
 }
 
 const Ctx = createContext<AuthValue>({
   session: null, profile: null, loading: true, isManager: false,
   isDeptHead: false, isAdmin: false, canEditPrices: false,
+  mustChangePassword: false, reloadProfile: async () => {},
   isProcurement: false, isInternal: false,
   signIn: async () => '未初始化', signOut: async () => {},
   changePassword: async () => '未初始化',
@@ -92,6 +97,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAdmin: (profile?.role === 'manager' || profile?.role === 'admin_head') && profile.active,
     canEditPrices: (profile?.role === 'manager' || profile?.role === 'dept_head') && profile.active,
     isProcurement: profile?.role === 'procurement' && profile.active,
+    mustChangePassword: Boolean(profile?.active && profile.must_change_password),
+    async reloadProfile() {
+      if (!session) return
+      const { data } = await supabase.from('profiles').select('*')
+        .eq('id', session.user.id).maybeSingle()
+      setProfile((data as Profile) ?? null)
+    },
     isInternal:
       (profile?.role === 'manager' || profile?.role === 'dept_head' ||
        profile?.role === 'admin_head' || profile?.role === 'staff') && profile.active,

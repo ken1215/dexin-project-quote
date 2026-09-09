@@ -11,6 +11,7 @@ import NegotiationPage from './pages/NegotiationPage'
 import PrintPage from './pages/PrintPage'
 import UsersPage from './pages/UsersPage'
 import ClientNegotiationPage from './pages/ClientNegotiationPage'
+import ForcePasswordPage from './pages/ForcePasswordPage'
 
 /**
  * 未登入導去登入頁；managerOnly 擋非核決層（處長與副部長皆可）；
@@ -25,12 +26,16 @@ function Guard(
     managerOnly?: boolean; adminOnly?: boolean; internalOnly?: boolean
   },
 ) {
-  const { session, profile, loading, isManager, isAdmin, isProcurement } = useAuth()
+  const { session, profile, loading, isManager, isAdmin, isProcurement, mustChangePassword } = useAuth()
   if (loading) return <div className="p-10 text-center text-ink-500">載入中…</div>
   if (!session) return <Navigate to="/login" replace />
   if (profile && !profile.active) {
     return <div className="p-10 text-center text-warn">此帳號已停用，請洽工務處主管。</div>
   }
+  // 初始密碼還沒換掉：擋在這裡，連 Layout 都不要進去。
+  // 這只是畫面上的門；真正的鎖在 db/23——旗標解除前所有身分判斷函式都回 false，
+  // 直接打 API 一樣讀不到任何業務資料。
+  if (mustChangePassword) return <ForcePasswordPage />
   // 採購登入後預設落到議價頁，不要讓他們卡在讀不到資料的畫面
   if (internalOnly && isProcurement) return <Navigate to="/client" replace />
   if (adminOnly && !isAdmin) {

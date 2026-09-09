@@ -49,6 +49,17 @@ def check(name, cond, detail=""):
     print(f"{'  OK ' if cond else 'FAIL'} | {name} {detail if not cond else ''}")
 
 
+def clear_pw_flag(uid):
+    """db/23 之後，Edge Function 建出來的帳號一律帶 must_change_password=true，
+    在本人換掉密碼之前所有身分判斷函式都回 false（讀不到任何業務資料）。
+    這裡的測試帳號不是要測那條流程，所以用 SVC 直接把旗標清掉當作前置。
+    （SVC 沒有 JWT，auth.uid() 為 null，profiles_password_flag_guard 不會擋。）
+    強制改密碼流程本身另有 990008 專段測試。"""
+    if uid:
+        req(f"/rest/v1/profiles?id=eq.{uid}", {"must_change_password": False},
+            method="PATCH", key=SVC)
+
+
 def login(no, pw):
     st, b = req("/auth/v1/token?grant_type=password",
                 {"email": f"{no}@{DOMAIN}", "password": pw})
@@ -77,6 +88,7 @@ for no, name, role in (("990001", "測試處長", "dept_head"),
     check(f"建 {role} 帳號 {no}（密碼留空應帶工號）", st == 200, str(b)[:200])
     tok = login(no, no)
     check(f"{no} 用工號當密碼登入", bool(tok))
+    clear_pw_flag((b or {}).get("id"))
     created[role] = {"no": no, "token": tok, "id": (b or {}).get("id")}
 
 head_tok, staff_tok = created["dept_head"]["token"], created["staff"]["token"]
@@ -155,6 +167,7 @@ st, b = admin_fn({"action": "create", "email": "990004",
 check("處長可建立「同仁」帳號", st == 200, f"HTTP {st} {str(b)[:160]}")
 staff_b_id = (b or {}).get("id") if st == 200 else None
 check("  該帳號可用工號當密碼登入", bool(login("990004", "990004")))
+clear_pw_flag(staff_b_id)
 
 # 建其他角色：一律擋
 for role, label in (("manager", "副部長"), ("dept_head", "處長"), ("procurement", "醫院採購")):
@@ -297,6 +310,7 @@ check("建停用測試帳號 990007", st == 200, f"HTTP {st} {str(b)[:160]}")
 dead_id = (b or {}).get("id") if st == 200 else None
 dead_tok = login("990007", "990007")
 check("990007 停用前可正常登入（之後才停用）", bool(dead_tok))
+clear_pw_flag(dead_id)
 
 # ── P0-1：新建只能是草稿 ──────────────────────────────────────
 for i, (label, tok, uid) in enumerate((
@@ -447,6 +461,65 @@ if len(line_ids) == 2:
     st, b = req(f"/rest/v1/negotiations?quote_id=eq.{q6}&round=gt.1&select=id", key=SVC)
     check("  議價歷程留下本輪（round>1）紀錄",
           st == 200 and isinstance(b, list) and len(b) >= 1, f"HTTP {st} {str(b)[:160]}")
+
+# ── db/23：首次登入強制改密碼 ─────────────────────────────────
+# 這一段刻意**不**清旗標——要測的就是「沒換密碼之前什麼都看不到」。
+if f"990008@{DOMAIN}" in existing:
+    req(f"/auth/v1/admin/users/{existing[f'990008@{DOMAIN}']}", method="DELETE", key=SVC)
+st, b = admin_fn({"action": "create", "email": "990008",
+                  "full_name": "測試新人", "role": "staff"}, admin_tok)
+check("建新帳號 990008", st == 200, f"HTTP {st} {str(b)[:160]}")
+new_id = (b or {}).get("id") if st == 200 else None
+if new_id:
+    st, prof = req(f"/rest/v1/profiles?id=eq.{new_id}&select=must_change_password", key=SVC)
+    check("  新帳號預設帶 must_change_password=true",
+          st == 200 and prof and prof[0].get("must_change_password") is True, str(prof)[:120])
+
+    new_tok = login("990008", "990008")
+    check("  用工號登入得進去（Auth 不受 RLS 影響）", bool(new_tok))
+
+    # 沒換密碼之前：業務資料全關，但讀得到自己那一列（前端要靠它知道該改密碼）
+    st, b = req("/rest/v1/price_items?select=id&limit=1", key=ANON, bearer=new_tok)
+    check("  【擋】未改密碼前讀不到單價庫", st == 200 and b == [], f"HTTP {st} {str(b)[:120]}")
+    st, b = req("/rest/v1/quotes?select=id&limit=1", key=ANON, bearer=new_tok)
+    check("  【擋】未改密碼前讀不到報價單", st == 200 and b == [], f"HTTP {st} {str(b)[:120]}")
+    st, b = req(f"/rest/v1/profiles?id=eq.{new_id}&select=must_change_password",
+                key=ANON, bearer=new_tok)
+    check("  但讀得到自己的 profile（唯一保留的縫）",
+          st == 200 and b and b[0].get("must_change_password") is True, str(b)[:120])
+
+    # 主管不能在人員權限頁直接幫他把旗標關掉（提權：等於跳過強制更換）
+    st, b = req(f"/rest/v1/profiles?id=eq.{new_id}", {"must_change_password": False},
+                method="PATCH", key=ANON, bearer=admin_tok, prefer="return=representation")
+    check("  【擋】副部長不能直接關掉別人的「待改密碼」", st != 200 or not b,
+          f"HTTP {st} {str(b)[:120]}")
+
+    # 新密碼不能與工號相同（換了等於沒換）
+    st, b = req("/functions/v1/admin-users",
+                {"action": "change_own_password", "password": "990008"},
+                key=ANON, bearer=new_tok)
+    check("  【擋】新密碼不得與工號相同", st == 400, f"HTTP {st} {str(b)[:120]}")
+
+    # 正式走完流程
+    st, b = req("/functions/v1/admin-users",
+                {"action": "change_own_password", "password": "np9008x"},
+                key=ANON, bearer=new_tok)
+    check("  本人可自行改密碼（change_own_password）", st == 200, f"HTTP {st} {str(b)[:160]}")
+    if st == 200:
+        # service_role 改的密碼不會撤銷本人 session，舊 token 應該可以直接用
+        st, b = req("/rest/v1/price_items?select=id&limit=1", key=ANON, bearer=new_tok)
+        check("  改完密碼後立刻讀得到單價庫（不必重新登入）",
+              st == 200 and isinstance(b, list) and len(b) == 1, f"HTTP {st} {str(b)[:120]}")
+        check("  新密碼可登入", bool(login("990008", "np9008x")))
+
+    # 主管重設密碼之後，旗標要回到 true（重設出來的密碼第三人也知道）
+    st, b = admin_fn({"action": "reset_password", "id": new_id, "password": "tmp9008"}, admin_tok)
+    check("  副部長重設 990008 密碼", st == 200, f"HTTP {st} {str(b)[:120]}")
+    st, prof = req(f"/rest/v1/profiles?id=eq.{new_id}&select=must_change_password", key=SVC)
+    check("  重設密碼後 must_change_password 回到 true",
+          st == 200 and prof and prof[0].get("must_change_password") is True, str(prof)[:120])
+
+    req(f"/auth/v1/admin/users/{new_id}", method="DELETE", key=SVC)
 
 # ── 收尾 ──────────────────────────────────────────────────────
 keep_id = None

@@ -17,6 +17,8 @@ export interface Profile {
   full_name: string
   role: Role
   active: boolean
+  /** 主管發出的初始／重設密碼還沒被本人換掉。為 true 時資料庫層會關掉所有業務資料 */
+  must_change_password: boolean
 }
 
 export interface Category {

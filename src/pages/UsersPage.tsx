@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { callAdmin, SESSION_EXPIRED } from '../lib/adminApi'
 import { toEmployeeNo, useAuth } from '../context/AuthContext'
 import type { Role } from '../types'
 
@@ -11,40 +12,10 @@ interface AccountRow {
   active: boolean
   created_at: string
   last_sign_in_at: string | null
+  /** 主管發出的初始／重設密碼尚未被本人換掉 */
+  must_change_password: boolean
 }
 
-/**
- * session 失效的哨兵訊息。
- * 最常見的觸發情境是「主管改了自己的密碼」——Supabase 會撤銷該使用者既有的 session，
- * 於是下一次呼叫就 401。原本直接把 Edge Function 的「登入憑證無效或已過期」丟到畫面上，
- * 使用者只會覺得系統壞了，根本不知道要重新登入。
- */
-const SESSION_EXPIRED = 'SESSION_EXPIRED'
-
-/** 呼叫 admin-users Edge Function（service_role 只存在於伺服器端，前端拿不到） */
-async function callAdmin<T>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) throw new Error(SESSION_EXPIRED)
-  const { data, error } = await supabase.functions.invoke('admin-users', {
-    body: { action, ...payload },
-  })
-  if (error) {
-    // Edge Function 回非 2xx 時錯誤訊息藏在 context 裡，挖出來給人看
-    const ctx = (error as { context?: Response }).context
-    if (ctx && typeof ctx.status === 'number' && ctx.status === 401) throw new Error(SESSION_EXPIRED)
-    if (ctx && typeof ctx.json === 'function') {
-      try {
-        const body = await ctx.json()
-        throw new Error(body?.error ?? error.message)
-      } catch (e) {
-        if (e instanceof Error && e.message !== error.message) throw e
-      }
-    }
-    throw new Error(error.message)
-  }
-  if (data && typeof data === 'object' && 'error' in data) throw new Error(String(data.error))
-  return data as T
-}
 
 const fmtDate = (s: string | null) => (s ? s.slice(0, 10) : '—')
 
@@ -228,7 +199,7 @@ export default function UsersPage() {
         <h2 className="card-title">帳號管理</h2>
         <p className="text-ink-500">
           在這裡直接建立、停用帳號與重設密碼，不需要進 Supabase 後台。輸入 6 碼工號即可建帳號，
-          初始密碼欄留空會自動帶入工號。
+          初始密碼欄留空會自動帶入工號——本人首次登入會被強制更換，換掉之前讀不到任何資料。
           {isAdmin
             ? '刪除帳號限行政管理部（部長／副部長）；名下還有報價單的帳號會被擋下，請改為停用。'
             : '您是工務處長：可建立、停用、重設密碼，但範圍限「同仁」；其他角色與刪除帳號請洽行政管理部。'}
@@ -343,7 +314,8 @@ export default function UsersPage() {
                 {busy === 'create' ? '建立中…' : '建立帳號'}
               </button>
               <span className="text-xs text-ink-500">
-                帳號建立後即可使用。初始密碼預設與工號相同，請提醒本人登入後從右上角「改密碼」自行更改。
+                初始密碼預設與工號相同，但**本人第一次登入時系統會強制他換掉**，
+                換掉之前讀不到任何報價資料，所以口頭告知工號即可。
               </span>
             </div>
           </div>
@@ -373,6 +345,12 @@ export default function UsersPage() {
                       <span className="break-words">
                         {toEmployeeNo(r.email)}
                         {isSelf(r) && <span className="tag ml-1.5">你自己</span>}
+                        {r.must_change_password && (
+                          <span
+                            className="tag ml-1.5 bg-warn-bg text-warn"
+                            title="本人尚未把主管配發的初始密碼換掉。在換掉之前，這個帳號讀不到任何報價資料。"
+                          >待改密碼</span>
+                        )}
                       </span>
                     </td>
                     <td className="td p-1" data-label="姓名">

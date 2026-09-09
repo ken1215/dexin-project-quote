@@ -57,6 +57,41 @@ Deno.serve(async (req) => {
   // 行政管理部長（admin_head）權限等同副部長，差別只在單價維護唯讀（DB 層 is_price_editor）
   const isAdmin = ['manager', 'admin_head'].includes(profile?.role ?? '') && !!profile?.active
   const isDeptHead = profile?.role === 'dept_head' && profile.active
+
+  let body: Record<string, unknown>
+  try {
+    body = await req.json()
+  } catch {
+    return json({ error: '請求格式錯誤' }, 400)
+  }
+  const action = String(body.action ?? '')
+
+  // ── 改自己的密碼：**在角色關卡之前**處理 ───────────────────
+  // 被 must_change_password 鎖住的同仁本來就不是主管，卡在下面那道 403 就永遠
+  // 改不了密碼、也就永遠解不開鎖。這個動作只需要「有效的 session」。
+  //
+  // 為什麼不讓前端自己呼叫 auth.updateUser 再把旗標關掉：前端是 public repo 上的
+  // 靜態網站，旗標若由客戶端關，一行 console 指令就能跳過強制更換，
+  // 而攻擊情境正好是「別人拿你的工號登入」。改密碼與關旗標必須在同一支
+  // 伺服器端函式裡完成，中間沒有客戶端插手的餘地。
+  if (action === 'change_own_password') {
+    const password = String(body.password ?? '')
+    if (password.length < MIN_PW) return json({ error: `密碼至少 ${MIN_PW} 碼` }, 400)
+    const empNo = (me.user.email ?? '').split('@')[0]
+    if (isEmployeeNo(empNo) && password === empNo) {
+      return json({ error: '新密碼不能與工號相同，請換一組' }, 400)
+    }
+    if (!profile?.active) return json({ error: '此帳號已停用，請洽主管' }, 403)
+
+    const up = await admin.auth.admin.updateUserById(me.user.id, { password })
+    if (up.error) return json({ error: up.error.message }, 500)
+    // 密碼確定改掉了才解鎖。順序反過來會出現「旗標關了但密碼沒換」的窗口。
+    const { error: flagErr } = await admin.from('profiles')
+      .update({ must_change_password: false }).eq('id', me.user.id)
+    if (flagErr) return json({ error: flagErr.message }, 500)
+    return json({ ok: true })
+  }
+
   if (!isAdmin && !isDeptHead) {
     return json({ error: '此功能限行政管理部（部長／副部長）或工務處長使用' }, 403)
   }
@@ -69,15 +104,7 @@ Deno.serve(async (req) => {
     return (data?.role as string | undefined) ?? null
   }
 
-  // ── 3. 執行動作 ────────────────────────────────────────────
-  let body: Record<string, unknown>
-  try {
-    body = await req.json()
-  } catch {
-    return json({ error: '請求格式錯誤' }, 400)
-  }
-  const action = String(body.action ?? '')
-
+  // ── 3. 執行動作（body 與 action 已在上一段解析）────────────
   try {
     switch (action) {
       // 列出所有帳號（含 email 與最後登入時間，profiles 表沒有這些）
@@ -95,6 +122,7 @@ Deno.serve(async (req) => {
             full_name: byId.get(u.id)?.full_name ?? '',
             role: byId.get(u.id)?.role ?? 'staff',
             active: byId.get(u.id)?.active ?? true,
+            must_change_password: byId.get(u.id)?.must_change_password ?? false,
           })),
         })
       }
@@ -126,8 +154,13 @@ Deno.serve(async (req) => {
         // trigger 會自動建 profile，這裡補上姓名與角色
         // trigger 建的 profile 預設 active=false（防自行註冊的人讀到資料），
         // 由主管建立的帳號在這裡明確設成啟用
+        // must_change_password：主管發出的初始密碼（留空＝工號）本人首次登入必須換掉。
+        // 在換掉之前，db/23 讓所有身分判斷函式回 false，等於讀不到任何業務資料。
         await admin.from('profiles')
-          .update({ full_name: fullName || loginId, role, active: true })
+          .update({
+            full_name: fullName || loginId, role, active: true,
+            must_change_password: true,
+          })
           .eq('id', data.user.id)
         return json({ ok: true, id: data.user.id })
       }
@@ -142,6 +175,8 @@ Deno.serve(async (req) => {
         }
         const { error } = await admin.auth.admin.updateUserById(id, { password })
         if (error) throw error
+        // 主管重設出來的密碼與新建帳號是同一種東西（第三人知道），一樣要本人再換一次
+        await admin.from('profiles').update({ must_change_password: true }).eq('id', id)
         return json({ ok: true })
       }
 
