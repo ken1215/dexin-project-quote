@@ -61,6 +61,13 @@ def check(name, cond, detail=""):
     print(f"{'  OK ' if cond else 'FAIL'} | {name} {detail if not cond else ''}")
 
 
+def oid(body):
+    """從回應裡取 id。req() 在 HTTP 錯誤時回的是**錯誤字串**不是 dict，
+    直接 .get("id") 會 AttributeError 讓整支腳本在半路炸掉、留下一堆殘骸，
+    下一次跑又因為殘骸而失敗——這個迴圈踩過一次就夠了。"""
+    return body.get("id") if isinstance(body, dict) else None
+
+
 def clear_pw_flag(uid):
     """db/23 之後，Edge Function 建出來的帳號一律帶 must_change_password=true，
     在本人換掉密碼之前所有身分判斷函式都回 false（讀不到任何業務資料）。
@@ -81,6 +88,68 @@ def login(no, pw):
 st, users = req("/auth/v1/admin/users?page=1&per_page=200", key=SVC)
 existing = {u["email"]: u["id"] for u in users["users"]}
 
+
+# profiles 被一票表用 FK 指著。刪 auth.users 會 cascade 到 profiles，
+# 只要還有任何一列指著它，整個刪除就失敗——而 DELETE 的回應腳本本來不看，
+# 於是帳號默默留下來，下一次跑撞「already registered」，
+# 拿到的卻是**沒有 profile 列**的殭屍帳號：登得進去、但所有角色判斷都是 false。
+# 這一輪就是這樣一次噴掉 8 項，八項全部指向同一個沒清乾淨的 990001。
+# 最會踩到的是 price_history.changed_by——「處長可寫入單價庫」那項測試
+# 會觸發調價軌跡，留一列指向處長。
+PROFILE_REFS = [
+    ("material_indices", "updated_by"),
+    ("price_items", "updated_by"),
+    ("price_floors", "updated_by"),
+    ("price_history", "changed_by"),
+    ("settings", "updated_by"),
+    ("labor_productivity", "updated_by"),
+    ("negotiations", "responded_by"),
+    ("quotes", "approved_by"),
+    ("quotes", "approved_l1_by"),
+]
+
+
+def delete_test_users(ids):
+    """徹底刪掉測試帳號，回傳沒刪成功的 id。收尾與前置清場共用同一支。"""
+    ids = [i for i in ids if i]
+    if not ids:
+        return []
+    in_list = "(" + ",".join(ids) + ")"
+    # 1. 把稽核欄指向這些帳號的紀錄鬆開（那些是別的資料表的歷史列，不該連帶刪掉）
+    for table, col in PROFILE_REFS:
+        req(f"/rest/v1/{table}?{col}=in.{in_list}", {col: None}, method="PATCH", key=SVC)
+    # 2. 名下的單（子表與議價由 on delete cascade 帶走）
+    req(f"/rest/v1/quotes?created_by=in.{in_list}", method="DELETE", key=SVC)
+    # 3. 帳號本身
+    for uid in ids:
+        req(f"/auth/v1/admin/users/{uid}", method="DELETE", key=SVC)
+    # 4. 真的刪掉了嗎——不看回應就等於沒刪過
+    st, after = req("/auth/v1/admin/users?page=1&per_page=200", key=SVC)
+    left = []
+    if st == 200 and isinstance(after, dict):
+        alive = {u["id"] for u in after.get("users", [])}
+        left = [i for i in ids if i in alive]
+    return left
+
+
+def purge_test_accounts():
+    """清掉前一輪跑到一半崩潰留下的測試帳號。"""
+    victims = {email: uid for email, uid in existing.items()
+               if email.startswith("9900") and email.endswith(f"@{DOMAIN}")}
+    if not victims:
+        return
+    left = delete_test_users(list(victims.values()))
+    names = sorted(e.split("@")[0] for e in victims)
+    print(f"（前置）清掉上一輪殘留的測試帳號 {len(victims)} 個：" + "、".join(names))
+    if left:
+        # 這裡不能默默過去：殘骸會讓後面每一項檢查都用到殭屍帳號而全紅
+        raise SystemExit(
+            f"✗ 有 {len(left)} 個殘留帳號刪不掉（id={left}）。"
+            "多半是又多了一條指向 profiles 的外鍵，請把它加進 PROFILE_REFS 再跑。")
+
+
+purge_test_accounts()
+
 # ── 現開一個臨時副部長（service_role 直接建，不經 Edge Function）──────
 if f"{TEST_MGR_NO}@{DOMAIN}" in existing:
     req(f"/auth/v1/admin/users/{existing[f'{TEST_MGR_NO}@{DOMAIN}']}", method="DELETE", key=SVC)
@@ -88,7 +157,7 @@ st, b = req("/auth/v1/admin/users",
             {"email": f"{TEST_MGR_NO}@{DOMAIN}", "password": TEST_MGR_PW,
              "email_confirm": True, "user_metadata": {"full_name": "驗證用副部長"}},
             key=SVC)
-mgr_id = (b or {}).get("id")
+mgr_id = oid(b)
 check(f"建臨時驗證用副部長 {TEST_MGR_NO}", bool(mgr_id), f"HTTP {st} {str(b)[:160]}")
 if not mgr_id:
     raise SystemExit("臨時主管帳號建立失敗，後續不跑")
@@ -115,8 +184,8 @@ for no, name, role in (("990001", "測試處長", "dept_head"),
     check(f"建 {role} 帳號 {no}（密碼留空應帶工號）", st == 200, str(b)[:200])
     tok = login(no, no)
     check(f"{no} 用工號當密碼登入", bool(tok))
-    clear_pw_flag((b or {}).get("id"))
-    created[role] = {"no": no, "token": tok, "id": (b or {}).get("id")}
+    clear_pw_flag(oid(b))
+    created[role] = {"no": no, "token": tok, "id": oid(b)}
 
 head_tok, staff_tok = created["dept_head"]["token"], created["staff"]["token"]
 boss_tok = created["admin_head"]["token"]   # 行政管理部長
@@ -192,7 +261,7 @@ def admin_fn(payload, tok):
 st, b = admin_fn({"action": "create", "email": "990004",
                   "full_name": "測試同仁B", "role": "staff"}, head_tok)
 check("處長可建立「同仁」帳號", st == 200, f"HTTP {st} {str(b)[:160]}")
-staff_b_id = (b or {}).get("id") if st == 200 else None
+staff_b_id = oid(b) if st == 200 else None
 check("  該帳號可用工號當密碼登入", bool(login("990004", "990004")))
 clear_pw_flag(staff_b_id)
 
@@ -332,7 +401,7 @@ if f"990007@{DOMAIN}" in existing:
 st, b = admin_fn({"action": "create", "email": "990007",
                   "full_name": "測試停用帳號", "role": "staff"}, admin_tok)
 check("建停用測試帳號 990007", st == 200, f"HTTP {st} {str(b)[:160]}")
-dead_id = (b or {}).get("id") if st == 200 else None
+dead_id = oid(b) if st == 200 else None
 dead_tok = login("990007", "990007")
 check("990007 停用前可正常登入（之後才停用）", bool(dead_tok))
 clear_pw_flag(dead_id)
@@ -494,7 +563,7 @@ if f"990008@{DOMAIN}" in existing:
 st, b = admin_fn({"action": "create", "email": "990008",
                   "full_name": "測試新人", "role": "staff"}, admin_tok)
 check("建新帳號 990008", st == 200, f"HTTP {st} {str(b)[:160]}")
-new_id = (b or {}).get("id") if st == 200 else None
+new_id = oid(b) if st == 200 else None
 if new_id:
     st, prof = req(f"/rest/v1/profiles?id=eq.{new_id}&select=must_change_password", key=SVC)
     check("  新帳號預設帶 must_change_password=true",
@@ -555,17 +624,16 @@ for q in (q1, q2, q3, q4, *p0_quotes):
     if q != keep_id:
         req(f"/rest/v1/quotes?id=eq.{q}", method="DELETE", key=SVC)
 # 990007 已被停用，留著也登不進去用不到，KEEP 與否一律刪。
-# 必須排在測試單刪除**之後**：quotes.created_by 參照 profiles，
-# 先刪帳號會因為 FK 還被那張單綁著而默默失敗。
+# 走 delete_test_users()：光下 DELETE user 會被 price_history.changed_by 這類
+# 稽核外鍵默默擋掉，帳號留在那裡讓下一次跑撞「already registered」。
 if dead_id:
-    req(f"/auth/v1/admin/users/{dead_id}", method="DELETE", key=SVC)
+    delete_test_users([dead_id])
 if not KEEP:
-    for r in created.values():
-        if r["id"]:
-            req(f"/auth/v1/admin/users/{r['id']}", method="DELETE", key=SVC)
-    # 臨時副部長排最後刪：上面每一個帳號的刪除都還可能用到他建立的資料
-    req(f"/auth/v1/admin/users/{mgr_id}", method="DELETE", key=SVC)
-    print("\n測試帳號與測試單已刪除")
+    left = delete_test_users([r["id"] for r in created.values()] + [mgr_id])
+    if left:
+        print(f"⚠ 有 {len(left)} 個測試帳號沒刪乾淨（id={left}），下一次跑會自動再清一次")
+    else:
+        print("測試帳號與測試單已刪除")
 else:
     print("\n保留議價中測試單 id=" + str(keep_id)
           + f"；測試帳號 990001-990003、990006 與臨時副部長 {TEST_MGR_NO}"
