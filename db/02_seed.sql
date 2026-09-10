@@ -11,7 +11,7 @@ insert into evidence_sources (id,kind,name,publisher,url,note) values
   ('minwage','law','基本工資（115年1月1日起適用）','勞動部','https://www.mol.gov.tw/','月薪 29,500 元、時薪 196 元，調幅 3.18%（勞動部 2025-09-26 公告）。時薪 196×8h=1,568 元為單日工資法定下限'),
   ('lsa','law','勞動基準法 §24、§39 工時加給','勞動部','https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0030001','§24 延長工時前2小時加給 1/3 以上、再延長加給 2/3 以上；§39 例假日及國定假日出勤工資加倍發給'),
   ('market_deco','market','2026 台灣室內裝修工程行情（每坪）','公開裝修報價平台彙整','https://www.pro360.com.tw/price/drywall','住宅裝修行情，換算 m² 為 ÷3.3058。醫療場域規格較高，主管須覆核後調整'),
-  ('history','history','立德新對聯新國際醫院歷史報價紀錄','立德新股份有限公司','','2025-11 至 2026-08 共 73 份報價單、438 筆工料明細之實際成交單價')
+  ('history','history','德新物業對聯新國際醫院歷史報價紀錄','立德新股份有限公司(德新物業)','','2025-11 至 2026-08 共 73 份報價單、438 筆工料明細之實際成交單價')
 on conflict (id) do update set name=excluded.name, publisher=excluded.publisher,
   url=excluded.url, note=excluded.note, kind=excluded.kind;
 
@@ -47,7 +47,7 @@ insert into settings (key,value) values
   ('tax_rate','0.05'::jsonb),
   ('labor_base_daily','2800'::jsonb),
   ('catalog_version','"v2"'::jsonb),
-  ('company','"立德新股份有限公司"'::jsonb),
+  ('company','"立德新股份有限公司(德新物業)"'::jsonb),
   ('client','"聯新國際醫院"'::jsonb)
 on conflict (key) do nothing;
 

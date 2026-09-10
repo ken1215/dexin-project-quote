@@ -55,7 +55,7 @@ export default function LoginPage() {
                   專案工程報價系統
                 </h1>
                 <p className="mt-1 text-xs text-ink-500">
-                  立德新股份有限公司 · 工務處
+                  立德新股份有限公司(德新物業) · 工務處
                 </p>
               </div>
             </div>
@@ -125,7 +125,7 @@ export default function LoginPage() {
         </div>
 
         <p className="mt-5 text-center text-[0.6875rem] text-ink-500">
-          © 聯新國際醫療集團 · 立德新股份有限公司
+          © 聯新國際醫療集團 · 立德新股份有限公司(德新物業)
         </p>
       </div>
     </div>

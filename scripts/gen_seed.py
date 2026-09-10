@@ -50,7 +50,7 @@ EVIDENCE = [
     ('market_deco','market','2026 台灣室內裝修工程行情（每坪）', '公開裝修報價平台彙整',
      'https://www.pro360.com.tw/price/drywall',
      '住宅裝修行情，換算 m² 為 ÷3.3058。醫療場域規格較高，主管須覆核後調整'),
-    ('history',    'history','立德新對聯新國際醫院歷史報價紀錄', '立德新股份有限公司',
+    ('history',    'history','德新物業對聯新國際醫院歷史報價紀錄', '立德新股份有限公司(德新物業)',
      '', '2025-11 至 2026-08 共 73 份報價單、438 筆工料明細之實際成交單價'),
 ]
 
@@ -201,7 +201,7 @@ w.write("insert into settings (key,value) values\n"
         "  ('tax_rate','0.05'::jsonb),\n"
         "  ('labor_base_daily','2800'::jsonb),\n"
         "  ('catalog_version','\"v2\"'::jsonb),\n"
-        "  ('company','\"立德新股份有限公司\"'::jsonb),\n"
+        "  ('company','\"立德新股份有限公司(德新物業)\"'::jsonb),\n"
         "  ('client','\"聯新國際醫院\"'::jsonb)\n"
         "on conflict (key) do nothing;\n\n")
 

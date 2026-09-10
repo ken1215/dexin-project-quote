@@ -166,7 +166,7 @@ function QuoteIndex() {
       <div className="card">
         <h2 className="text-[1.0625rem] font-semibold text-deep">報價單議價</h2>
         <p className="mt-2 text-[0.8125rem] text-ink-700">
-          以下為立德新股份有限公司送交本院之報價單。您可針對個別項目提出議價，
+          以下為立德新股份有限公司(德新物業)送交本院之報價單。您可針對個別項目提出議價，
           我方將於收到後回覆。
         </p>
       </div>
@@ -178,7 +178,7 @@ function QuoteIndex() {
       ) : quotes.length === 0 ? (
         <div className="card text-center text-ink-500">
           目前沒有待議價的報價單。<br />
-          當立德新送出報價後，單據會自動出現在這裡，屆時即可於本頁提出議價。
+          當德新物業送出報價後，單據會自動出現在這裡，屆時即可於本頁提出議價。
         </div>
       ) : (
         <div className="card">
@@ -424,7 +424,7 @@ function QuoteNegotiation({ quoteId }: { quoteId: string }) {
 
         {readOnly && (
           <div className="mt-3 rounded-md border border-ink-200 bg-light/50 px-3 py-2 text-[0.8125rem] text-deep">
-            本案已定案，如需調整請洽立德新工務處。
+            本案已定案，如需調整請洽德新物業工務處。
           </div>
         )}
       </div>

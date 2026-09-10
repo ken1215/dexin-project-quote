@@ -10,7 +10,7 @@ import {
 } from '../types'
 
 /* ═══════════════════════════════════════════════════════════════
-   立德新股份有限公司 → 聯新國際醫院　工程標單（列印／轉 PDF 版）
+   立德新股份有限公司(德新物業) → 聯新國際醫院　工程標單（列印／轉 PDF 版）
    版面依聯新國際醫療集團 CIS：深藍 #0054A7、亮藍 #008CD6、
    CIS 綠 #00A94F、淺藍 #D3EDFB，墨色 5 階，金額一律 tabular-nums。
    用色克制——整份文件只有「合計」列是滿版深藍，其餘靠淺藍底與細線。
@@ -190,7 +190,7 @@ function SheetHeader(
       <div className="flex items-end justify-between gap-4">
         <div>
           <div className="text-[19px] font-bold leading-tight tracking-[0.16em] text-deep">
-            立德新股份有限公司
+            立德新股份有限公司(德新物業)
           </div>
           <div className="mt-[3px] text-[10.5px] tracking-[0.14em] text-ink-500">
             德新物業 · 工務處

@@ -1,4 +1,4 @@
-# 建置手冊 — 德新物業(立德新)專案工程報價系統
+# 建置手冊 — 德新物業專案工程報價系統
 
 > **✅ 2026-08-25：正式環境已建置完成並上線。**
 > Supabase 專案 `dexin-quote`（ref `xjylpaqvdxmxzehvwreg`，Singapore）、
