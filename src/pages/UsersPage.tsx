@@ -2,6 +2,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { callAdmin, SESSION_EXPIRED } from '../lib/adminApi'
 import { toEmployeeNo, useAuth } from '../context/AuthContext'
+import Alert from '../components/ui/Alert'
+import ConfirmPanel from '../components/ui/ConfirmPanel'
+import EmptyState from '../components/ui/EmptyState'
+import PageHeader from '../components/ui/PageHeader'
+import Stat from '../components/ui/Stat'
 import type { Role } from '../types'
 
 interface AccountRow {
@@ -93,6 +98,9 @@ export default function UsersPage() {
     (draft[r.id]?.[k] ?? r[k]) as AccountRow[K]
   const edit = (id: string, patch: Partial<AccountRow>) =>
     setDraft((d) => ({ ...d, [id]: { ...d[id], ...patch } }))
+
+  /** 頁首統計：render 當下由已載入的 rows 推導，不另開 state、不另外查資料 */
+  const mustChangeCount = rows.filter((r) => r.must_change_password).length
 
   const dirtyIds = Object.keys(draft).filter((id) => {
     const r = rows.find((x) => x.id === id); if (!r) return false
@@ -195,8 +203,21 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-4">
+      <PageHeader
+        index="05"
+        eyebrow="USERS"
+        title="人員權限"
+        actions={(
+          <>
+            <Stat label="帳號數" value={rows.length} />
+            <Stat label="待改密碼" value={mustChangeCount} hint="初始密碼尚未換掉" />
+          </>
+        )}
+      />
+
       <div className="card">
-        <h2 className="card-title">帳號管理</h2>
+        {/* 頁名已由 PageHeader 掛出，這張卡只講角色與權限，不再重複一次「帳號管理」 */}
+        <h2 className="card-title">使用說明與角色權限</h2>
         <p className="text-ink-500">
           在這裡直接建立、停用帳號與重設密碼，不需要進 Supabase 後台。輸入 6 碼工號即可建帳號，
           初始密碼欄留空會自動帶入工號——本人首次登入會被強制更換，換掉之前讀不到任何資料。
@@ -257,13 +278,13 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {error && <div className="rounded-md border border-warn/30 bg-warn-bg px-3 py-2 text-warn break-words">{error}</div>}
-      {ok && <div className="rounded-md border border-green/30 bg-green/10 px-3 py-2 text-green break-words">{ok}</div>}
+      {error && <Alert kind="error"><div className="break-words">{error}</div></Alert>}
+      {ok && <Alert kind="success"><div className="break-words">{ok}</div></Alert>}
 
       <div className="card">
         <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-ink-200 pb-2">
-          <h2 className="text-[0.9375rem] font-semibold text-deep">帳號清單</h2>
-          <span className="tag">{rows.length} 個帳號</span>
+          <h2 className="min-w-0 text-[0.9375rem] font-semibold text-deep">帳號清單</h2>
+          {/* 帳號張數已改由頁首的 Stat 呈現，這裡不再掛一顆重複的 .tag */}
           {/* 手機：兩顆按鈕自成一列並等寬撐開，避免被擠成迷你按鈕 */}
           <div className="ml-auto flex w-full gap-2 sm:w-auto">
             <button className="btn flex-1 sm:flex-none" onClick={() => setShowNew((v) => !v)}>
@@ -314,16 +335,19 @@ export default function UsersPage() {
                 {busy === 'create' ? '建立中…' : '建立帳號'}
               </button>
               <span className="text-xs text-ink-500">
-                初始密碼預設與工號相同，但**本人第一次登入時系統會強制他換掉**，
+                {/* 原文是 markdown 的 **粗體**，在 JSX 裡會原樣印出兩顆星號給使用者看 */}
+                初始密碼預設與工號相同，但<b>本人第一次登入時系統會強制他換掉</b>，
                 換掉之前讀不到任何報價資料，所以口頭告知工號即可。
               </span>
             </div>
           </div>
         )}
 
-        {loading ? (
-          <div className="py-8 text-center text-ink-500">載入中…</div>
-        ) : (
+        {loading && <div className="py-8 text-center text-ink-500">載入中…</div>}
+        {!loading && rows.length === 0 && (
+          <EmptyState title="目前沒有任何帳號" hint="按上方「＋ 新增帳號」建立第一個帳號。" />
+        )}
+        {!loading && rows.length > 0 && (
           /* 手機（<640px）每一列變成一張卡片，欄位名由 td 的 data-label 長出來 */
           <div className="table-scroll">
             <table className="w-full rwd-table">
@@ -410,14 +434,22 @@ export default function UsersPage() {
         </p>
       </div>
 
+      {/* 這一塊「不是」單純的二次確認：中間夾一個輸入框，且確認鈕要依密碼長度停用。
+          ConfirmPanel 只吃 busy（busy 時按鈕文字會變「處理中…」），沒有 confirmDisabled，
+          硬套會讓「密碼太短」顯示成「處理中…」，還會讓過短的密碼送得出去——那是行為變更。
+          所以這裡維持自刻面板，只把訊息提示換成共用 Alert。
+          規格 04-basket-and-tasks-10-12.md B 節第 2 點要補一句：ConfirmPanel 需要
+          confirmDisabled（或 canConfirm）之後，這一塊才收得進去。 */}
       {pwFor && (
         <div className="card border-bright/40">
           <h2 className="card-title break-words">重設密碼：{toEmployeeNo(pwFor.email)}</h2>
           {pwFor.id === profile?.id ? (
-            <p className="mb-3 rounded-md border border-alert/40 bg-alert/10 px-3 py-2 text-[0.8125rem] text-alert">
-              這是<b>你自己的帳號</b>。改完之後目前的登入狀態會立即失效，
-              系統會自動登出，需要用新密碼重新登入——請先確認新密碼記得住。
-            </p>
+            <div className="mb-3">
+              <Alert kind="warn">
+                這是<b>你自己的帳號</b>。改完之後目前的登入狀態會立即失效，
+                系統會自動登出，需要用新密碼重新登入——請先確認新密碼記得住。
+              </Alert>
+            </div>
           ) : (
             <p className="mb-3 text-[0.8125rem] text-ink-500">
               改完之後對方目前的登入狀態會失效，需重新登入。請以其他管道告知新密碼。
@@ -435,26 +467,28 @@ export default function UsersPage() {
                 onClick={() => void resetPw()}>
                 {busy === 'pw' ? '處理中…' : '確認重設'}
               </button>
-              <button className="btn flex-1 sm:flex-none" onClick={() => { setPwFor(null); setNewPw('') }}>取消</button>
+              {/* 刪除確認的 ConfirmPanel 也有一顆「取消」，兩塊可能同時開著；
+                  同頁重複的按鈕文字在 Task 11 的重複按鈕檢查會被抓，故這顆寫全 */}
+              <button className="btn flex-1 sm:flex-none" onClick={() => { setPwFor(null); setNewPw('') }}>取消重設</button>
             </div>
           </div>
         </div>
       )}
 
       {delFor && (
-        <div className="card border-warn/40 bg-warn-bg">
-          <h2 className="card-title text-warn">確認刪除帳號</h2>
-          <p className="mb-3 break-words">
+        <ConfirmPanel
+          tone="danger"
+          title="確認刪除帳號"
+          confirmLabel="確認刪除"
+          busy={busy === 'del'}
+          onConfirm={() => void removeUser()}
+          onCancel={() => setDelFor(null)}
+        >
+          <div className="break-words">
             即將永久刪除 <b>{toEmployeeNo(delFor.email)}</b>（{delFor.full_name || '未命名'}）。此動作無法復原。
             若此人只是離職、資料還要留存，請改用「停用」。
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <button className="btn btn-danger flex-1 sm:flex-none" disabled={busy === 'del'} onClick={() => void removeUser()}>
-              {busy === 'del' ? '刪除中…' : '確認刪除'}
-            </button>
-            <button className="btn flex-1 sm:flex-none" onClick={() => setDelFor(null)}>取消</button>
           </div>
-        </div>
+        </ConfirmPanel>
       )}
     </div>
   )

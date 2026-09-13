@@ -3,6 +3,11 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useRefData } from '../context/RefDataContext'
 import { indexedPrice, money } from '../lib/calc'
+import Alert from '../components/ui/Alert'
+import ConfirmPanel from '../components/ui/ConfirmPanel'
+import EmptyState from '../components/ui/EmptyState'
+import PageHeader from '../components/ui/PageHeader'
+import Stat from '../components/ui/Stat'
 import {
   COST_LABEL, EVIDENCE_LABEL,
   type CostType, type EvidenceKind, type PriceFloor, type PriceHistoryRow, type PriceItem,
@@ -120,17 +125,9 @@ const toRow = (it: PriceItem, over: Partial<PriceItem>): PriceItem => ({
 
 const m = (n: number | null): string => (n === null || n === undefined ? '—' : money(n))
 
-function Stat({ label, value, sub, alert }: {
-  label: string; value: string; sub?: string; alert?: boolean
-}) {
-  return (
-    <div className={'rounded-lg border px-4 py-3 ' + (alert ? 'border-alert/40 bg-alert/10' : 'border-ink-200 bg-white')}>
-      <div className="text-xs text-ink-500">{label}</div>
-      <div className={'num text-[1.375rem] leading-tight font-semibold ' + (alert ? 'text-alert' : 'text-deep')}>{value}</div>
-      {sub && <div className="text-[0.6875rem] text-ink-500">{sub}</div>}
-    </div>
-  )
-}
+/* 本頁原本自刻一個 Stat（多一個 alert 佈景：整張卡換成 alert 邊框＋底色）。
+   已改用 components/ui/Stat；警示只保留在數字本身的顏色上——共用元件不收 alert 佈景，
+   為了一頁的例外去擴充共用元件會讓其他頁跟著長出分岔，代價比視覺差異大。 */
 
 export default function PriceCatalogPage() {
   const {
@@ -616,33 +613,49 @@ export default function PriceCatalogPage() {
 
   return (
     <div className="space-y-4">
+      {/* 主要新增動作移到頁首（與 01 報價單一致）；下方「新增品項」卡只剩表單本體，
+          同一顆按鈕不會在頁面上出現兩次。 */}
+      <PageHeader
+        index="03"
+        eyebrow="CATALOG"
+        title="單價維護"
+        actions={!ro && (
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => { setShowNew((v) => !v); setErr(null) }}
+          >
+            {showNew ? '收合' : '＋ 新增品項'}
+          </button>
+        )}
+      />
+
       {/* ── 統計 ───────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="品項總數" value={String(stats.total)} />
-        <Stat label="啟用中" value={String(stats.active)} sub={`停用 ${stats.total - stats.active} 項`} />
+      {/* grid 子項一律 min-w-0：少一層，長數字就會把整頁撐出橫捲 */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 [&>*]:min-w-0">
+        <Stat label="品項總數" value={stats.total} />
+        <Stat label="啟用中" value={stats.active} hint={`停用 ${stats.total - stats.active} 項`} />
         <Stat
           label="佐證覆蓋率"
-          value={`${stats.coverage}%`}
-          sub={`${stats.withEv} / ${stats.active} 項有佐證`}
-          alert={stats.coverage < 60}
+          /* 覆蓋率偏低只用數字顏色示警——共用 Stat 沒有整卡變色的佈景 */
+          value={<span className={stats.coverage < 60 ? 'text-alert' : ''}>{stats.coverage}%</span>}
+          hint={`${stats.withEv} / ${stats.active} 項有佐證`}
         />
-        <Stat label="待轉 m² 的裝修項" value={String(stats.needsArea)} sub="歷史以「式」報價" />
+        <Stat label="待轉 m² 的裝修項" value={stats.needsArea} hint="歷史以「式」報價" />
       </div>
 
       {ro && (
-        <div className="rounded-md border border-ink-200 bg-light/60 px-3 py-2 text-sm text-ink-700">
+        <Alert kind="info">
           唯讀模式：您的角色看得到全部單價與底價，但不能修改。調整單價請洽行政管理部副部長或工務處長。
-        </div>
+        </Alert>
       )}
 
       {(err || floorErr || delErr) && (
-        <div className="rounded-md border border-warn/30 bg-warn-bg px-3 py-2 text-sm text-warn">
+        <Alert kind="error">
           {[err, floorErr, delErr].filter((t) => Boolean(t)).join('　')}
-        </div>
+        </Alert>
       )}
-      {msg && (
-        <div className="rounded-md border border-green/30 bg-green/10 px-3 py-2 text-sm text-green">{msg}</div>
-      )}
+      {msg && <Alert kind="success">{msg}</Alert>}
 
       {/* ── 篩選 ───────────────────────────────────────────── */}
       <div className="card">
@@ -708,9 +721,16 @@ export default function PriceCatalogPage() {
           </div>
         </div>
 
+        {/* 確認面板就在觸發它的「批次調整」鈕正下方 */}
         {batchAsk && batchValid && (
-          <div className="mt-3 rounded-md border border-alert/40 bg-alert/10 px-3 py-2.5 text-sm">
-            <div className="text-ink-900">
+          <div className="mt-3">
+            <ConfirmPanel
+              title="確認批次調整單價"
+              confirmLabel="確認調整"
+              busy={batchBusy}
+              onConfirm={() => void runBatch()}
+              onCancel={() => setBatchAsk(false)}
+            >
               確認要把「{categoryOf(batchCat)?.name ?? batchCat}」的
               <span className="num mx-1 font-semibold">{batchTargets.length}</span>
               項品項單價一次調整
@@ -718,29 +738,18 @@ export default function PriceCatalogPage() {
                 {batchPctNum > 0 ? '+' : ''}{batchPctNum}%
               </span>
               嗎？此動作會立即寫入資料庫並留下調價軌跡。
-            </div>
-            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-              <button className="btn btn-primary" disabled={batchBusy} onClick={() => void runBatch()}>
-                {batchBusy ? '調整中…' : '確認調整'}
-              </button>
-              <button className="btn" disabled={batchBusy} onClick={() => setBatchAsk(false)}>取消</button>
-            </div>
+            </ConfirmPanel>
           </div>
         )}
       </div>
       )}
 
       {/* ── 新增品項 ───────────────────────────────────────── */}
-      {!ro && (
+      {/* 開關在頁首；這張卡只在展開時出現，不再自帶一顆同文字的按鈕 */}
+      {!ro && showNew && (
       <div className="card">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-200 pb-2">
-          <div className="text-[0.9375rem] font-semibold text-deep">新增品項</div>
-          <button className="btn" onClick={() => { setShowNew((v) => !v); setErr(null) }}>
-            {showNew ? '收合' : '＋ 新增品項'}
-          </button>
-        </div>
-        {showNew && (
-          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
+        <div className="card-title">新增品項</div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 [&>*]:min-w-0">
             <div>
               <label className="label" htmlFor="n-cat">分類</label>
               <select id="n-cat" className="field" value={newItem.category_id}
@@ -802,7 +811,6 @@ export default function PriceCatalogPage() {
               </span>
             </div>
           </div>
-        )}
       </div>
       )}
 
@@ -859,75 +867,80 @@ export default function PriceCatalogPage() {
           </div>
         </div>
 
-        {bulkAsk && selectedIds.length > 0 && (
-          <div className="mb-3 rounded-md border border-warn/40 bg-warn-bg px-3 py-2.5 text-sm">
-            <div className="font-semibold text-warn">
-              確認要刪除選取的 <span className="num">{selectedIds.length}</span> 項品項嗎？
-            </div>
-
-            {overBulkLimit ? (
-              <div className="mt-2 text-ink-900">
-                一次最多刪除 <span className="num">{MAX_BULK_DELETE}</span> 項，目前選取
-                <span className="num mx-1">{selectedIds.length}</span>
-                項，請先縮小篩選範圍分批處理。
-              </div>
-            ) : (
-              <>
-                {bulkUsageLoading && <div className="mt-2 text-ink-500">使用情形查詢中…</div>}
-                {!bulkUsageLoading && bulkUsage && (
-                  <div className="mt-2 text-ink-900">
-                    {usedSelected.length === 0 ? (
-                      <>這 <span className="num">{selectedIds.length}</span> 項都尚未被任何報價單使用，可安全刪除。</>
-                    ) : (
-                      <>
-                        其中 <span className="num font-semibold">{usedSelected.length}</span> 項已被報價單使用。
-                        刪除<span className="font-semibold">不會</span>更動那些報價單的內容與金額
-                        （單價已存為快照），只會失去與單價庫的連結。
-                        <button
-                          type="button" className="ml-2 text-bright underline"
-                          onClick={() => setBulkUsageOpen((v) => !v)}
-                        >
-                          {bulkUsageOpen ? '收合明細' : '看是哪幾項'}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
-                {bulkUsageOpen && usedSelected.length > 0 && (
-                  <ul className="mt-2 max-h-48 overflow-y-auto rounded border border-ink-200 bg-white px-3 py-2 text-[0.8125rem] break-words text-ink-700">
-                    {usedSelected.map((i) => {
-                      const u = bulkUsage?.[i.id]
-                      return (
-                        <li key={i.id}>
-                          {i.name}{i.spec ? `／${i.spec}` : ''}
-                          <span className="num ml-2 text-ink-500">
-                            {u?.quotes ?? 0} 張報價單・{u?.lines ?? 0} 行明細
-                          </span>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                )}
-                <div className="mt-2 text-ink-700">若只是暫時不用，建議改用「停用」而不是刪除。</div>
-              </>
-            )}
-
-            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-              <button
-                className="btn btn-danger"
-                disabled={bulkBusy || bulkUsageLoading || overBulkLimit}
-                onClick={() => void runBulkDelete()}
-              >
-                {bulkBusy ? '刪除中…' : `確認刪除 ${selectedIds.length} 項`}
-              </button>
-              <button className="btn" disabled={bulkBusy} onClick={() => setBulkAsk(false)}>取消</button>
-            </div>
+        {/* 超過單次上限時原本是「確認鈕 disabled」，改成根本不出確認面板、只留警示與取消：
+            同樣的可操作結果，但不會出現一顆點不下去的紅色確認鈕。 */}
+        {bulkAsk && selectedIds.length > 0 && overBulkLimit && (
+          <div className="mb-3 space-y-2">
+            <Alert kind="warn" title={`選取了 ${selectedIds.length} 項，超過單次刪除上限`}>
+              一次最多刪除 <span className="num">{MAX_BULK_DELETE}</span> 項，請先縮小篩選範圍分批處理。
+            </Alert>
+            <button type="button" className="btn" onClick={() => setBulkAsk(false)}>取消</button>
           </div>
         )}
 
-        {/* 每格幾乎都是輸入框的密集編輯表格——手機轉卡片反而更難用，改用 .table-scroll 橫捲。
-            .field 是 w-full，欄位本身沒有最小內容寬度，不給 min-w 會在窄螢幕被壓成一條線，
-            所以表格與幾個文字欄一併設下最小寬度。 */}
+        {bulkAsk && selectedIds.length > 0 && !overBulkLimit && (
+          <div className="mb-3">
+            <ConfirmPanel
+              tone="danger"
+              title={`確認要刪除選取的 ${selectedIds.length} 項品項嗎？`}
+              confirmLabel={`確認刪除 ${selectedIds.length} 項`}
+              /* 使用情形還沒查回來就先擋住確認——共用面板只有一個 busy 旗標，
+                 期間取消鈕也會一起停用（查詢是單次往返，影響僅在這一瞬） */
+              busy={bulkBusy || bulkUsageLoading}
+              onConfirm={() => void runBulkDelete()}
+              onCancel={() => setBulkAsk(false)}
+            >
+              {bulkUsageLoading && <div className="text-ink-500">使用情形查詢中…</div>}
+              {!bulkUsageLoading && bulkUsage && (
+                <div className="text-ink-900">
+                  {usedSelected.length === 0 ? (
+                    <>這 <span className="num">{selectedIds.length}</span> 項都尚未被任何報價單使用，可安全刪除。</>
+                  ) : (
+                    <>
+                      其中 <span className="num font-semibold">{usedSelected.length}</span> 項已被報價單使用。
+                      刪除<span className="font-semibold">不會</span>更動那些報價單的內容與金額
+                      （單價已存為快照），只會失去與單價庫的連結。
+                      <button
+                        type="button" className="ml-2 text-bright underline"
+                        onClick={() => setBulkUsageOpen((v) => !v)}
+                      >
+                        {bulkUsageOpen ? '收合明細' : '看是哪幾項'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+              {bulkUsageOpen && usedSelected.length > 0 && (
+                <ul className="mt-2 max-h-48 overflow-y-auto rounded border border-ink-200 bg-white px-3 py-2 text-[0.8125rem] break-words text-ink-700">
+                  {usedSelected.map((i) => {
+                    const u = bulkUsage?.[i.id]
+                    return (
+                      <li key={i.id}>
+                        {i.name}{i.spec ? `／${i.spec}` : ''}
+                        <span className="num ml-2 text-ink-500">
+                          {u?.quotes ?? 0} 張報價單・{u?.lines ?? 0} 行明細
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+              <div className="mt-2 text-ink-700">若只是暫時不用，建議改用「停用」而不是刪除。</div>
+            </ConfirmPanel>
+          </div>
+        )}
+
+        {/* 空狀態改用共用 EmptyState，不再在表格內塞一列跨欄文字——沒有資料時
+            連同只會空轉的表頭與全選框一起收掉。 */}
+        {groups.length === 0 ? (
+          <EmptyState
+            title="沒有符合條件的品項"
+            hint={filterActive ? '調整上方的篩選條件或關鍵字再看一次。' : '單價庫目前沒有任何品項。'}
+          />
+        ) : (
+        /* 每格幾乎都是輸入框的密集編輯表格——手機轉卡片反而更難用，改用 .table-scroll 橫捲。
+           .field 是 w-full，欄位本身沒有最小內容寬度，不給 min-w 會在窄螢幕被壓成一條線，
+           所以表格與幾個文字欄一併設下最小寬度。 */
         <div className="table-scroll">
           <table className="w-full min-w-[60rem] border-collapse">
             <thead>
@@ -956,13 +969,6 @@ export default function PriceCatalogPage() {
                 <th className="th">刪除</th>
               </tr>
             </thead>
-            {groups.length === 0 && (
-              <tbody>
-                <tr>
-                  <td className="td text-center text-ink-500" colSpan={COL_COUNT}>沒有符合條件的品項</td>
-                </tr>
-              </tbody>
-            )}
             {groups.map((g) => {
               const open = openCats.has(g.id)
               // 全選狀態只看該組目前可見的列——別組已勾的品項不會被算進來也不會被清掉
@@ -1174,46 +1180,38 @@ export default function PriceCatalogPage() {
                             <td className="td" colSpan={COL_COUNT}>
                               {/* 跨欄面板同樣釘在可視區左緣，手機不必橫捲就能讀完並按到按鈕 */}
                               <div className="sticky left-0 max-w-[calc(100vw-4rem)] sm:static sm:max-w-none">
-                              <div className="text-sm font-semibold text-warn">確認刪除此品項？</div>
-                              <div className="mt-1 grid grid-cols-1 gap-x-4 gap-y-0.5 text-[0.8125rem] break-words text-ink-900 sm:grid-cols-2 md:grid-cols-4">
-                                <div>品名：{it.name}</div>
-                                <div>規格：{it.spec || '—'}</div>
-                                <div>單位：{it.unit}</div>
-                                <div>目前標準單價：<span className="num">{money(it.std_price)}</span></div>
-                              </div>
-                              <div className="mt-2 text-[0.8125rem] text-ink-900">
-                                {delUsageLoading && <span className="text-ink-500">使用情形查詢中…</span>}
-                                {!delUsageLoading && delUsage && (
-                                  delUsage.line_count === 0 && delUsage.quote_count === 0
-                                    ? <>此品項尚未被任何報價單使用，可安全刪除。</>
-                                    : (
-                                      <>
-                                        此品項已被 <span className="num font-semibold">{delUsage.quote_count}</span> 張報價單、
-                                        <span className="num font-semibold">{delUsage.line_count}</span> 行明細使用。
-                                        刪除<span className="font-semibold">不會</span>更動那些報價單的內容與金額
-                                        （單價已存為快照），只會失去與單價庫的連結。
-                                      </>
-                                    )
-                                )}
-                              </div>
-                              <div className="mt-1 text-[0.8125rem] text-ink-700">
-                                若只是暫時不用，建議改用「停用」而不是刪除。
-                              </div>
-                              <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                                <button
-                                  className="btn btn-danger"
-                                  disabled={delBusy || delUsageLoading}
-                                  onClick={() => void runDelete(it)}
+                                <ConfirmPanel
+                                  tone="danger"
+                                  title="確認刪除此品項？"
+                                  confirmLabel="確認刪除"
+                                  /* 同批次刪除：使用情形查回來前先擋住確認鈕 */
+                                  busy={delBusy || delUsageLoading}
+                                  onConfirm={() => void runDelete(it)}
+                                  onCancel={() => { setDelAsk(null); setDelUsage(null) }}
                                 >
-                                  {delBusy ? '刪除中…' : '確認刪除'}
-                                </button>
-                                <button
-                                  className="btn" disabled={delBusy}
-                                  onClick={() => { setDelAsk(null); setDelUsage(null) }}
-                                >
-                                  取消
-                                </button>
-                              </div>
+                                  <div className="grid grid-cols-1 gap-x-4 gap-y-0.5 break-words text-ink-900 sm:grid-cols-2 md:grid-cols-4 [&>*]:min-w-0">
+                                    <div>品名：{it.name}</div>
+                                    <div>規格：{it.spec || '—'}</div>
+                                    <div>單位：{it.unit}</div>
+                                    <div>目前標準單價：<span className="num">{money(it.std_price)}</span></div>
+                                  </div>
+                                  <div className="mt-2 text-ink-900">
+                                    {delUsageLoading && <span className="text-ink-500">使用情形查詢中…</span>}
+                                    {!delUsageLoading && delUsage && (
+                                      delUsage.line_count === 0 && delUsage.quote_count === 0
+                                        ? <>此品項尚未被任何報價單使用，可安全刪除。</>
+                                        : (
+                                          <>
+                                            此品項已被 <span className="num font-semibold">{delUsage.quote_count}</span> 張報價單、
+                                            <span className="num font-semibold">{delUsage.line_count}</span> 行明細使用。
+                                            刪除<span className="font-semibold">不會</span>更動那些報價單的內容與金額
+                                            （單價已存為快照），只會失去與單價庫的連結。
+                                          </>
+                                        )
+                                    )}
+                                  </div>
+                                  <div className="mt-1">若只是暫時不用，建議改用「停用」而不是刪除。</div>
+                                </ConfirmPanel>
                               </div>
                             </td>
                           </tr>
@@ -1323,6 +1321,7 @@ export default function PriceCatalogPage() {
             })}
           </table>
         </div>
+        )}
       </div>
     </div>
   )

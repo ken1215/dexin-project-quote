@@ -1,10 +1,15 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useRefData } from '../context/RefDataContext'
 import { calcTotals, concessionPct, evidenceSentence, money } from '../lib/calc'
-import { STATUS_LABEL } from '../types'
+import Alert from '../components/ui/Alert'
+import ConfirmPanel from '../components/ui/ConfirmPanel'
+import EmptyState from '../components/ui/EmptyState'
+import PageHeader from '../components/ui/PageHeader'
+import Stat from '../components/ui/Stat'
+import StatusTag from '../components/ui/StatusTag'
 import type {
   DraftLine, DraftSection, NegoResponse, Negotiation,
   PriceFloor, Quote, QuoteLine, QuoteSection,
@@ -31,11 +36,6 @@ const numOf = (s: string): number => {
 const timeText = (iso: string): string => {
   const d = new Date(iso)
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString('zh-TW', { hour12: false })
-}
-
-/** 讓分組表格一次吐出多個 tr 而不破壞 tbody 結構 */
-function RowGroup({ children }: { children: ReactNode }) {
-  return <>{children}</>
 }
 
 export default function NegotiationPage() {
@@ -141,10 +141,19 @@ export default function NegotiationPage() {
 
   const mgmt = quote ? Number(quote.mgmt_fee_rate) : mgmtFeeRate
   const tax = quote ? Number(quote.tax_rate) : taxRate
+  // 同一份分組結果同時餵給合計與表格，少算一次也少一次不一致的機會
+  const finalSections = buildSections(finalOf)
   const origTotals = calcTotals(buildSections((l) => Number(l.unit_price)), mgmt, tax)
-  const finalTotals = calcTotals(buildSections(finalOf), mgmt, tax)
+  const finalTotals = calcTotals(finalSections, mgmt, tax)
   const diff = origTotals.total - finalTotals.total
   const totalPct = concessionPct(origTotals.total, finalTotals.total)
+
+  // 項次在 render 當下一次推導完；原本靠 JSX 內 `seq += 1` 累加，
+  // oxlint react(immutability) 會警告「render 完成後仍在改變數」。
+  const seqOf = new Map<string, number>()
+  for (const sec of finalSections) {
+    for (const dl of sec.lines) seqOf.set(dl.key, seqOf.size + 1)
+  }
 
   const belowFloor = lines.filter((l) => {
     const fp = floorOf(l.item_id)
@@ -270,9 +279,13 @@ export default function NegotiationPage() {
 
   if (!quote) {
     return (
-      <div className="card">
-        <div className="text-warn">{error ?? '查無此報價單。'}</div>
-        <Link to="/" className="btn mt-3">回報價單列表</Link>
+      <div className="space-y-4">
+        <PageHeader index="06" eyebrow="NEGOTIATION" title="議價" />
+        <EmptyState
+          title={error ?? '查無此報價單。'}
+          hint="請確認網址上的單據編號，或從報價單列表重新進入。"
+          action={<Link to="/" className="btn">回報價單列表</Link>}
+        />
       </div>
     )
   }
@@ -283,20 +296,31 @@ export default function NegotiationPage() {
     return lines.find((l) => l.id === lineId)?.name ?? '（項目已刪除）'
   }
 
-  let seq = 0
+  const pctTone = (p: number): string => (p > 20
+    ? 'text-warn font-semibold'
+    : p > 10 ? 'text-alert font-semibold' : 'text-ink-700')
 
   return (
     <div className="space-y-4">
-      <div className="card">
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <h2 className="text-[1.0625rem] font-semibold text-deep">議價回應</h2>
-          <span className="tag max-w-full truncate">{quote.quote_no}</span>
-          <span className="tag">{STATUS_LABEL[quote.status]}</span>
-          <Link to={`/quote/${quote.id}`} className="btn ml-auto">回單據</Link>
-          <Link to={`/print/${quote.id}`} className="btn">列印</Link>
-        </div>
+      <PageHeader
+        index="06"
+        eyebrow="NEGOTIATION"
+        title="議價"
+        actions={(
+          <>
+            {/* PageHeader 的 actions 容器沒有 items-center，標籤自己包一層才不會被拉伸 */}
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="tag min-w-0 max-w-full truncate">{quote.quote_no}</span>
+              <StatusTag status={quote.status} />
+            </span>
+            <Link to={`/quote/${quote.id}`} className="btn">回單據</Link>
+            <Link to={`/print/${quote.id}`} className="btn">列印</Link>
+          </>
+        )}
+      />
 
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="card">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div className="min-w-0">
             <div className="label">案名／工程地點</div>
             <div className="break-words text-ink-900">{quote.project || '—'}</div>
@@ -305,13 +329,9 @@ export default function NegotiationPage() {
             <div className="label">申請單位／現場窗口</div>
             <div className="break-words text-ink-900">{quote.dept || '—'}／{quote.contact || '—'}</div>
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="label">報價日期</div>
             <div className="text-ink-900">{quote.quote_date}</div>
-          </div>
-          <div>
-            <div className="label">原報價合計（含稅）</div>
-            <div className="num text-[1.0625rem] font-semibold text-deep">{money(origTotals.total)}</div>
           </div>
         </div>
 
@@ -324,34 +344,49 @@ export default function NegotiationPage() {
           >
             切換為「議價中」
           </button>
-          <span className="text-xs text-ink-500">
+          <span className="min-w-0 text-xs text-ink-500">
             本輪將存為第 {nextRound} 輪（目前已有 {maxRound} 輪紀錄）
           </span>
-          {belowFloor.length > 0 && (
-            <span className="rounded-md bg-warn-bg px-2 py-1 text-sm font-semibold text-warn">
-              共 {belowFloor.length} 項低於底價
-            </span>
-          )}
         </div>
       </div>
 
-      {error && (
-        <div className="rounded-md border border-warn/30 bg-warn-bg px-4 py-2 text-sm text-warn">
-          {error}
-        </div>
-      )}
-      {msg && (
-        <div className="rounded-md border border-green/40 bg-green/10 px-4 py-2 text-sm text-green">
-          {msg}
-        </div>
+      {/* 整單的四個關鍵數字。改版前分散在頁首、右欄試算表與兩處低於底價提示，
+          同一個數字最多出現三次；收斂成一排 Stat，右欄只留金額組成。 */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Stat label="原報價合計（含稅）" value={money(origTotals.total)} />
+        <Stat label="定案後合計（含稅）" value={money(finalTotals.total)} />
+        <Stat
+          label="差額（讓價）"
+          value={<span className={diff > 0 ? 'text-warn' : 'text-ink-700'}>{money(diff)}</span>}
+        />
+        <Stat
+          label="總讓步幅度"
+          value={<span className={pctTone(totalPct)}>{totalPct.toFixed(1)}%</span>}
+        />
+      </div>
+
+      {error && <Alert kind="error">{error}</Alert>}
+      {msg && <Alert kind="success">{msg}</Alert>}
+      {belowFloor.length > 0 && (
+        <Alert kind="warn" title={`共 ${belowFloor.length} 項定案單價低於底價`}>
+          請重新評估定案單價，或在該列的理由欄補強說明。
+        </Alert>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_310px]">
-        <div className="space-y-4">
+      {/* 紅線 5：左欄放的是 sm:min-w-[1120px] 的寬表格，軌道用 1fr ＋ 子項 min-width:auto
+          會被 min-content 撐開，.table-scroll 等於白設。軌道改 minmax(0,1fr)、子項補 min-w-0。 */}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_310px]">
+        <div className="min-w-0 space-y-4">
           <div className="card">
             <div className="card-title">逐項議價</div>
             {lines.length === 0 ? (
-              <div className="text-ink-500">本單沒有任何項目。</div>
+              /* action 的文字刻意與頁首那顆「回單據」不同：
+                 Task 11 會逐頁比對可見按鈕文字有無重複。 */
+              <EmptyState
+                title="本單沒有任何項目"
+                hint="回單據頁補上工料項目後，才能逐項議價。"
+                action={<Link to={`/quote/${quote.id}`} className="btn">回單據頁補項目</Link>}
+              />
             ) : (
               /* 手機：rwd-table 把每一列變成一張品項卡（欄位名由 data-label 長出來）；
                  sm 以上恢復寬表格，橫捲交給 .table-scroll，body 不會橫捲。 */
@@ -372,8 +407,8 @@ export default function NegotiationPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {buildSections(finalOf).map((sec) => (
-                    <RowGroup key={sec.key}>
+                  {finalSections.map((sec) => (
+                    <Fragment key={sec.key}>
                       <tr>
                         <td className="td bg-light/50 font-semibold text-deep" colSpan={10}>
                           {sec.title || '（未命名大項）'}
@@ -382,19 +417,15 @@ export default function NegotiationPage() {
                       {sec.lines.map((dl) => {
                         const l = lines.find((x) => x.id === dl.key)
                         if (!l) return null
-                        seq += 1
                         const r = rows[l.id]
                         const orig = Number(l.unit_price)
                         const fin = finalOf(l)
                         const pct = concessionPct(orig, fin)
                         const fp = floorOf(l.item_id)
                         const under = fp !== null && fin < fp
-                        const pctClass = pct > 20
-                          ? 'text-warn font-semibold'
-                          : pct > 10 ? 'text-alert font-semibold' : 'text-ink-700'
                         return (
                           <tr key={l.id} className={under ? 'bg-warn-bg' : undefined}>
-                            <td className="td num" data-label="項次">{seq}</td>
+                            <td className="td num" data-label="項次">{seqOf.get(dl.key)}</td>
                             {/* 品名不給 data-label：手機時佔滿整行，當成這張卡的標題 */}
                             <td className="td">
                               <div className="w-full min-w-0">
@@ -446,7 +477,7 @@ export default function NegotiationPage() {
                                 )}
                               </div>
                             </td>
-                            <td className={`td num ${pctClass}`} data-label="讓步幅度">
+                            <td className={`td num ${pctTone(pct)}`} data-label="讓步幅度">
                               {pct.toFixed(1)}%
                             </td>
                             {/* 理由欄不給 data-label：手機時佔整行，欄位名改用行內小標 */}
@@ -472,7 +503,7 @@ export default function NegotiationPage() {
                           </tr>
                         )
                       })}
-                    </RowGroup>
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
@@ -483,7 +514,10 @@ export default function NegotiationPage() {
           <div className="card">
             <div className="card-title">議價歷程</div>
             {rounds.length === 0 ? (
-              <div className="text-ink-500">尚無議價紀錄。</div>
+              <EmptyState
+                title="尚無議價紀錄"
+                hint="填好上方逐項議價並按「儲存本輪議價」後，每一輪都會列在這裡。"
+              />
             ) : (
               <div className="space-y-4">
                 {rounds.map((rd) => {
@@ -547,58 +581,24 @@ export default function NegotiationPage() {
 
         <aside className="space-y-4 lg:sticky lg:top-16 lg:self-start">
           <div className="card">
-            <div className="card-title">整單試算</div>
-            <table className="w-full border-collapse text-[0.8125rem]">
-              <tbody>
-                <tr>
-                  <td className="td">原報價工程小計</td>
-                  <td className="td num">{money(origTotals.works)}</td>
-                </tr>
-                <tr>
-                  <td className="td">定案後工程小計</td>
-                  <td className="td num">{money(finalTotals.works)}</td>
-                </tr>
-                <tr>
-                  <td className="td">管理費 {(mgmt * 100).toFixed(1)}%</td>
-                  <td className="td num">{money(finalTotals.mgmt)}</td>
-                </tr>
-                <tr>
-                  <td className="td">營業稅 {(tax * 100).toFixed(1)}%</td>
-                  <td className="td num">{money(finalTotals.tax)}</td>
-                </tr>
-                <tr>
-                  <td className="td font-semibold text-ink-900">原報價合計</td>
-                  <td className="td num font-semibold text-ink-900">{money(origTotals.total)}</td>
-                </tr>
-                <tr>
-                  <td className="td font-semibold text-deep">定案後合計</td>
-                  <td className="td num text-[0.9375rem] font-semibold text-deep">
-                    {money(finalTotals.total)}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="td">差額（讓價）</td>
-                  <td className={`td num ${diff > 0 ? 'text-warn' : 'text-ink-700'}`}>
-                    {money(diff)}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="td">總讓步幅度</td>
-                  <td className={`td num ${totalPct > 20
-                    ? 'text-warn font-semibold'
-                    : totalPct > 10 ? 'text-alert font-semibold' : 'text-ink-700'}`}
-                  >
-                    {totalPct.toFixed(1)}%
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-
-            {belowFloor.length > 0 && (
-              <div className="mt-3 rounded-md border border-warn/30 bg-warn-bg px-3 py-2 text-[0.75rem] text-warn">
-                共 {belowFloor.length} 項定案單價低於底價，請重新評估或補強理由。
-              </div>
-            )}
+            <div className="card-title">金額組成</div>
+            {/* 四個關鍵數字（原報價合計／定案後合計／差額／總讓步幅度）已收在頁首的 Stat 列，
+                這裡只留算式組成，不重複顯示同一個數字。
+                規格 B 節第 4 點要求「表格一律 .rwd-table 或 .table-scroll」——這一區本來就是
+                label／value 的兩欄對照，不是資料表，改用 flex 列排掉表格，兩個規則都不用套。 */}
+            <dl className="space-y-1 text-[0.8125rem]">
+              {[
+                { k: '原報價工程小計', v: money(origTotals.works) },
+                { k: '定案後工程小計', v: money(finalTotals.works) },
+                { k: `管理費 ${(mgmt * 100).toFixed(1)}%`, v: money(finalTotals.mgmt) },
+                { k: `營業稅 ${(tax * 100).toFixed(1)}%`, v: money(finalTotals.tax) },
+              ].map((row) => (
+                <div key={row.k} className="flex items-baseline gap-2 border-b border-ink-200 py-1">
+                  <dt className="min-w-0 break-words text-ink-700">{row.k}</dt>
+                  <dd className="num ml-auto min-w-0 text-ink-900">{row.v}</dd>
+                </div>
+              ))}
+            </dl>
 
             {/* 手機：主要動作釘在畫面底部（.action-bar）；sm 以上改回上下堆疊的整寬按鈕 */}
             <div className="action-bar mt-3 sm:flex-col">
@@ -622,41 +622,29 @@ export default function NegotiationPage() {
           </div>
 
           {confirmClose && (
-            <div className="card border-warn/40">
-              <div className="card-title text-warn">確認定案</div>
-              <p className="text-[0.8125rem] text-ink-700">
+            <ConfirmPanel
+              tone="danger"
+              title="確認定案"
+              confirmLabel="確認定案並覆寫金額"
+              busy={busy}
+              onConfirm={() => void closeCase()}
+              onCancel={() => setConfirmClose(false)}
+            >
+              <p>
                 此動作會將本單 {lines.length} 項的報價單價
                 <span className="font-semibold text-warn">直接覆寫為上方的定案單價</span>
                 ，並把狀態改為「已定案」。覆寫後列印出來的即為定案版金額，原報價金額不再保留。
               </p>
-              <p className="mt-2 text-[0.8125rem] text-ink-700">
+              <p className="mt-2">
                 定案後合計 <span className="num font-semibold text-deep">{money(finalTotals.total)}</span>
                 ，較原報價讓價 {money(diff)} 元（{totalPct.toFixed(1)}%）。
               </p>
               {belowFloor.length > 0 && (
-                <p className="mt-2 text-[0.8125rem] font-semibold text-warn">
+                <p className="mt-2 font-semibold text-warn">
                   注意：其中 {belowFloor.length} 項低於底價。
                 </p>
               )}
-              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                <button
-                  type="button"
-                  className="btn btn-danger w-full sm:w-auto"
-                  disabled={busy}
-                  onClick={() => void closeCase()}
-                >
-                  確認定案並覆寫金額
-                </button>
-                <button
-                  type="button"
-                  className="btn w-full sm:w-auto"
-                  disabled={busy}
-                  onClick={() => setConfirmClose(false)}
-                >
-                  取消
-                </button>
-              </div>
-            </div>
+            </ConfirmPanel>
           )}
         </aside>
       </div>

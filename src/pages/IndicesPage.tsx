@@ -2,6 +2,10 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useRefData } from '../context/RefDataContext'
+import Alert from '../components/ui/Alert'
+import EmptyState from '../components/ui/EmptyState'
+import PageHeader from '../components/ui/PageHeader'
+import Stat from '../components/ui/Stat'
 import { laborListPrice, laborPrice, money } from '../lib/calc'
 import type { LaborRate, MaterialIndex } from '../types'
 
@@ -295,6 +299,8 @@ export default function IndicesPage() {
 
   const prodDirty = changedProdRows().length > 0
   const prodBadCount = prodRows.filter((r) => !validOutput(r.output_per_manday)).length
+  // 頁首統計：render 當下由既有資料推導，不另外開 state、不另外查資料
+  const prodActiveCount = prodRows.filter((r) => r.active).length
 
   // 依 trade 分組，組內維持 sort 順序（同工種即使不相鄰也收進同一組）
   const prodGroups = useMemo(() => {
@@ -310,15 +316,30 @@ export default function IndicesPage() {
   if (loading) return <div className="p-6 text-ink-500">載入中…</div>
 
   return (
-    // 手機縮小外距，把寬度讓給表格內容；sm 以上維持原本的 p-6
-    <div className="space-y-4 p-3 sm:space-y-6 sm:p-6">
+    // 外距交給 Layout 的 <main>（px-3 py-3 sm:px-5 sm:py-4），本頁只管區塊間距，
+    // 與 QuoteListPage 同一套；原本的 p-3 sm:p-6 是疊在 main 之上的第二層外距。
+    <div className="space-y-4">
+      <PageHeader
+        index="04"
+        eyebrow="INDICES"
+        title="物價指數"
+        actions={(
+          <>
+            <Stat label="指數項目" value={rows.length} />
+            <Stat label="工率基準" value={prodRows.length} hint={`啟用 ${prodActiveCount} 項`} />
+          </>
+        )}
+      />
+
       {ro && (
-        <div className="rounded-md border border-ink-200 bg-light/60 px-3 py-2 text-sm text-ink-700">
-          唯讀模式：您的角色看得到計價基礎，但不能修改。要調整指數、日薪或工率請洽行政管理部副部長或工務處長。
-        </div>
+        <Alert kind="info" title="唯讀模式">
+          您的角色看得到計價基礎，但不能修改。要調整指數、日薪或工率請洽行政管理部副部長或工務處長。
+        </Alert>
       )}
+
       <div className="card">
-        <div className="card-title">物價指數維護</div>
+        {/* 頁名已由 PageHeader 掛出，這張卡改講「怎麼更新、來源在哪」，不再重複頁名 */}
+        <div className="card-title">更新說明與官方來源</div>
         <p className="mb-3 text-sm text-ink-700">
           本頁數值為報價單佐證之依據，建議每月初更新一次；更新後全系統以此指數連動計算之建議單價與佐證句將立即套用最新數字。
         </p>
@@ -350,28 +371,45 @@ export default function IndicesPage() {
             </ul>
           </div>
         )}
-        {error && <div className="mt-3 text-sm text-warn">讀取失敗：{error}</div>}
+        {error && (
+          <div className="mt-3">
+            <Alert kind="error" title="讀取失敗"><div className="break-words">{error}</div></Alert>
+          </div>
+        )}
       </div>
 
       <div className="card">
-        {/* 手機：標題與儲存區直排，儲存鈕整列寬（好按）；sm 以上恢復左右分置 */}
+        {/* 手機：標題與儲存鈕直排，儲存鈕整列寬（好按）；sm 以上恢復左右分置 */}
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="card-title mb-0 border-0 pb-0">指數清單</div>
-          <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
-            {idxSaved && !idxDirty && <span className="text-sm text-green">已儲存</span>}
-            {idxError && <span className="break-words text-sm text-warn">{idxError}</span>}
-            <button
-              type="button"
-              className="btn btn-primary w-full sm:w-auto"
-              disabled={ro || !idxDirty || savingIdx}
-              onClick={() => void saveIndices()}
-            >
-              {savingIdx ? '儲存中…' : '儲存'}
-            </button>
-          </div>
+          <div className="card-title mb-0 min-w-0 border-0 pb-0">指數清單</div>
+          {/* 三張卡各有一顆儲存鈕，文字必須互異——同頁重複的按鈕文字在
+              Task 11 的重複按鈕檢查會被抓（改版前三顆都叫「儲存」） */}
+          <button
+            type="button"
+            className="btn btn-primary w-full sm:w-auto"
+            disabled={ro || !idxDirty || savingIdx}
+            onClick={() => void saveIndices()}
+          >
+            {savingIdx ? '儲存中…' : '儲存指數'}
+          </button>
         </div>
 
+        {/* 訊息一律走 Alert；改版前擠在儲存鈕旁的小字，手機會被整列寬的按鈕推掉 */}
+        {idxError && (
+          <div className="mb-3">
+            <Alert kind="error" title="儲存失敗"><div className="break-words">{idxError}</div></Alert>
+          </div>
+        )}
+        {idxSaved && !idxDirty && (
+          <div className="mb-3"><Alert kind="success">已儲存</Alert></div>
+        )}
+
+        {rows.length === 0 && (
+          <EmptyState title="目前沒有物價指數資料" hint="請確認資料庫的 material_indices 是否已建立項目。" />
+        )}
+
         {/* 手機：本表以唯讀欄位為主（只有兩格可輸入），走 .rwd-table 卡片化 */}
+        {rows.length > 0 && (
         <div className="table-scroll">
           <table className="rwd-table w-full border-collapse">
             <thead>
@@ -388,11 +426,6 @@ export default function IndicesPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.length === 0 && (
-                <tr>
-                  <td className="td text-center text-ink-500" colSpan={9}>目前沒有物價指數資料</td>
-                </tr>
-              )}
               {rows.map((r) => {
                 const pct = pctChange(r)
                 const src = evidenceOf(r.source_id)
@@ -448,25 +481,31 @@ export default function IndicesPage() {
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
       <div className="card">
-        {/* 手機：標題與儲存區直排，儲存鈕整列寬（好按）；sm 以上恢復左右分置 */}
+        {/* 手機：標題與儲存鈕直排，儲存鈕整列寬（好按）；sm 以上恢復左右分置 */}
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="card-title mb-0 border-0 pb-0">工資時段加成表</div>
-          <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
-            {laborSaved && !laborDirty && <span className="text-sm text-green">已儲存</span>}
-            {laborError && <span className="break-words text-sm text-warn">{laborError}</span>}
-            <button
-              type="button"
-              className="btn btn-primary w-full sm:w-auto"
-              disabled={ro || !laborDirty || savingLabor}
-              onClick={() => void saveLabor()}
-            >
-              {savingLabor ? '儲存中…' : '儲存'}
-            </button>
-          </div>
+          <div className="card-title mb-0 min-w-0 border-0 pb-0">工資時段加成表</div>
+          <button
+            type="button"
+            className="btn btn-primary w-full sm:w-auto"
+            disabled={ro || !laborDirty || savingLabor}
+            onClick={() => void saveLabor()}
+          >
+            {savingLabor ? '儲存中…' : '儲存工資設定'}
+          </button>
         </div>
+
+        {laborError && (
+          <div className="mb-3">
+            <Alert kind="error" title="儲存失敗"><div className="break-words">{laborError}</div></Alert>
+          </div>
+        )}
+        {laborSaved && !laborDirty && (
+          <div className="mb-3"><Alert kind="success">已儲存</Alert></div>
+        )}
 
         {/* 手機單欄、sm 以上雙欄；輸入框手機整列寬，避免被長標籤擠成細條 */}
         <div className="mb-4 grid grid-cols-1 items-start gap-4 sm:grid-cols-2 sm:gap-6">
@@ -504,7 +543,12 @@ export default function IndicesPage() {
           </div>
         </div>
 
+        {laborRows.length === 0 && (
+          <EmptyState title="目前沒有工資時段加成資料" hint="請確認資料庫的 labor_rates 是否已建立時段。" />
+        )}
+
         {/* 手機：僅「倍率」可輸入，其餘唯讀 → 卡片化 */}
+        {laborRows.length > 0 && (
         <div className="table-scroll">
           <table className="rwd-table w-full border-collapse">
             <thead>
@@ -517,11 +561,6 @@ export default function IndicesPage() {
               </tr>
             </thead>
             <tbody>
-              {laborRows.length === 0 && (
-                <tr>
-                  <td className="td text-center text-ink-500" colSpan={5}>目前沒有工資時段加成資料</td>
-                </tr>
-              )}
               {laborRows.map((r) => (
                 <tr key={r.id}>
                   <td className="td break-words font-medium">{r.name}</td>
@@ -545,6 +584,7 @@ export default function IndicesPage() {
             </tbody>
           </table>
         </div>
+        )}
 
         {/* 調整折數前的對照參考——唯讀，只列數字不做計算 */}
         <div className="mt-4 rounded-md border border-ink-200 bg-ink-50 p-3 text-xs text-ink-500">
@@ -569,32 +609,45 @@ export default function IndicesPage() {
       </div>
 
       <div className="card">
-        {/* 手機：標題與儲存區直排，儲存鈕整列寬（好按）；sm 以上恢復左右分置 */}
+        {/* 手機：標題與儲存鈕直排，儲存鈕整列寬（好按）；sm 以上恢復左右分置 */}
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="card-title mb-0 border-0 pb-0">工率基準</div>
-          <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
-            {prodSaved && !prodDirty && <span className="text-sm text-green">已儲存</span>}
-            {prodError && <span className="break-words text-sm text-warn">{prodError}</span>}
-            {prodBadCount > 0 && (
-              <span className="break-words text-sm text-warn">有 {prodBadCount} 列工率不大於 0，無法儲存</span>
-            )}
-            <button
-              type="button"
-              className="btn btn-primary w-full sm:w-auto"
-              disabled={ro || !prodDirty || savingProd || prodBadCount > 0}
-              onClick={() => void saveProductivity()}
-            >
-              {savingProd ? '儲存中…' : '儲存工率'}
-            </button>
-          </div>
+          <div className="card-title mb-0 min-w-0 border-0 pb-0">工率基準</div>
+          <button
+            type="button"
+            className="btn btn-primary w-full sm:w-auto"
+            disabled={ro || !prodDirty || savingProd || prodBadCount > 0}
+            onClick={() => void saveProductivity()}
+          >
+            {savingProd ? '儲存中…' : '儲存工率'}
+          </button>
         </div>
+
+        {prodError && (
+          <div className="mb-3">
+            <Alert kind="error" title="儲存失敗"><div className="break-words">{prodError}</div></Alert>
+          </div>
+        )}
+        {prodBadCount > 0 && (
+          <div className="mb-3">
+            <Alert kind="warn">有 {prodBadCount} 列工率不大於 0，無法儲存</Alert>
+          </div>
+        )}
+        {prodSaved && !prodDirty && (
+          <div className="mb-3"><Alert kind="success">已儲存</Alert></div>
+        )}
 
         <p className="mb-3 text-xs text-ink-500">
           工率係一名技術工於正常工時（8 小時）之產出基準，用於報價單的工率分析頁向院方說明工資組成。
           調整工率會直接改變該工項的應攤工資：<span className="font-semibold">工率調高＝單價變低</span>。
         </p>
 
+        {prodLoading && <div className="py-8 text-center text-ink-500">載入中…</div>}
+        {!prodLoading && prodGroups.length === 0 && (
+          <EmptyState title="目前沒有工率基準資料" hint="請確認資料庫的 labor_productivity 是否已建立工項。" />
+        )}
+
         {/* 手機：八欄橫捲太寬，且每列僅工率與啟用可改 → 卡片化 */}
+        {!prodLoading && prodGroups.length > 0 && (
         <div className="table-scroll">
           <table className="rwd-table w-full border-collapse">
             <thead>
@@ -610,16 +663,6 @@ export default function IndicesPage() {
               </tr>
             </thead>
             <tbody>
-              {prodLoading && (
-                <tr>
-                  <td className="td text-center text-ink-500" colSpan={8}>載入中…</td>
-                </tr>
-              )}
-              {!prodLoading && prodGroups.length === 0 && (
-                <tr>
-                  <td className="td text-center text-ink-500" colSpan={8}>目前沒有工率基準資料</td>
-                </tr>
-              )}
               {prodGroups.map((g) => (
                 <Fragment key={g.trade}>
                   <tr>
@@ -697,6 +740,7 @@ export default function IndicesPage() {
             </tbody>
           </table>
         </div>
+        )}
 
         <div className="mt-3 text-xs text-ink-500">
           單價依技術工日薪牌價 {money(laborBase)} 元／工

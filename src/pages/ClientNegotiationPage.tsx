@@ -3,6 +3,11 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { calcTotals, lineAmount, money } from '../lib/calc'
+import Alert from '../components/ui/Alert'
+import EmptyState from '../components/ui/EmptyState'
+import PageHeader from '../components/ui/PageHeader'
+import Stat from '../components/ui/Stat'
+import StatusTag from '../components/ui/StatusTag'
 import type {
   DraftLine, DraftSection, NegoResponse, Negotiation,
   Quote, QuoteLine, QuoteSection, QuoteStatus,
@@ -24,21 +29,9 @@ import type {
 /** 採購看得到的單據狀態；其餘（draft / submitted / rejected）根本不該出現在這裡 */
 const VISIBLE_STATUS: QuoteStatus[] = ['approved', 'negotiating', 'closed']
 
-/** 對外用語：不要把我方內部流程狀態的原始字串或內部說法露出去 */
-const CLIENT_STATUS_LABEL: Partial<Record<QuoteStatus, string>> = {
-  approved: '已收到報價',
-  negotiating: '議價中',
-  closed: '已定案',
-}
-
-const CLIENT_STATUS_TAG: Partial<Record<QuoteStatus, string>> = {
-  approved: 'bg-green/15 text-green',
-  negotiating: 'bg-bright/15 text-bright',
-  closed: 'bg-deep/15 text-deep',
-}
-
-const statusText = (s: QuoteStatus): string => CLIENT_STATUS_LABEL[s] ?? '處理中'
-const statusTagClass = (s: QuoteStatus): string => CLIENT_STATUS_TAG[s] ?? 'bg-ink-200 text-ink-700'
+/* 對外用語（已收到報價／議價中／已定案）與色票原本在本檔各刻一份，
+   現已收進 StatusTag 的 variant="client"。本頁一律用該 variant，
+   絕不可改用 internal——那會把我方內部流程狀態與越級核定的細節露給院方。 */
 
 /** 我方回覆的中文說法 */
 const RESPONSE_LABEL: Record<NegoResponse, string> = {
@@ -85,13 +78,11 @@ const numOf = (s: string): number => {
   return Number.isFinite(v) ? v : 0
 }
 
-function ErrorBox({ text }: { text: string }) {
-  return (
-    <div className="rounded-md border border-warn/30 bg-warn-bg px-4 py-2 text-sm text-warn">
-      {text}
-    </div>
-  )
-}
+/* 頁首語彙：規格 B 節把本頁編為 07 ／ CLIENT。
+   ⚠️ components/ui/PageHeader.tsx 的註解仍寫著「醫院採購端只有一頁，不編號」，
+   與規格相牴觸；該註解需修，但 PageHeader 不在本批指派範圍，故此處照規格編號。 */
+const PAGE_INDEX = '07'
+const PAGE_EYEBROW = 'CLIENT'
 
 export default function ClientNegotiationPage() {
   const { id } = useParams<{ id: string }>()
@@ -163,23 +154,33 @@ function QuoteIndex() {
 
   return (
     <div className="space-y-4">
+      <PageHeader
+        index={PAGE_INDEX}
+        eyebrow={PAGE_EYEBROW}
+        title="報價單議價"
+        actions={loading ? undefined : (
+          <span className="flex items-center">
+            <span className="tag">共 {quotes.length} 張</span>
+          </span>
+        )}
+      />
+
       <div className="card">
-        <h2 className="text-[1.0625rem] font-semibold text-deep">報價單議價</h2>
-        <p className="mt-2 text-[0.8125rem] text-ink-700">
+        <p className="text-[0.8125rem] text-ink-700">
           以下為立德新股份有限公司(德新物業)送交本院之報價單。您可針對個別項目提出議價，
           我方將於收到後回覆。
         </p>
       </div>
 
-      {error && <ErrorBox text={error} />}
+      {error && <Alert kind="error">{error}</Alert>}
 
       {loading ? (
         <div className="p-10 text-center text-ink-500">報價單載入中…</div>
       ) : quotes.length === 0 ? (
-        <div className="card text-center text-ink-500">
-          目前沒有待議價的報價單。<br />
-          當德新物業送出報價後，單據會自動出現在這裡，屆時即可於本頁提出議價。
-        </div>
+        <EmptyState
+          title="目前沒有待議價的報價單"
+          hint="當德新物業送出報價後，單據會自動出現在這裡，屆時即可於本頁提出議價。"
+        />
       ) : (
         <div className="card">
           {/* 手機：每張報價單變成一張卡片（.rwd-table）；桌機維持表格並可橫捲 */}
@@ -204,7 +205,7 @@ function QuoteIndex() {
                     </td>
                     <td className="td num" data-label="報價日期">{q.quote_date}</td>
                     <td className="td" data-label="狀態">
-                      <span className={`tag ${statusTagClass(q.status)}`}>{statusText(q.status)}</span>
+                      <StatusTag status={q.status} variant="client" />
                     </td>
                     <td className="td num font-semibold text-deep" data-label="合計金額（含稅）">
                       {totals[q.id] === undefined ? '—' : money(totals[q.id])}
@@ -321,9 +322,18 @@ function QuoteNegotiation({ quoteId }: { quoteId: string }) {
     return out
   }
 
+  // 同一份分組結果同時餵給合計與表格，少算一次也少一次不一致的機會
+  const offerSections = buildSections(priceOf)
   const origTotals = calcTotals(buildSections((l) => Number(l.unit_price)), mgmtRate, taxRate)
-  const offerTotals = calcTotals(buildSections(priceOf), mgmtRate, taxRate)
+  const offerTotals = calcTotals(offerSections, mgmtRate, taxRate)
   const diff = offerTotals.total - origTotals.total
+
+  // 項次在 render 當下一次推導完；原本靠 JSX 內 `seq += 1` 累加，
+  // oxlint react(immutability) 會警告「render 完成後仍在改變數」。
+  const seqOf = new Map<string, number>()
+  for (const sec of offerSections) {
+    for (const dl of sec.lines) seqOf.set(dl.key, seqOf.size + 1)
+  }
 
   const maxRound = negos.reduce((a, n) => Math.max(a, Number(n.round) || 0), 0)
   const nextRound = maxRound + 1
@@ -373,11 +383,17 @@ function QuoteNegotiation({ quoteId }: { quoteId: string }) {
 
   if (!quote) {
     return (
-      <div className="card">
-        <div className="text-warn">{error ?? '查無此報價單。'}</div>
-        <button type="button" className="btn mt-3" onClick={() => navigate('/client')}>
-          返回清單
-        </button>
+      <div className="space-y-4">
+        <PageHeader index={PAGE_INDEX} eyebrow={PAGE_EYEBROW} title="報價單議價" />
+        <EmptyState
+          title={error ?? '查無此報價單。'}
+          hint="這張單可能尚未送到本院，或已被撤回。"
+          action={(
+            <button type="button" className="btn" onClick={() => navigate('/client')}>
+              返回清單
+            </button>
+          )}
+        />
       </div>
     )
   }
@@ -388,58 +404,68 @@ function QuoteNegotiation({ quoteId }: { quoteId: string }) {
     return lines.find((l) => l.id === lineId)?.name ?? '（該項目已不在本單）'
   }
 
-  let seq = 0
-
   return (
     <div className="space-y-4">
-      <div className="card">
-        <div className="flex flex-wrap items-center gap-3">
-          <h2 className="text-[1.0625rem] font-semibold text-deep">報價單議價</h2>
-          <span className="tag">{quote.quote_no}</span>
-          <span className={`tag ${statusTagClass(quote.status)}`}>{statusText(quote.status)}</span>
-          <button type="button" className="btn ml-auto shrink-0" onClick={() => navigate('/client')}>
-            返回清單
-          </button>
-        </div>
+      <PageHeader
+        index={PAGE_INDEX}
+        eyebrow={PAGE_EYEBROW}
+        title="報價單議價"
+        actions={(
+          <>
+            {/* PageHeader 的 actions 容器沒有 items-center，標籤自己包一層才不會被拉伸 */}
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="tag min-w-0 max-w-full truncate">{quote.quote_no}</span>
+              <StatusTag status={quote.status} variant="client" />
+            </span>
+            <button type="button" className="btn shrink-0" onClick={() => navigate('/client')}>
+              返回清單
+            </button>
+          </>
+        )}
+      />
 
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="min-w-0">
-            <div className="label">單號</div>
-            <div className="num text-ink-900">{quote.quote_no}</div>
-          </div>
+      <div className="card">
+        {/* 單號改由頁首顯示，這裡不再重複一次 */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="min-w-0">
             <div className="label">案名／工程地點</div>
             {/* 案名可能很長，手機要斷行不要撐爆版面 */}
             <div className="break-words text-ink-900">{quote.project || '—'}</div>
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="label">報價日期</div>
             <div className="num text-ink-900">{quote.quote_date}</div>
           </div>
-          <div>
-            <div className="label">合計金額（含稅）</div>
-            <div className="num text-[1.0625rem] font-semibold text-deep">{money(origTotals.total)}</div>
-          </div>
         </div>
-
-        {readOnly && (
-          <div className="mt-3 rounded-md border border-ink-200 bg-light/50 px-3 py-2 text-[0.8125rem] text-deep">
-            本案已定案，如需調整請洽德新物業工務處。
-          </div>
-        )}
       </div>
 
-      {error && <ErrorBox text={error} />}
-      {msg && (
-        <div className="rounded-md border border-green/40 bg-green/10 px-4 py-2 text-sm text-green">
-          {msg}
-        </div>
-      )}
+      {/* 三個金額原本手刻成表格下方的三個框，與頁首的「合計金額」重複一次；
+          收斂成一排 Stat，頁首那格拿掉。 */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Stat label="我方原報價合計（含稅）" value={money(origTotals.total)} />
+        <Stat label="依貴院建議之調整後合計（含稅）" value={money(offerTotals.total)} />
+        <Stat
+          label="與原報價差額"
+          value={(
+            <span className={diff < 0 ? 'text-green' : diff > 0 ? 'text-alert' : 'text-ink-700'}>
+              {diff > 0 ? '+' : ''}{money(diff)}
+            </span>
+          )}
+        />
+      </div>
+
+      {readOnly && <Alert kind="info">本案已定案，如需調整請洽德新物業工務處。</Alert>}
+
+      {error && <Alert kind="error">{error}</Alert>}
+      {msg && <Alert kind="success">{msg}</Alert>}
 
       <div className="card">
         <div className="card-title">逐項議價</div>
         {lines.length === 0 ? (
-          <div className="text-ink-500">本單沒有任何項目。</div>
+          <EmptyState
+            title="本單沒有任何項目"
+            hint="這張報價單目前沒有可議價的工程項目，請洽德新物業工務處。"
+          />
         ) : (
           <>
             <p className="mb-3 text-[0.8125rem] text-ink-700">
@@ -462,7 +488,7 @@ function QuoteNegotiation({ quoteId }: { quoteId: string }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {buildSections(priceOf).map((sec) => (
+                  {offerSections.map((sec) => (
                     <Fragment key={sec.key}>
                       <tr>
                         {/* 大項標題列：手機沒有 data-label 會自成一張整行的標題卡 */}
@@ -475,7 +501,6 @@ function QuoteNegotiation({ quoteId }: { quoteId: string }) {
                       {sec.lines.map((dl) => {
                         const l = lines.find((x) => x.id === dl.key)
                         if (!l) return null
-                        seq += 1
                         const r = rows[l.id]
                         const orig = Number(l.unit_price)
                         const filled = Boolean(r) && r.offer.trim() !== ''
@@ -483,7 +508,7 @@ function QuoteNegotiation({ quoteId }: { quoteId: string }) {
                         const pct = orig ? ((offer - orig) / orig) * 100 : 0
                         return (
                           <tr key={l.id}>
-                            <td className="td num" data-label="項次">{seq}</td>
+                            <td className="td num" data-label="項次">{seqOf.get(dl.key)}</td>
                             {/* 沒有 data-label：手機佔滿整行，當成卡片標題 */}
                             <td className="td">
                               <div className="w-full min-w-0">
@@ -550,30 +575,10 @@ function QuoteNegotiation({ quoteId }: { quoteId: string }) {
               </table>
             </div>
 
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="rounded-md border border-ink-200 px-3 py-2">
-                <div className="label">我方原報價合計（含稅）</div>
-                <div className="num text-[0.9375rem] font-semibold text-ink-900">
-                  {money(origTotals.total)}
-                </div>
-              </div>
-              <div className="rounded-md border border-ink-200 px-3 py-2">
-                <div className="label">依貴院建議之調整後合計（含稅）</div>
-                <div className="num text-[0.9375rem] font-semibold text-deep">
-                  {money(offerTotals.total)}
-                </div>
-              </div>
-              <div className="rounded-md border border-ink-200 px-3 py-2">
-                <div className="label">與原報價差額</div>
-                <div className={`num text-[0.9375rem] font-semibold ${
-                  diff < 0 ? 'text-green' : diff > 0 ? 'text-alert' : 'text-ink-700'
-                }`}>
-                  {diff > 0 ? '+' : ''}{money(diff)}
-                </div>
-              </div>
-            </div>
-            <p className="mt-2 text-[0.75rem] text-ink-500">
-              以上金額含工程管理費 {(mgmtRate * 100).toFixed(1)}% 與營業稅 {(taxRate * 100).toFixed(1)}%；
+            {/* 三個合計金額已收斂成頁首下方那排 Stat（會隨下方輸入即時更新），
+                這裡只留它們的口徑註記，不再重刻一次同樣的三個框。 */}
+            <p className="mt-4 text-[0.75rem] text-ink-500">
+              上方合計含工程管理費 {(mgmtRate * 100).toFixed(1)}% 與營業稅 {(taxRate * 100).toFixed(1)}%；
               未填寫建議單價的項目沿用我方原價。此為試算，實際金額以雙方確認後之報價單為準。
             </p>
 
@@ -602,7 +607,10 @@ function QuoteNegotiation({ quoteId }: { quoteId: string }) {
       <div className="card">
         <div className="card-title">議價往返紀錄</div>
         {rounds.length === 0 ? (
-          <div className="text-ink-500">尚無議價紀錄。</div>
+          <EmptyState
+            title="尚無議價紀錄"
+            hint="於上方填入建議單價並送出後，雙方的往返內容都會列在這裡。"
+          />
         ) : (
           <div className="space-y-4">
             {rounds.map((rd) => {
