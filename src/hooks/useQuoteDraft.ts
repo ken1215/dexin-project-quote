@@ -94,7 +94,9 @@ export interface UseQuoteDraft {
 
 export function useQuoteDraft(id?: string): UseQuoteDraft {
   const navigate = useNavigate()
-  const { isManager, isDeptHead, isAdmin } = useAuth()
+  // 刻意不取 isManager：唯讀判準改看「是不是這一關的審核者」（見 locked 的說明）。
+  // isManager 涵蓋處長＋副部長＋部長，拿它當唯讀閘門正是 approved_l1 那個洞的來源。
+  const { isDeptHead, isAdmin } = useAuth()
   const {
     laborRates, laborBase, laborDiscount, mgmtFeeRate, taxRate, categoryOf,
   } = useRefData()
@@ -174,12 +176,30 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
     || draft.status === 'negotiating' || draft.status === 'closed'
   // 退回(rejected)單開放建立者修改重送（存檔時狀態會改回 draft，見 saveStatus）
   const editableByOwner = draft.status === 'draft' || draft.status === 'rejected'
-  const locked = frozen || (!editableByOwner && !isManager)
   /** 第一關：工務處長核可待審單（副部長也看得到這組按鈕，可選擇越級核定） */
   const canReviewL1 = (isDeptHead || isAdmin) && draft.status === 'submitted'
   /** 第二關：副部長核定處長已過的單 */
   const canReviewL2 = isAdmin && draft.status === 'approved_l1'
   const canReview = canReviewL1 || canReviewL2
+  /**
+   * 唯讀判準是「**我現在是不是這一關的審核者**」，不是「我是不是主管」。
+   *
+   * 原本寫 `!editableByOwner && !isManager`，而 isManager 涵蓋處長＋副部長＋部長，
+   * 於是單子到了 approved_l1（待副部長核定）時，處長既不是該關審核者、也沒被鎖住，
+   * 會掉進可編輯的精靈——**他可以改掉自己剛核可過的單，副部長核定到的是改過的版本**。
+   * 2026-09-13 線上實測確認資料庫也沒擋：核可 08:06:23、明細於 08:07:28 被重寫。
+   *
+   * 改成比對 canReview 之後各狀態的行為：
+   *   draft/rejected → 擁有者可編輯（不變）
+   *   submitted      → 同仁鎖、處長與副部長可改（canReviewL1，不變）
+   *   approved_l1    → 同仁與**處長**鎖、副部長與部長可改（canReviewL2）← 這次修掉的洞
+   *   approved 之後  → frozen，全部鎖（不變）
+   *
+   * ⚠️ 這是前端層的閘門。依本專案既有口徑「畫面藏按鈕不算權限」，
+   * 資料庫層也該收緊（quotes_update 的 with check 目前仍放行 approved_l1）——
+   * 那是收緊型 migration，須依教訓庫規則「前端先上、資料庫後上」另案處理。
+   */
+  const locked = frozen || (!editableByOwner && !canReview)
   /** 存檔時實際寫入的狀態：退回單一經修改存檔即回到草稿 */
   const saveStatus: QuoteStatus = draft.status === 'rejected' ? 'draft' : draft.status
 
