@@ -23,12 +23,20 @@ export interface StepperProps {
   onJump: (i: number) => void
   /** 每一步的完成判定，長度與 steps 相同 */
   done: boolean[]
+  /**
+   * 「這一步可略過」的標記，長度與 steps 相同（省略＝全部都不是）。
+   *
+   * 可略過的步驟（如 ④ 工資試算）完成判定恆為 true，否則會擋住下一步；
+   * 但那會讓人還在 ① 的時候，④ 就被畫成已完成的綠色，看起來像被跳過或已經做完。
+   * 所以可略過的步驟**只有在走過去之後**（i < current）才塗綠，在它前面時維持未到色。
+   */
+  optional?: boolean[]
 }
 
 /** 手機只放得下兩個字：「位置與使用者」→「位置」 */
 const abbr = (s: string): string => (s.length <= 2 ? s : s.slice(0, 2))
 
-export default function Stepper({ steps, current, onJump, done }: StepperProps) {
+export default function Stepper({ steps, current, onJump, done, optional }: StepperProps) {
   // 第一個未完成步＝往前跳得到的最遠處；全部完成時整列都能點。
   const firstOpen = done.findIndex((d) => !d)
   const reach = Math.max(current, firstOpen < 0 ? steps.length - 1 : firstOpen)
@@ -38,16 +46,19 @@ export default function Stepper({ steps, current, onJump, done }: StepperProps) 
       <ol className="flex gap-1 sm:gap-2">
         {steps.map((label, i) => {
           const enabled = i <= reach
+          const skippable = Boolean(optional?.[i])
+          // 可略過的步驟要「走過去」才算完成；還沒到就維持未到色，不要假裝已經做完。
+          const finished = done[i] && (!skippable || i < current)
           const tone = i === current
             ? 'bg-deep'
-            : (done[i] ? 'bg-sprout' : 'bg-ink-200')
+            : (finished ? 'bg-sprout' : 'bg-ink-200')
           return (
             <li key={label} className="min-w-0 flex-1">
               <button
                 type="button"
                 className={`step-seg ${enabled ? '' : 'step-seg-off'}`}
                 disabled={!enabled}
-                title={enabled ? undefined : '請先完成前面的步驟'}
+                title={enabled ? (skippable ? '這一步可略過' : undefined) : '請先完成前面的步驟'}
                 aria-current={i === current ? 'step' : undefined}
                 onClick={() => onJump(i)}
               >

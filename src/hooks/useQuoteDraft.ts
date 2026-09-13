@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useRefData } from '../context/RefDataContext'
-import { calcTotals, laborPrice, validateQuote } from '../lib/calc'
+import { calcTotals, laborPrice, sectionsForPersist, validateQuote } from '../lib/calc'
 import type { Totals } from '../lib/calc'
 import type {
   DraftLine, DraftQuote, DraftSection, LaborRate,
@@ -223,10 +223,11 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
   const addSection = () =>
     setDraft((d) => ({ ...d, sections: [...d.sections, blankSection()] }))
 
+  // 大項可以刪到一個都不剩：五步精靈沒有「＋新增工程大項」入口，
+  // 大項一律由 addItem／addLaborLine 依需要自動長出（兩者都吃得下 sections 為空）。
+  // 原本的 length <= 1 護欄是舊單頁編輯器留下的，在精靈裡只會擋住使用者刪掉空殼大項。
   const removeSection = (sk: string) =>
-    setDraft((d) =>
-      d.sections.length <= 1 ? d : { ...d, sections: d.sections.filter((s) => s.key !== sk) },
-    )
+    setDraft((d) => ({ ...d, sections: d.sections.filter((s) => s.key !== sk) }))
 
   const addCustomLine = (sk: string) =>
     setDraft((d) => ({
@@ -484,7 +485,14 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
       const del = await supabase.from('quote_sections').delete().eq('quote_id', quoteId)
       if (del.error) { setErr(`清除舊明細失敗：${del.error.message}`); return null }
 
-      const secRows = draft.sections.map((s, i) => ({
+      // 沒有明細的大項一律不落庫。空殼有三個來源：新單的初始空白大項（① 只填位置就存草稿）、
+      // ② 取消掉最後一個大類、④ 把工資列刪光後留下的「人工費用」。
+      // 它們一旦寫進去就會被補成「工程項目 N」，並在 A4 標單上印出一塊「本大項無項目」的空區塊
+      // （PrintPage 是照資料庫印的，validateQuote 不擋空大項，所以 ⑤ 仍會顯示檢查通過）。
+      // ⚠️ secRows 與 lineRows 必須派生自同一個 keptSections，兩邊的 si 才對得起來。
+      const keptSections = sectionsForPersist(draft.sections)
+
+      const secRows = keptSections.map((s, i) => ({
         id: uid(),
         quote_id: quoteId,
         title: s.title.trim() || `工程項目 ${i + 1}`,
@@ -495,7 +503,7 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
         if (rs.error) { setErr(`寫入工程大項失敗：${rs.error.message}`); return null }
       }
 
-      const lineRows = draft.sections.flatMap((s, si) =>
+      const lineRows = keptSections.flatMap((s, si) =>
         s.lines.map((l, li) => ({
           quote_id: quoteId,
           section_id: secRows[si].id,

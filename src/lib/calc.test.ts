@@ -4,7 +4,8 @@
  */
 import assert from 'node:assert/strict'
 import {
-  calcTotals, concessionPct, indexedPrice, laborListPrice, laborPrice, lineAmount, validateQuote,
+  calcTotals, concessionPct, indexedPrice, laborListPrice, laborPrice, lineAmount,
+  sectionsForPersist, validateQuote,
 } from './calc.ts'
 import type { DraftQuote, DraftSection, LaborRate, MaterialIndex, PriceItem } from '../types.ts'
 
@@ -201,6 +202,36 @@ assert.deepEqual(
   assert.ok(custom({ name: 'n', unit_price: 0, reason: 'r' }).some((m) => m.includes('單價')))
   assert.ok(custom({ name: 'n', unit_price: 100, reason: '' }).some((m) => m.includes('理由')))
   assert.deepEqual(custom({ name: 'n', unit_price: 100, reason: '無標準品項' }), [])
+}
+
+// ── 8. 空大項不得落庫（會在 A4 標單印成「本大項無項目」的空區塊）─────
+{
+  const s = (title: string, n: number): DraftSection => ({
+    key: title, title, lines: Array.from({ length: n }, () => line({ unit_price: 100 })),
+  })
+
+  // 三個實際會產生空殼的路徑：新單初始空白大項、取消掉最後一個大類、工資列被刪光
+  assert.deepEqual(
+    sectionsForPersist([s('', 0)]).map((x) => x.title),
+    [], '新單只填位置就存草稿，初始空白大項不得落庫',
+  )
+  assert.deepEqual(
+    sectionsForPersist([s('配電工程', 0)]).map((x) => x.title),
+    [], '有標題但沒明細的大項同樣不得落庫',
+  )
+  assert.deepEqual(
+    sectionsForPersist([s('配電工程', 2), s('人工費用', 0)]).map((x) => x.title),
+    ['配電工程'], '工資列刪光後的「人工費用」空殼要被濾掉',
+  )
+
+  // 有明細的一律保留，且順序不變——secRows 與 lineRows 都靠這個順序對 section_id
+  const kept = sectionsForPersist([s('甲', 1), s('乙', 0), s('丙', 3)])
+  assert.deepEqual(kept.map((x) => x.title), ['甲', '丙'], '保留有明細者並維持原順序')
+  assert.equal(kept[1].lines.length, 3, '濾完之後索引 1 必須是「丙」，不是原本的「乙」')
+
+  // 陰性對照：全部都有明細時不可動到任何一項
+  const all = [s('甲', 1), s('乙', 2)]
+  assert.equal(sectionsForPersist(all).length, 2, '沒有空大項時不得誤刪')
 }
 
 console.log('calc.ts 自我檢查全數通過')

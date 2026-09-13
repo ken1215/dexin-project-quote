@@ -119,6 +119,42 @@ export interface StepConfirmProps extends StepTableProps {
 /** 桌機顯示完整名稱，手機取前兩字當縮寫（Stepper 自己截），所以前兩字不能重複 */
 const STEPS = ['位置與使用者', '大項分類', '細項工料', '工資試算', '確認送出']
 
+/**
+ * ④ 工資試算可略過——多數工料品項的單價裡已含工率，沒有純工資要報就直接過。
+ * 完成判定恆為 true（否則會擋住下一步），所以要另外告訴 Stepper 別把它畫成已完成。
+ */
+const OPTIONAL_STEPS = [false, false, false, true, false]
+
+/**
+ * 新單第一次存檔時，persist 會 navigate 到 /quote/<新 id>：網址上的 ?step 被丟掉，
+ * id 一變 useQuoteDraft 重新載入、本元件整個卸載重掛，步驟會掉回「有明細→3、沒有→1」。
+ * 結果是同仁在 ④ 按「儲存草稿」會被彈回第 3 步、④ 的面板輸入全部歸零。
+ * persist 不能動（明細寫入順序是刻意的），所以在這一端把步驟接回來。
+ *
+ * 用 sessionStorage 而不是 state：跨卸載重掛才留得住。
+ * 10 秒窗口是為了只接「存檔→重掛」那一次（毫秒等級），不要在幾分鐘後開另一張單時誤用。
+ */
+const STEP_STASH_KEY = 'dexin-quote-wizard-step'
+
+const stashStep = (n: number): void => {
+  try {
+    sessionStorage.setItem(STEP_STASH_KEY, JSON.stringify({ step: n, at: Date.now() }))
+  } catch { /* 私密視窗／停用 cookie 時會丟例外，掉步驟不值得讓整頁掛掉 */ }
+}
+
+const readStashedStep = (): number | null => {
+  try {
+    const raw = sessionStorage.getItem(STEP_STASH_KEY)
+    if (!raw) return null
+    const v = JSON.parse(raw) as { step?: unknown, at?: unknown }
+    const s = Number(v.step)
+    const at = Number(v.at)
+    if (!Number.isInteger(s) || s < 1 || s > STEPS.length) return null
+    if (!Number.isFinite(at) || Date.now() - at > 10_000) return null
+    return s
+  } catch { return null }
+}
+
 /** 每一步一句話說明這步要做什麼——用同仁的話，不是欄位名 */
 const STEP_HINT = [
   '這次要修的地方在哪、誰開的單',
@@ -192,13 +228,18 @@ export default function QuoteWizard({ q }: { q: UseQuoteDraft }) {
   /* ── 步驟（網址上的 step 是 1～5） ───────────────────────── */
   const hasLines = q.draft.sections.some((s) => s.lines.length > 0)
   const rawStep = Number(params.get('step'))
-  // 預設：新單 1；既有草稿（已經有明細了）3——已經有品項的單不該把人丟回去挑大類
+  // 只在首次 render 讀一次 sessionStorage（lazy initializer，不用 effect）；
+  // 之後一律以網址為準，不會每次 render 又被舊值拉回去。
+  const [stashedStep] = useState<number | null>(() => readStashedStep())
+  // 預設：接得回存檔前的步驟就用它；否則新單 1、既有草稿（已經有明細了）3
+  // ——已經有品項的單不該把人丟回去挑大類
   const step = Number.isInteger(rawStep) && rawStep >= 1 && rawStep <= STEPS.length
     ? rawStep
-    : (hasLines ? 3 : 1)
+    : (stashedStep ?? (hasLines ? 3 : 1))
 
   const goStep = (n: number) => {
     const next = Math.min(STEPS.length, Math.max(1, Math.round(n)))
+    stashStep(next)
     // replace：五步在瀏覽器歷史裡疊五筆的話，同仁想離開這頁要按五次上一頁
     setParams((prev) => {
       const p = new URLSearchParams(prev)
@@ -273,7 +314,17 @@ export default function QuoteWizard({ q }: { q: UseQuoteDraft }) {
    * 改成比對內容指紋：暫存與畫面一致就不提示——存檔成功後兩邊自然一致，
    * 提示會自己消失；存檔失敗時暫存仍原封不動留著。
    */
-  const showRestore = restored ? fingerprint(restored.draft) !== fingerprint(q.draft) : false
+  // 另一道閘門：**空白的暫存不值得提示**。
+  // 一開新單、什麼都還沒填，autosave 就會把空草稿寫進 localStorage；
+  // 下次開新單就會跳一次「找到未儲存的草稿」，而按了套用什麼也不會發生。
+  // 提示若連空單都跳，同仁很快就學會無視它，真的有東西要還原時反而被略過。
+  const hasContent = (d: DraftQuote): boolean =>
+    Boolean(d.project.trim() || d.dept.trim() || d.contact.trim())
+    || d.sections.some((s) => s.lines.length > 0)
+
+  const showRestore = restored
+    ? hasContent(restored.draft) && fingerprint(restored.draft) !== fingerprint(q.draft)
+    : false
 
   // 新單存檔成功後網址換成 /quote/<id>，暫存 key 也跟著換，舊的「:new」那份要清掉，
   // 否則下次「開新單」會一直跳出上一張單的還原提示。
@@ -343,6 +394,7 @@ export default function QuoteWizard({ q }: { q: UseQuoteDraft }) {
         steps={STEPS}
         current={step - 1}
         done={done}
+        optional={OPTIONAL_STEPS}
         onJump={(i) => goStep(i + 1)}
       />
 
