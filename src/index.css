@@ -120,6 +120,17 @@ body {
     padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
   }
   .action-bar > * { @apply flex-1 sm:flex-none; }
+
+  /* 分步流程的步驟列（components/ui/Stepper.tsx）。
+     手機是五段等寬色塊＋縮寫、桌機才出完整步驟名——那個差異用元件裡的 sm: utility 做，
+     這裡的元件樣式一律留在 @layer components 內、不得包進任何 @media（check-css.mjs 的紅線）。
+     色塊顏色（bg-deep／bg-sprout／bg-ink-200）由元件依狀態掛上，不寫死在這裡。 */
+  .step-seg { @apply block w-full cursor-pointer py-1 text-left; }
+  .step-seg-bar { @apply mb-1 block h-1.5 w-full rounded-full; }
+  .step-seg-label { @apply block truncate text-[0.6875rem] text-ink-700 sm:text-xs; }
+  /* 還不能點的步驟：要看得出來不能點，不是只把顏色調淡 */
+  .step-seg-off { @apply cursor-not-allowed; }
+  .step-seg-off .step-seg-label { @apply text-ink-500; }
 }
 
 /* ═══ 手機版（<640px）══════════════════════════════════════════

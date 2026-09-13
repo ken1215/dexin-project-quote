@@ -12,6 +12,12 @@ import type {
 
 export const CN = ['壹', '貳', '參', '肆', '伍', '陸', '柒', '捌', '玖', '拾']
 
+/**
+ * 工資試算列（五步精靈第 ④ 步）固定落在這個分項名稱。
+ * 單價庫的 Category.section_title 沒有同名大類，不會與自動長出的大項撞在一起。
+ */
+export const LABOR_SECTION_TITLE = '人工費用'
+
 const uid = (): string => crypto.randomUUID()
 
 /** 取本機日期（不要用 toISOString，那是 UTC 會差一天） */
@@ -75,6 +81,8 @@ export interface UseQuoteDraft {
   addSection: () => void
   addCustomLine: (sk: string) => void
   addItem: (item: PriceItem) => void
+  /** 工資試算加入一列；分項「人工費用」不存在則自動建立（有列才建，不留空大項） */
+  addLaborLine: (input: { name: string; headcount: number; days: number; rateId: string }) => void
   changeLineRate: (sk: string, lk: string, rateId: string) => void
   onSaveDraft: () => Promise<void>
   onSubmit: () => Promise<void>
@@ -294,6 +302,66 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
       return {
         ...d,
         sections: sections.map((s, i) => (i === idx ? { ...s, lines } : s)),
+      }
+    })
+  }
+
+  /**
+   * 工資試算加入一列（五步精靈第 ④ 步）。
+   *
+   * 為什麼不走 addItem：單價庫目前只剩 `lb-tech-day 技術工日薪` 一個按「工」計價的 active 品項，
+   * 而 addItem 對同一 item_id 在同大項內是「數量 +1 合併」，一張單表達不出
+   * 「3 工平日 ＋ 2 工休息日」。所以 ④ 直接產生明細列，不挑品項。
+   *
+   * 計算一律呼叫 calc.ts 的 laborPrice（牌價 × 物管合約折數 × 時段係數），這裡不另寫公式；
+   * 工數＝人數 × 天數，半天以 0.5 計。
+   *
+   * rateId 必須取自 laborRates（quote_lines.labor_rate_id 有外鍵），
+   * ④ 的時段一律由 laborRates 產生選項，不要自己拼字串。
+   */
+  const addLaborLine = (
+    { name, headcount, days, rateId }:
+    { name: string; headcount: number; days: number; rateId: string },
+  ) => {
+    const rate = rateById.get(rateId)
+    const line: DraftLine = {
+      key: uid(),
+      item_id: null,
+      labor_rate_id: rateId,
+      name,
+      spec: `${headcount} 人 × ${days} 天`,
+      unit: '工',
+      unit_price: laborPrice(laborBase, rate, laborDiscount),
+      qty: (Number(headcount) || 0) * (Number(days) || 0),
+      is_custom: false,
+      reason: '',
+      note: '',
+    }
+    setDraft((d) => {
+      const idx = d.sections.findIndex((s) => s.title.trim() === LABOR_SECTION_TITLE)
+      if (idx >= 0) {
+        return {
+          ...d,
+          sections: d.sections.map((s, i) => (i === idx ? { ...s, lines: [...s.lines, line] } : s)),
+        }
+      }
+      // 「人工費用」還不存在：有列才建（絕不預建空大項——persist 會把空大項寫成
+      // 「工程項目 N」，列印標單就多出一塊只有表頭的空區塊），且排在所有大項之後。
+      // 尾端若是尚未命名的空白大項（新單的初始大項就長這樣），就地改名沿用，
+      // 不要在它後面再開一個——那個空白大項會被一起印出來。
+      const last = d.sections.length - 1
+      const reusable = last >= 0
+        && !d.sections[last].title.trim() && d.sections[last].lines.length === 0
+      if (reusable) {
+        return {
+          ...d,
+          sections: d.sections.map((s, i) =>
+            (i === last ? { ...s, title: LABOR_SECTION_TITLE, lines: [line] } : s)),
+        }
+      }
+      return {
+        ...d,
+        sections: [...d.sections, { key: uid(), title: LABOR_SECTION_TITLE, lines: [line] }],
       }
     })
   }
@@ -567,6 +635,7 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
     addSection,
     addCustomLine,
     addItem,
+    addLaborLine,
     changeLineRate,
     onSaveDraft,
     onSubmit,
