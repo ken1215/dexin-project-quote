@@ -142,6 +142,17 @@ const stashStep = (n: number): void => {
   } catch { /* 私密視窗／停用 cookie 時會丟例外，掉步驟不值得讓整頁掛掉 */ }
 }
 
+/**
+ * 時戳必須記在「**存檔當下**」，不能只靠 goStep 寫的那次。
+ * 2026-09-13 實跑打臉：在 ④ 停留 93 秒才按儲存草稿，goStep(4) 寫的時戳早就超出
+ * 10 秒窗口，重掛時讀不回來、照樣掉回第 3 步。窗口量的是「存檔→重掛」的間隔，
+ * 所以每個會觸發 persist 的動作都要先刷新一次。
+ */
+const withStash = (step: number, run: () => void) => () => {
+  stashStep(step)
+  run()
+}
+
 const readStashedStep = (): number | null => {
   try {
     const raw = sessionStorage.getItem(STEP_STASH_KEY)
@@ -230,7 +241,14 @@ export default function QuoteWizard({ q }: { q: UseQuoteDraft }) {
   const rawStep = Number(params.get('step'))
   // 只在首次 render 讀一次 sessionStorage（lazy initializer，不用 effect）；
   // 之後一律以網址為準，不會每次 render 又被舊值拉回去。
-  const [stashedStep] = useState<number | null>(() => readStashedStep())
+  //
+  // ⚠️ 只有「已經有單號」時才接 stash。要接回來的情境是「新單存檔 → navigate 到
+  // /quote/<id> → 重掛」，那時 id 必定已經有了；而 /quote/new 是全新空白單，
+  // 本來就該從第 1 步開始。2026-09-13 實跑打臉：少了這個條件，存檔後 10 秒內按
+  // 「＋開新單」，全新的空白單會被帶到第 4 步。
+  const [stashedStep] = useState<number | null>(
+    () => (q.draft.id ? readStashedStep() : null),
+  )
   // 預設：接得回存檔前的步驟就用它；否則新單 1、既有草稿（已經有明細了）3
   // ——已經有品項的單不該把人丟回去挑大類
   const step = Number.isInteger(rawStep) && rawStep >= 1 && rawStep <= STEPS.length
@@ -478,7 +496,7 @@ export default function QuoteWizard({ q }: { q: UseQuoteDraft }) {
           issues={liveIssues}
           l1Skipped={q.l1Skipped}
           saving={q.saving}
-          onPrint={() => void q.onPrint()}
+          onPrint={withStash(step, () => void q.onPrint())}
         />
       )}
 
@@ -504,12 +522,12 @@ export default function QuoteWizard({ q }: { q: UseQuoteDraft }) {
           <button
             type="button" className="btn btn-primary"
             disabled={q.saving || liveIssues.length > 0}
-            onClick={() => void q.onSubmit()}
+            onClick={withStash(step, () => void q.onSubmit())}
           >{q.draft.status === 'rejected' ? '修正後重新送審' : '送工務處長核可'}</button>
         )}
         <button
           type="button" className="btn" disabled={q.saving}
-          onClick={() => void q.onSaveDraft()}
+          onClick={withStash(step, () => void q.onSaveDraft())}
         >{q.saving ? '儲存中…' : '儲存草稿'}</button>
       </div>
     </div>
