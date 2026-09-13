@@ -2,24 +2,29 @@ import { Fragment, useMemo, useState } from 'react'
 import EmptyState from '../../../components/ui/EmptyState'
 import { money } from '../../../lib/calc'
 import type { PriceItem } from '../../../types'
-import LineTable from '../LineTable'
+import BasketList from '../BasketList'
 import TotalsCard from '../TotalsCard'
 import type { StepItemsProps } from '../QuoteWizard'
 
 /**
  * ③ 細項：「挑出要做的項目，填數量」。
  *
- * 版面：桌機兩欄（左品項庫 minmax(0,1fr)／右明細籃 340px `lg:sticky lg:top-16`），
+ * 版面：桌機兩欄（左品項庫 minmax(0,1fr)／右明細籃 lg 26rem、xl 30rem，`lg:sticky lg:top-16`），
  * 手機把明細籃收成底部抽屜。**外層 grid 到根節點的每一層 grid／flex 子項都要 min-w-0**——
- * 明細表是 min-w-[860px] 的寬表格，少一層 min-w-0 整頁就會被它撐開橫捲（實測踩過）。
+ * 少一層 min-w-0 整頁就會被長品名撐開橫捲（實測踩過多次）。
  *
  * 品項表沿用現行 `.rwd-table` 版型與「加入」即時回饋（`justAdded`／`.row-added`／
  * 「已加入 ×N」）——那是實測有效的回饋，原樣保留，不重新設計。
  * 加入一律呼叫 `q.addItem`（由 `onAddItem` 帶進來），工程大項會依 `Category.section_title`
  * 自動長出；**這裡絕不自己建 section**（預建的空大項會被 persist 寫成「工程項目 N」並印進 A4）。
  *
- * 明細籃直接用 Task 8 抽出的 `LineTable` ＋ `TotalsCard`（契約 `StepTableProps` 原封餵進去），
- * 不在步驟裡另刻一份表格。
+ * 明細籃用 `BasketList`（卡片式）＋ `TotalsCard`，**不是 LineTable**。
+ * LineTable 是 min-w-[860px] 的寬表格，塞進側欄會橫捲、數量與複價整組看不到；
+ * 它留給 ⑤ 與 QuoteReview（那裡有整頁寬度，表格才是對的選擇）。
+ * 本檔與 BasketList 都不得出現 overflow-x 容器；長字串靠折行，不靠橫捲。
+ *
+ * 左欄品項庫刻意瘦身：拿掉獨立的「單位」欄併進品名下方小字（`規格 · 單位`），
+ * 標準單價右對齊等寬數字，表頭與子分類標題 sticky，把寬度讓給右邊的明細籃。
  *
  * 「上一步／下一步：算工資」與停用原因**不在這裡**：`QuoteWizard` 的 `.action-bar` 已統一提供
  * （`done[2]` ＝ 有明細且每列 qty > 0、品名非空，走 `dbGuard` 的寬口徑，不是 `validateQuote`
@@ -108,9 +113,16 @@ export default function StepItems(props: StepItemsProps) {
           hint="左邊挑一項按「加入」，工程大項會自動長出來。"
         />
       ) : (
-        <LineTable
-          {...table}
-          readOnly={false}
+        <BasketList
+          sections={table.sections}
+          totals={table.totals}
+          itemById={table.itemById}
+          rateById={table.rateById}
+          onPatchSection={table.onPatchSection}
+          onPatchLine={table.onPatchLine}
+          onRemoveLine={table.onRemoveLine}
+          onRemoveSection={table.onRemoveSection}
+          onAddCustomLine={table.onAddCustomLine}
           canRemoveSection={table.sections.length > 1}
         />
       )}
@@ -128,7 +140,10 @@ export default function StepItems(props: StepItemsProps) {
 
   return (
     <div className="min-w-0 space-y-4">
-      <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+      {/* 右欄 lg 26rem（416px）／xl 30rem（480px）：卡片式明細籃要放得下
+          「數量 × 單價 …… 複價」一整行，340px 放不下（舊版就是這樣才橫捲的）。
+          兩邊都用 minmax(0,1fr) 起手，格子的 min-width 才不會退回 auto。 */}
+      <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_26rem] xl:grid-cols-[minmax(0,1fr)_30rem]">
         {/* ── 左：品項庫 ─────────────────────────────────────
             挑選區走亮藍系、明細區走深藍系——兩塊都是白卡片時，
             同仁常把「還在挑」當成「已經加進單子」。 */}
@@ -180,19 +195,28 @@ export default function StepItems(props: StepItemsProps) {
                         collapse 表格對 thead 的背景繪製各家瀏覽器不一致 */}
                     <thead>
                       <tr>
+                        {/* 單位不再獨立成欄——併進品名下方的「規格 · 單位」小字，
+                            把寬度讓給右欄的明細籃 */}
                         <th className="th th-sticky text-left">品名／規格</th>
-                        <th className="th th-sticky w-16">單位</th>
                         <th className="th th-sticky w-24">標準單價</th>
-                        <th className="th th-sticky w-20">加入</th>
+                        <th className="th th-sticky w-16">加入</th>
                       </tr>
                     </thead>
                     <tbody>
                       {groups.map((g) => (
                         <Fragment key={g.key}>
                           <tr>
+                            {/* 子分類標題 sticky：捲動時看得到自己在哪一組。
+                                top 是表頭的實高（.th ＝ text-xs 行高 1rem ＋ py-1.5 0.75rem
+                                ＋ collapse 後的 1px 框線 ≈ 1.8125rem）；z 比表頭低，
+                                捲到頂時滑進表頭底下而不是蓋住它。
+                                底色必須不透明（bg-ink-50 而非原本的 bg-bright/10），
+                                半透明會讓捲上來的內容透出來、看起來像文字疊字。
+                                sm: 起跳——<640px 是 .rwd-table 卡片模式，thead 被隱藏、
+                                每列變一張卡，這裡再 sticky 會懸在半空中。 */}
                             <td
-                              className="border border-ink-200 bg-bright/10 px-2 py-1 text-[0.75rem] font-semibold text-bright"
-                              colSpan={4}
+                              className="sm:sticky sm:top-[1.8125rem] sm:z-[5] border border-ink-200 bg-ink-50 px-2 py-1 text-[0.75rem] font-semibold text-bright"
+                              colSpan={3}
                             >
                               {/* 「全部」頁籤下好幾個大類混在一起，子分類前面要掛大類才分得出來 */}
                               {activeCat === 'all' && showTabs
@@ -229,22 +253,31 @@ export default function StepItems(props: StepItemsProps) {
                                         單上 {onSheet} {it.unit}
                                       </span>
                                     )}
-                                    {it.spec && (
-                                      <div className="break-words text-[0.6875rem] text-ink-500">{it.spec}</div>
+                                    {/* 規格與單位併成一行小字；規格空白時只剩單位，
+                                        不留一個孤零零的「·」 */}
+                                    {(it.spec.trim() || it.unit.trim()) && (
+                                      <div className="break-words text-[0.6875rem] leading-snug text-ink-500">
+                                        {[it.spec.trim(), it.unit.trim()].filter(Boolean).join(' · ')}
+                                      </div>
                                     )}
                                   </div>
                                 </td>
-                                <td className="td text-center" data-label="單位">{it.unit}</td>
                                 <td className="td num" data-label="標準單價">{money(it.std_price)}</td>
                                 <td className="td text-center">
                                   {/* 按下後就地變成「已加入 ×N」——同時回答「有沒有進去」
                                       與「我剛剛按了幾次」。1.6 秒後復原。
-                                      active:scale 給按壓的觸感，手機上尤其明顯。 */}
+                                      active:scale 給按壓的觸感，手機上尤其明顯。
+                                      鈕本身縮小（px-2／text-[0.75rem]）把寬度讓給品名，
+                                      但 min-h-10 保住 2.5rem 的點擊目標高度。
+                                      規格寫的是 `btn-sm`——本專案的 index.css 沒有這個 class，
+                                      為它新增一條元件樣式只為了一顆鈕不划算（@layer components
+                                      的每一條都在 check-css.mjs 的清單裡維護），改用 utility
+                                      達成同樣尺寸。規格該處請改寫成 utility 版本。 */}
                                   <button
                                     type="button"
                                     aria-live="polite"
                                     className={
-                                      'btn w-full transition active:scale-[0.97] sm:w-auto '
+                                      'btn min-h-10 w-full px-2 text-[0.75rem] transition active:scale-[0.97] sm:w-auto '
                                       + (justAdded?.id === it.id
                                         ? 'border-green bg-green text-white hover:border-green hover:text-white'
                                         : '')
@@ -263,7 +296,7 @@ export default function StepItems(props: StepItemsProps) {
                       ))}
                       {shown.length === 0 && (
                         <tr>
-                          <td className="td text-center text-ink-500" colSpan={4}>
+                          <td className="td text-center text-ink-500" colSpan={3}>
                             沒有符合條件的品項。
                           </td>
                         </tr>
@@ -283,11 +316,11 @@ export default function StepItems(props: StepItemsProps) {
             桌機是 340px 的釘住側欄；手機這一格是空的（抽屜走 fixed，不佔格）。 */}
         <aside className="min-w-0 lg:sticky lg:top-16 lg:self-start">
           <div className={panelCls}>
-            <div className="mb-2 flex items-center justify-between gap-2 lg:hidden">
-              <span className="text-[0.9375rem] font-semibold text-deep">
+            <div className="mb-2 flex min-w-0 items-center justify-between gap-2 lg:hidden">
+              <span className="min-w-0 text-[0.9375rem] font-semibold text-deep">
                 明細 {lineCount} 項
               </span>
-              <button type="button" className="btn" onClick={() => setOpen(false)}>
+              <button type="button" className="btn shrink-0" onClick={() => setOpen(false)}>
                 收合
               </button>
             </div>
