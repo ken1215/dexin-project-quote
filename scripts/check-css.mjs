@@ -26,7 +26,29 @@ const COMPONENT_CLASSES = [
   '.btn', '.btn-primary', '.btn-danger', '.field', '.label',
   '.card', '.card-title', '.tag', '.th', '.td',
   '.table-scroll', '.action-bar',
+  '.chip', '.chip-on', '.stat',
 ]
+
+/** 列印版面已定版。螢幕上的墨階換成德新暖墨後，@media print 必須把這四個值釘回原本的冷墨。 */
+const PRINT_INK_RESTORE = {
+  '--color-ink-900': '#0A1F33',
+  '--color-ink-700': '#334155',
+  '--color-ink-500': '#6B7C8C',
+  '--color-ink-200': '#D9E3EC',
+}
+
+/** 從某個 `{` 的位置取出整個平衡區塊的內容（不含外層大括號） */
+function blockBody(openBrace) {
+  let depth = 0
+  for (let i = openBrace; i < css.length; i++) {
+    if (css[i] === '{') depth++
+    else if (css[i] === '}') {
+      depth--
+      if (depth === 0) return css.slice(openBrace + 1, i)
+    }
+  }
+  return null
+}
 
 /** 回傳某個位置外層的 at-rule 堆疊（由外而內） */
 function enclosingAtRules(index) {
@@ -90,6 +112,25 @@ for (const cls of COMPONENT_CLASSES) {
 const stickyTh = /\.th-sticky\s*\{([^}]*)\}/.exec(css)
 if (stickyTh && /\/\d/.test(stickyTh[1])) {
   problems.push('.th-sticky 使用了半透明底色（含 /數字 的透明度修飾），sticky 表頭必須不透明')
+}
+
+// 4. 列印墨階還原。螢幕墨階改成德新暖墨會連帶改到 PrintPage 的字色，
+//    所以 @media print 內要有一段把墨階釘回原值的 :root 覆寫。少一個值就報錯。
+const pm = /@media\s+print\s*\{/.exec(css)
+if (!pm) {
+  problems.push('找不到 @media print 區塊')
+} else {
+  const body = blockBody(pm.index + pm[0].length - 1) ?? ''
+  const root = /:root\s*\{([^}]*)\}/.exec(body)
+  if (!root) {
+    problems.push('@media print 內缺少墨階還原的 :root 區塊——螢幕墨階會滲進列印版面')
+  } else {
+    for (const [k, v] of Object.entries(PRINT_INK_RESTORE)) {
+      if (!new RegExp(`${k}\\s*:\\s*${v}\\s*;`, 'i').test(root[1])) {
+        problems.push(`@media print 的墨階還原缺少或錯誤：${k} 應為 ${v}`)
+      }
+    }
+  }
 }
 
 if (problems.length) {

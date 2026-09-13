@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useRefData } from '../context/RefDataContext'
 import ChangePasswordDialog from './ChangePasswordDialog'
+import BrandMark from './ui/BrandMark'
+import { usePendingCount } from '../hooks/usePendingCount'
 import { ROLE_LABEL } from '../types'
 
 const link = ({ isActive }: { isActive: boolean }) =>
@@ -16,6 +18,7 @@ export default function Layout() {
   const [pwOpen, setPwOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const { pathname } = useLocation()
+  const pending = usePendingCount()
 
   // 手機選單點完就收——不然換頁後選單還蓋在畫面上
   useEffect(() => { setMenuOpen(false) }, [pathname])
@@ -26,20 +29,39 @@ export default function Layout() {
       {isProcurement ? (
         <NavLink to="/client" className={link}>報價議價</NavLink>
       ) : (
+        // 「開新單」從導覽移到右側主 CTA，這裡只留清單入口＋待我處理徽章
+        <NavLink to="/" end className={link}>
+          報價單
+          {pending > 0 && (
+            <span className="ml-1.5 rounded-full bg-sprout px-1.5 text-[0.6875rem] font-semibold text-ink-900">
+              {pending}
+            </span>
+          )}
+        </NavLink>
+      )}
+      {/* 維護頁自成一群，與上面的作業頁用一條分隔線隔開 */}
+      {isManager && (
         <>
-          <NavLink to="/" end className={link}>報價單</NavLink>
-          <NavLink to="/quote/new" className={link}>開新單</NavLink>
+          <span className="mx-1 hidden self-center text-white/30 lg:inline">|</span>
+          <NavLink to="/catalog" className={link}>單價維護</NavLink>
+          <NavLink to="/indices" className={link}>物價指數</NavLink>
+          {/* 帳號管理：副部長管全部，處長只管得動同仁（把關在 RLS 與 Edge Function） */}
+          <NavLink to="/users" className={link}>人員權限</NavLink>
         </>
       )}
-      {isManager && <NavLink to="/catalog" className={link}>單價維護</NavLink>}
-      {isManager && <NavLink to="/indices" className={link}>物價指數</NavLink>}
-      {/* 帳號管理：副部長管全部，處長只管得動同仁（把關在 RLS 與 Edge Function） */}
-      {isManager && <NavLink to="/users" className={link}>人員權限</NavLink>}
     </>
   )
 
   const account = (
     <>
+      {/* 主要動作：開單是這套系統的主線，從導覽列升級成整條 header 唯一的實心按鈕。
+          放在 account 群組開頭，桌機列與漢堡選單各渲染一次（兩者永遠只有一個可見）。
+          醫院採購不開單，所以不給。 */}
+      {!isProcurement && (
+        <Link to="/quote/new" className="btn border-white bg-white text-deep hover:bg-light hover:text-deep">
+          ＋ 開新單
+        </Link>
+      )}
       <span className="text-white/85">
         {profile?.full_name || '—'}
         <span className="ml-1.5 rounded-full bg-white/20 px-2 py-0.5 text-[0.6875rem]">
@@ -62,6 +84,7 @@ export default function Layout() {
     <>
       <header className="no-print sticky top-0 z-20 bg-deep text-white">
         <div className="flex items-center gap-3 px-3 py-2 sm:px-5 sm:py-2.5">
+          <BrandMark />
           <h1 className="truncate text-[0.9375rem] font-semibold tracking-wide sm:text-[1.0625rem]">
             {/* 手機沒有橫向空間放全名，留下認得出來的短名 */}
             <span className="sm:hidden">德新報價系統</span>

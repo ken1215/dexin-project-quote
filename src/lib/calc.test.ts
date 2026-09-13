@@ -4,7 +4,8 @@
  */
 import assert from 'node:assert/strict'
 import {
-  calcTotals, concessionPct, indexedPrice, laborListPrice, laborPrice, lineAmount, validateQuote,
+  calcTotals, concessionPct, indexedPrice, laborListPrice, laborPrice, lineAmount,
+  sectionsForPersist, validateQuote,
 } from './calc.ts'
 import type { DraftQuote, DraftSection, LaborRate, MaterialIndex, PriceItem } from '../types.ts'
 
@@ -83,6 +84,63 @@ assert.ok(laborPrice(3000, rate('weekday', 1), 0.9) >= 196 * 8, '高於法定下
 // 護欄：折數不得低於 0.6，否則折後低於基本工資水準、也不像正常商業折讓
 assert.ok(laborPrice(3000, rate('weekday', 1), 0.6) >= 196 * 8, '折到 6 折仍高於法定下限')
 
+// ── 3b. ④ 工資試算：人數 × 天數 × 每工報價 ＝ 明細列小計 ────────
+// 五步精靈第 ④ 步（StepLabor 面板 ＋ useQuoteDraft.addLaborLine）產生工資列的規則：
+// 工數 ＝ 人數 × 天數（半天以 0.5 計），單價 ＝ laborPrice(牌價, 時段, 物管折數)。
+// 這裡把「試算面板上顯示的小計」與「該列進到單子之後 calcTotals 算出的大項小計」
+// 釘成同一個數字——兩邊各自算一次的話，同仁按下加入前看到的金額，
+// 跟送給處長核可的金額有機會對不起來，而那是肉眼最不容易發現的一種錯。
+// 突變測試確認過這段會紅：laborPrice 漏乘折數 → 5,010 !== 4,509；
+// lineAmount 改成加法 → 4,512 !== 13,527。
+{
+  const restday = rate('restday', 1.67)
+  const headcount = 2
+  const days = 1.5
+
+  const qty = headcount * days
+  const unitPrice = laborPrice(3000, restday, 0.9)
+  assert.equal(qty, 3, '2 人 × 1.5 天 ＝ 3 工')
+  assert.equal(unitPrice, 4509, '休息日每工報價 ＝ 3,000 × 1.67 × 9 折')
+
+  const subtotal = lineAmount(unitPrice, qty)
+  assert.equal(subtotal, 13527, '人數 × 天數 × 每工報價 ＝ 該列小計')
+
+  // addLaborLine 寫進 draft 的就是這個形狀（unit「工」、qty ＝ 人數×天數、
+  // unit_price ＝ laborPrice），所以大項小計必須等於上面試算出來的小計。
+  const secs: DraftSection[] = [{
+    key: 'labor',
+    title: '人工費用',
+    lines: [line({
+      labor_rate_id: restday.id, name: '技術工',
+      spec: `${headcount} 人 × ${days} 天`, unit: '工',
+      unit_price: unitPrice, qty,
+    })],
+  }]
+  const t = calcTotals(secs, 0.09, 0.05)
+  assert.equal(t.sections[0].subtotal, 13527, '明細列小計與試算面板算出來的是同一個數字')
+  assert.equal(t.works, 13527)
+
+  // 牌價並列是給院方看的好處，折讓金額必須等於「牌價小計 − 報價小計」
+  const listSubtotal = lineAmount(laborListPrice(3000, restday), qty)
+  assert.equal(listSubtotal, 15030, '牌價小計 ＝ 3 工 × 5,010')
+  assert.equal(listSubtotal - subtotal, 1503, '物管合約折讓 ＝ 牌價小計 − 報價小計')
+
+  // 混時段（平日 3 工 ＋ 休息日 2 工）——④ 之所以不走 addItem 的理由：
+  // 同一張單要放得下兩種時段，兩列各自算完再加總才是大項小計。
+  const weekday = rate('weekday', 1)
+  const mixed: DraftSection[] = [{
+    key: 'labor', title: '人工費用',
+    lines: [
+      line({ key: 'w', unit: '工', unit_price: laborPrice(3000, weekday, 0.9), qty: 3 }),
+      line({ key: 'r', unit: '工', unit_price: laborPrice(3000, restday, 0.9), qty: 2 }),
+    ],
+  }]
+  assert.equal(
+    calcTotals(mixed, 0.09, 0.05).sections[0].subtotal, 17118,
+    '平日 3 工（2,700）＋ 休息日 2 工（4,509）＝ 17,118',
+  )
+}
+
 // ── 4. 指數連動建議價 ──────────────────────────────────────────
 const item = (o: Partial<PriceItem> = {}): PriceItem => ({
   id: 'x', category_id: 'power', name: '電纜線', spec: '', unit: '米',
@@ -144,6 +202,36 @@ assert.deepEqual(
   assert.ok(custom({ name: 'n', unit_price: 0, reason: 'r' }).some((m) => m.includes('單價')))
   assert.ok(custom({ name: 'n', unit_price: 100, reason: '' }).some((m) => m.includes('理由')))
   assert.deepEqual(custom({ name: 'n', unit_price: 100, reason: '無標準品項' }), [])
+}
+
+// ── 8. 空大項不得落庫（會在 A4 標單印成「本大項無項目」的空區塊）─────
+{
+  const s = (title: string, n: number): DraftSection => ({
+    key: title, title, lines: Array.from({ length: n }, () => line({ unit_price: 100 })),
+  })
+
+  // 三個實際會產生空殼的路徑：新單初始空白大項、取消掉最後一個大類、工資列被刪光
+  assert.deepEqual(
+    sectionsForPersist([s('', 0)]).map((x) => x.title),
+    [], '新單只填位置就存草稿，初始空白大項不得落庫',
+  )
+  assert.deepEqual(
+    sectionsForPersist([s('配電工程', 0)]).map((x) => x.title),
+    [], '有標題但沒明細的大項同樣不得落庫',
+  )
+  assert.deepEqual(
+    sectionsForPersist([s('配電工程', 2), s('人工費用', 0)]).map((x) => x.title),
+    ['配電工程'], '工資列刪光後的「人工費用」空殼要被濾掉',
+  )
+
+  // 有明細的一律保留，且順序不變——secRows 與 lineRows 都靠這個順序對 section_id
+  const kept = sectionsForPersist([s('甲', 1), s('乙', 0), s('丙', 3)])
+  assert.deepEqual(kept.map((x) => x.title), ['甲', '丙'], '保留有明細者並維持原順序')
+  assert.equal(kept[1].lines.length, 3, '濾完之後索引 1 必須是「丙」，不是原本的「乙」')
+
+  // 陰性對照：全部都有明細時不可動到任何一項
+  const all = [s('甲', 1), s('乙', 2)]
+  assert.equal(sectionsForPersist(all).length, 2, '沒有空大項時不得誤刪')
 }
 
 console.log('calc.ts 自我檢查全數通過')

@@ -124,7 +124,12 @@ export default function LoginPage() {
           </div>
         </div>
 
+        {/* 版次與建置時間：同仁回報問題時第一句就能講清楚他看到的是哪一版，
+            不必再問「你有沒有重新整理」。值由 vite.config.ts 於打包時灌入。 */}
         <p className="mt-5 text-center text-[0.6875rem] text-ink-500">
+          版本 v{__APP_VERSION__} · 建置 {__BUILD_TIME__}
+        </p>
+        <p className="mt-1 text-center text-[0.6875rem] text-ink-500">
           © 聯新國際醫療集團 · 立德新股份有限公司(德新物業)
         </p>
       </div>

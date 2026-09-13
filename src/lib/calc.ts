@@ -94,6 +94,21 @@ export function concessionPct(original: number, final: number): number {
 export const money = (n: number): string =>
   (Math.round(Number(n)) || 0).toLocaleString('en-US')
 
+/**
+ * 落庫前要保留的大項：**沒有明細的一律不寫**。
+ *
+ * 空殼大項有三個來源：新單的初始空白大項（① 只填位置就存草稿）、② 取消掉最後一個大類、
+ * ④ 把工資列刪光後留下的「人工費用」。一旦寫進資料庫就會被補成「工程項目 N」，
+ * 並在 A4 標單上印出一塊「本大項無項目」的空區塊——PrintPage 是照資料庫印的，
+ * 而 validateQuote 不擋空大項，所以 ⑤ 仍會顯示「檢查通過」，同仁不會發現。
+ *
+ * 呼叫端注意：寫 quote_sections 與 quote_lines 必須都派生自這個回傳值，
+ * 兩邊的索引才對得起來（lineRows 的 section_id 是用 secRows[si].id 取的）。
+ */
+export function sectionsForPersist(sections: DraftSection[]): DraftSection[] {
+  return sections.filter((s) => s.lines.length > 0)
+}
+
 /** 送審前的把關；回傳空陣列代表可以送 */
 export function validateQuote(draft: DraftQuote): string[] {
   const bad: string[] = []
