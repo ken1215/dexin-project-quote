@@ -393,12 +393,9 @@ export default function QuoteListPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        index="01"
-        eyebrow="QUOTATIONS"
-        title="報價單"
-        actions={<Link to="/quote/new" className="btn btn-primary">＋ 開新單</Link>}
-      />
+      {/* 主 CTA「＋ 開新單」由全站 header（components/Layout.tsx）提供，這裡刻意不再放第二顆。
+          同一頁不得同時出現兩顆文字相同的主要動作（與「手機釘底與桌機那組不得重複」同一條紅線）。 */}
+      <PageHeader index="01" eyebrow="QUOTATIONS" title="報價單" />
 
       <div className="card space-y-3">
         {/* 分頁取代狀態下拉；每顆右側是該分頁在目前關鍵字下的張數 */}
@@ -439,7 +436,9 @@ export default function QuoteListPage() {
           <EmptyState
             title="還沒有任何報價單"
             hint="建立第一張報價單開始使用。"
-            action={<Link to="/quote/new" className="btn btn-primary">＋ 開新單</Link>}
+            /* 空清單是唯一還需要頁內入口的情境（手機的 header CTA 收在漢堡選單裡），
+               但文字刻意不與 header 那顆同字，避免同頁出現兩顆「＋ 開新單」。 */
+            action={<Link to="/quote/new" className="btn btn-primary">建立第一張報價單</Link>}
           />
         ) : visible.length === 0 ? (
           <EmptyState

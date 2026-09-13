@@ -6,6 +6,10 @@ import { supabaseConfigured } from '../lib/supabase'
 // 這個系統有三個部署目標（本機／GitHub Pages 子路徑／Cloudflare 根目錄），
 // 寫死路徑會在其中一個上面 404。
 import logo from '../assets/logo-landseed.png'
+// 德新標誌沿用 header 那顆 <BrandMark>：它自帶白底圓角方塊。
+// CIS 母規範的灰階分級 K11–89 禁用原色標誌，墊白底＝把標誌放回合規的 K0–10 環境；
+// 這裡不另刻一份，兩處壞掉只會壞在同一個地方。
+import BrandMark from '../components/ui/BrandMark'
 
 export default function LoginPage() {
   const { session, signIn } = useAuth()
@@ -44,12 +48,21 @@ export default function LoginPage() {
 
           <div className="px-6 py-7 sm:px-8">
             <div className="mb-6 text-center">
-              <img
-                src={logo}
-                alt="LANDSEED 聯新國際醫療"
-                /* 官方 lockup 比例 5.3929:1，只給寬度、高度自動，不要壓變形 */
-                className="mx-auto w-[13.5rem] max-w-full"
-              />
+              {/* 德新標誌（承辦單位）與聯新 lockup（集團）並列，中間一條細分隔線。
+                  每一層 flex 子項都掛 min-w-0：少一層，長 logo 會把整張卡撐出橫向捲動。 */}
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <span className="inline-flex min-w-0 shrink-0">
+                  <BrandMark size={44} />
+                </span>
+                <span aria-hidden className="h-8 w-px shrink-0 bg-ink-200" />
+                <img
+                  src={logo}
+                  alt="LANDSEED 聯新國際醫療"
+                  /* 官方 lockup 比例 5.3929:1，只給寬度、高度自動，不要壓變形。
+                     實測 11rem＝193.6×35.9px，與左側白底方塊扣掉內距後的 35.2px 等高。 */
+                  className="w-[11rem] min-w-0 max-w-full"
+                />
+              </div>
               <div className="mt-5 border-t border-ink-200 pt-4">
                 <h1 className="text-base font-bold tracking-wide text-deep">
                   專案工程報價系統
