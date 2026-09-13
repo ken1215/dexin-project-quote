@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 import { useRefData } from '../context/RefDataContext'
 import { calcTotals, laborListPrice, lineAmount, money } from '../lib/calc'
 import {
@@ -269,8 +270,24 @@ export default function PrintPage() {
   const [error, setError] = useState<string | null>(null)
   /** 報價專用章的 data URI；null＝不蓋（未核可、查無此設定、或載入失敗） */
   const [stampSrc, setStampSrc] = useState<string | null>(null)
-  /** 列印是否附工率分析頁；預設開，記住上次選擇 */
-  const [showProd, setShowProd] = useState(() => localStorage.getItem('print.prod') !== '0')
+  /**
+   * 列印是否附工率分析頁。
+   *
+   * **預設關、且只有副部長與工務處長能打開**（使用者 2026-09-13 裁示）。
+   * 那一頁印的是「工資單價 ＝ 技術工日薪 ÷ 工率」與逐項工率基準——是計價基礎的自我揭露，
+   * 不該由同仁按一下列印就跟著送到醫院採購手上。
+   *
+   * ⚠️ 權限閘門掛在**值**上（下面的 showProd），不是只把勾選框藏起來：
+   * 改版前這個框對所有人顯示且預設開，同仁的 localStorage 裡很可能已經留著 'print.prod=1'；
+   * 只藏控制項的話那一頁照樣印得出去，而且他自己不會發現。
+   * 這就是本專案「畫面藏按鈕不算權限」那條的同一個坑。
+   */
+  const [showProdPref, setShowProdPref] = useState(
+    () => localStorage.getItem('print.prod') === '1',
+  )
+  /** canEditPrices ＝ 副部長 ＋ 工務處長（對應 db/21 的 is_price_editor()）。部長單價唯讀，不在內。 */
+  const { canEditPrices } = useAuth()
+  const showProd = canEditPrices && showProdPref
 
   const load = useCallback(async () => {
     if (!id) { setError('缺少報價單編號'); setLoading(false); return }
@@ -503,17 +520,19 @@ export default function PrintPage() {
           列印 / 轉 PDF
         </button>
         <button type="button" className="btn" onClick={goBack}>{openedInNewTab ? '關閉此分頁' : '返回'}</button>
-        {prodRows.length > 0 && (
+        {/* 只有副部長與工務處長看得到這個選項；同仁與醫院採購連框都不該出現。
+            預設未勾，所以標籤要寫清楚勾下去會對外揭露什麼。 */}
+        {canEditPrices && prodRows.length > 0 && (
           <label className="flex cursor-pointer items-center gap-1.5 text-xs text-ink-700">
             <input
               type="checkbox"
-              checked={showProd}
+              checked={showProdPref}
               onChange={(e) => {
-                setShowProd(e.target.checked)
+                setShowProdPref(e.target.checked)
                 localStorage.setItem('print.prod', e.target.checked ? '1' : '0')
               }}
             />
-            附工率分析頁
+            附工率分析頁（揭露單價計算依據）
           </label>
         )}
         <span className="flex w-full flex-wrap items-center gap-2 text-xs text-ink-500 sm:ml-auto sm:w-auto">
