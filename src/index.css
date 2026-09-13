@@ -10,13 +10,17 @@
   --color-deep-d: #00468C;
   --color-bright: #008CD6;
   --color-green:  #00A94F;
+  /* 德新新芽綠 376C。只做裝飾（標誌、步驟列已完成段、加入回饋），
+     不得當文字色——白底對比僅 1.98:1。 */
+  --color-sprout: #8FC31F;
   --color-light:  #D3EDFB;
 
-  --color-ink-900: #0A1F33;
-  --color-ink-700: #334155;
-  --color-ink-500: #6B7C8C;
-  --color-ink-200: #D9E3EC;
-  --color-ink-50:  #F7FAFC;
+  /* 墨階＝德新墨黑 426C 系的暖調。列印版面在 @media print 裡釘回原本的冷墨。 */
+  --color-ink-900: #3E3A39;
+  --color-ink-700: #4B4745;
+  --color-ink-500: #78736E;
+  --color-ink-200: #DEDCD8;
+  --color-ink-50:  #F6F5F2;
 
   --color-warn:    #C0392B;
   --color-warn-bg: #FDF3F2;
@@ -190,6 +194,15 @@ tr.row-added,
    給 Chrome/Edge/Safari，無前綴給 Firefox/標準），否則美化白做。 */
 @media print {
   @page { size: A4; margin: 14mm 12mm 16mm; }
+
+  /* 螢幕上的墨階是德新暖墨；列印版面已實測定版，這裡釘回改版前的冷墨，
+     讓 PrintPage 的輸出與改版前逐像素一致。scripts/check-css.mjs 會斷言這四個值。 */
+  :root {
+    --color-ink-900: #0A1F33;
+    --color-ink-700: #334155;
+    --color-ink-500: #6B7C8C;
+    --color-ink-200: #D9E3EC;
+  }
 
   html, body {
     background: #fff !important;
