@@ -26,6 +26,7 @@ const COMPONENT_CLASSES = [
   '.btn', '.btn-primary', '.btn-danger', '.field', '.label',
   '.card', '.card-title', '.tag', '.th', '.td',
   '.table-scroll', '.action-bar',
+  '.chip', '.chip-on', '.stat',
 ]
 
 /** 列印版面已定版。螢幕上的墨階換成德新暖墨後，@media print 必須把這四個值釘回原本的冷墨。 */
