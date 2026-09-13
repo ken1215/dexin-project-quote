@@ -1,26 +1,39 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { calcTotals, money } from '../lib/calc'
-import type { DraftLine, DraftSection, Quote, QuoteLine, QuoteStatus } from '../types'
-import { STATUS_LABEL } from '../types'
+import { matchesTab, sortQuotes } from '../lib/quoteFilters'
+import type { QuoteTab, SortKey } from '../lib/quoteFilters'
+import Alert from '../components/ui/Alert'
+import ConfirmPanel from '../components/ui/ConfirmPanel'
+import EmptyState from '../components/ui/EmptyState'
+import PageHeader from '../components/ui/PageHeader'
+import StatusTag from '../components/ui/StatusTag'
+import type { DraftLine, DraftSection, Quote, QuoteLine, Role } from '../types'
 
-/** 不同狀態的標籤配色（沿用 .tag 形狀，覆寫底色／文字色） */
-const STATUS_TAG_CLASS: Record<QuoteStatus, string> = {
-  draft: 'bg-ink-200 text-ink-700',
-  submitted: 'bg-alert/15 text-alert',
-  approved_l1: 'bg-alert/25 text-alert',
-  approved: 'bg-green/15 text-green',
-  negotiating: 'bg-bright/15 text-bright',
-  closed: 'bg-deep/15 text-deep',
-  rejected: 'bg-warn-bg text-warn',
-}
-
+/** 一次載回的張數上限。伺服器端分頁列為後續，載到上限就在清單底部誠實提示。 */
+const LOAD_LIMIT = 200
 /** 批次刪除一次最多送出的張數，超過請分批 */
 const BATCH_DELETE_LIMIT = 100
 /** 確認面板最多列出幾個單號 */
 const CONFIRM_LIST_LIMIT = 10
+
+/**
+ * 分頁 tabs 取代改版前的狀態下拉。歸屬定義在 src/lib/quoteFilters.ts，
+ * 與 header 的「待我處理」徽章共用同一份，不要在這裡另算一套。
+ */
+const TABS: { key: QuoteTab; label: string }[] = [
+  { key: 'todo', label: '待我處理' },
+  { key: 'active', label: '進行中' },
+  { key: 'done', label: '已核定' },
+  { key: 'all', label: '全部' },
+]
+
+/** 清單列＝單據本體 ＋ 算好的合計金額（quoteFilters 的純函式吃的就是這個形狀） */
+type Row = Quote & { total: number }
+
+interface SortState { key: SortKey; dir: 'asc' | 'desc' }
 
 /** 用共用的 calcTotals 算單一報價單的合計金額（單一虛擬大項裝入所有明細即可） */
 function quoteTotal(quote: Quote, lines: QuoteLine[]): number {
@@ -41,8 +54,42 @@ function quoteTotal(quote: Quote, lines: QuoteLine[]): number {
   return calcTotals(sections, quote.mgmt_fee_rate, quote.tax_rate).total
 }
 
+/**
+ * 可排序的表頭。點同一欄切換升降冪，目前的排序欄位在標題後面掛 ▲／▼。
+ * 觸控裝置補到 40px：手機以下 thead 整個隱藏，所以這條實際只對平板生效。
+ */
+function SortTh(
+  { label, column, sort, onSort, className = '' }:
+  {
+    label: string
+    column: SortKey
+    sort: SortState
+    onSort: (key: SortKey) => void
+    className?: string
+  },
+) {
+  const on = sort.key === column
+  return (
+    <th
+      className={`th ${className}`}
+      aria-sort={on ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+    >
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 text-xs font-semibold text-ink-700 transition hover:text-deep pointer-coarse:min-h-10"
+        onClick={() => onSort(column)}
+      >
+        {label}
+        <span className={on ? 'text-deep' : 'text-ink-200'}>
+          {on && sort.dir === 'asc' ? '▲' : '▼'}
+        </span>
+      </button>
+    </th>
+  )
+}
+
 export default function QuoteListPage() {
-  const { profile, isManager, isAdmin } = useAuth()
+  const { profile, isManager, isAdmin, isProcurement } = useAuth()
 
   const [quotes, setQuotes] = useState<Quote[]>([])
   const [totals, setTotals] = useState<Record<string, number>>({})
@@ -52,8 +99,14 @@ export default function QuoteListPage() {
   /** 刪除成功後 +1，觸發清單重新載入 */
   const [reloadTick, setReloadTick] = useState(0)
 
-  const [statusFilter, setStatusFilter] = useState<QuoteStatus | 'all'>('all')
+  /**
+   * 使用者點過的分頁。null＝還沒點過，此時由 defaultTab 在 render 當下推導；
+   * 刻意不寫成 useEffect + setState——oxlint 的 react(set-state-in-effect) 會擋
+   * （本 repo 基準 23 warnings 不得劣化），而且會白白多跑一輪 render。
+   */
+  const [tabChoice, setTabChoice] = useState<QuoteTab | null>(null)
   const [keyword, setKeyword] = useState('')
+  const [sort, setSort] = useState<SortState>({ key: 'quote_date', dir: 'desc' })
 
   /** 刪除相關：進行中、成功訊息、部分未刪除的提醒、失敗訊息 */
   const [busy, setBusy] = useState(false)
@@ -62,9 +115,8 @@ export default function QuoteListPage() {
   const [opError, setOpError] = useState<string | null>(null)
 
   /** 頁內確認面板（本專案不用 window.confirm 這類阻塞式對話框） */
-  const [confirmOne, setConfirmOne] = useState<Quote | null>(null)
+  const [confirmOne, setConfirmOne] = useState<Row | null>(null)
   const [confirmBatch, setConfirmBatch] = useState(false)
-  const confirmRef = useRef<HTMLDivElement | null>(null)
 
   /** 批次勾選（只有主管看得到勾選欄） */
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -80,7 +132,7 @@ export default function QuoteListPage() {
         .from('quotes')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(200)
+        .limit(LOAD_LIMIT)
 
       if (cancelled) return
       if (qErr) {
@@ -156,14 +208,48 @@ export default function QuoteListPage() {
     }
   }, [isManager, reloadTick])
 
-  const filtered = useMemo(() => {
+  const role: Role = profile?.role ?? 'staff'
+  const userId = profile?.id ?? ''
+
+  const rows = useMemo<Row[]>(
+    () => quotes.map((q) => ({ ...q, total: totals[q.id] ?? 0 })),
+    [quotes, totals],
+  )
+
+  /** 關鍵字先篩掉，分頁上的張數才會跟著關鍵字走（顯示幾張、點進去就是幾張） */
+  const byKeyword = useMemo(() => {
     const kw = keyword.trim().toLowerCase()
-    return quotes.filter((q) => {
-      if (statusFilter !== 'all' && q.status !== statusFilter) return false
-      if (kw && !q.project.toLowerCase().includes(kw) && !q.quote_no.toLowerCase().includes(kw)) return false
-      return true
-    })
-  }, [quotes, statusFilter, keyword])
+    if (!kw) return rows
+    return rows.filter(
+      (r) => r.project.toLowerCase().includes(kw) || r.quote_no.toLowerCase().includes(kw),
+    )
+  }, [rows, keyword])
+
+  const counts = useMemo(() => {
+    const out: Record<QuoteTab, number> = { todo: 0, active: 0, done: 0, all: 0 }
+    for (const r of byKeyword) {
+      for (const t of TABS) if (matchesTab(r, t.key, role, userId)) out[t.key]++
+    }
+    return out
+  }, [byKeyword, role, userId])
+
+  /**
+   * 預設分頁：一律從「待我處理」開始，載完之後若一張都沒有就落到「進行中」——
+   * 不要讓人一進來就看到空畫面。醫院採購沒有待辦定義，直接給「全部」。
+   */
+  const defaultTab: QuoteTab = isProcurement
+    ? 'all'
+    : (loading || counts.todo > 0 ? 'todo' : 'active')
+  const tab = tabChoice ?? defaultTab
+
+  const visible = useMemo(
+    () => sortQuotes(
+      byKeyword.filter((r) => matchesTab(r, tab, role, userId)),
+      sort.key,
+      sort.dir,
+    ),
+    [byKeyword, tab, role, userId, sort],
+  )
 
   /**
    * 刪除按鈕的顯示條件，刻意與資料庫 RLS 政策同一套判斷：
@@ -177,23 +263,27 @@ export default function QuoteListPage() {
 
   /** 只認「目前篩選後看得見」的勾選，避免刪到被篩選條件藏起來的單 */
   const selectedQuotes = useMemo(
-    () => filtered.filter((q) => selected.has(q.id)),
-    [filtered, selected],
+    () => visible.filter((q) => selected.has(q.id)),
+    [visible, selected],
   )
-  const allVisibleSelected = filtered.length > 0 && filtered.every((q) => selected.has(q.id))
+  const allVisibleSelected = visible.length > 0 && visible.every((q) => selected.has(q.id))
   const nonDraftSelected = selectedQuotes.filter((q) => q.status !== 'draft').length
-
-  /** 面板出現時捲到面板，避免按了表格下方的刪除卻沒看到確認框 */
-  useEffect(() => {
-    if (confirmOne || confirmBatch) {
-      confirmRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }
-  }, [confirmOne, confirmBatch])
+  /** 勾選欄與建立人欄只給主管看；確認面板橫跨整列時要算進去 */
+  const colCount = isManager ? 9 : 7
 
   function resetMessages() {
     setNotice(null)
     setOpWarn(null)
     setOpError(null)
+  }
+
+  /** 點同一欄切換升降冪；換欄一律從大到小（新的單、貴的單先看） */
+  function toggleSort(key: SortKey) {
+    setSort((prev) => (
+      prev.key === key
+        ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+        : { key, dir: 'desc' }
+    ))
   }
 
   function toggleOne(id: string, checked: boolean) {
@@ -209,7 +299,7 @@ export default function QuoteListPage() {
   function toggleAllVisible(checked: boolean) {
     setSelected((prev) => {
       const next = new Set(prev)
-      for (const q of filtered) {
+      for (const q of visible) {
         if (checked) next.add(q.id)
         else next.delete(q.id)
       }
@@ -217,7 +307,7 @@ export default function QuoteListPage() {
     })
   }
 
-  function openConfirmOne(q: Quote) {
+  function openConfirmOne(q: Row) {
     resetMessages()
     setConfirmBatch(false)
     setConfirmOne(q)
@@ -303,181 +393,131 @@ export default function QuoteListPage() {
 
   return (
     <div className="space-y-4">
-      <div ref={confirmRef} className="empty:hidden space-y-4">
-        {confirmOne && (
-          <div className="card border-warn/40">
-            <div className="card-title text-warn">確認刪除報價單</div>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[0.8125rem]">
-              <dt className="text-ink-500">單號</dt>
-              <dd className="min-w-0 break-words font-semibold text-ink-900">{confirmOne.quote_no}</dd>
-              <dt className="text-ink-500">案名</dt>
-              <dd className="min-w-0 break-words text-ink-900">{confirmOne.project}</dd>
-              <dt className="text-ink-500">狀態</dt>
-              <dd className="min-w-0">
-                <span className={`tag ${STATUS_TAG_CLASS[confirmOne.status]}`}>
-                  {STATUS_LABEL[confirmOne.status]}
-                </span>
-              </dd>
-              <dt className="text-ink-500">合計金額</dt>
-              <dd className="num font-semibold text-deep">{money(totals[confirmOne.id] ?? 0)}</dd>
-            </dl>
-            <p className="mt-3 text-[0.8125rem] font-semibold text-warn">
-              將一併刪除此單的所有明細與議價紀錄，且無法復原。
-            </p>
-            {confirmOne.status !== 'draft' && (
-              <p className="mt-2 text-[0.8125rem] text-alert">
-                此單已送審／核可／議價過，刪除後將失去該筆往來紀錄。若只是不再進行，建議保留存查。
-              </p>
-            )}
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                className="btn btn-danger"
-                disabled={busy}
-                onClick={() => void deleteOne(confirmOne)}
-              >
-                {busy ? '刪除中…' : '確認刪除'}
-              </button>
-              <button
-                type="button"
-                className="btn"
-                disabled={busy}
-                onClick={() => setConfirmOne(null)}
-              >
-                取消
-              </button>
-            </div>
-          </div>
-        )}
+      <PageHeader
+        index="01"
+        eyebrow="QUOTATIONS"
+        title="報價單"
+        actions={<Link to="/quote/new" className="btn btn-primary">＋ 開新單</Link>}
+      />
 
-        {confirmBatch && (
-          <div className="card border-warn/40">
-            <div className="card-title text-warn">確認刪除選取的 {selectedQuotes.length} 張報價單</div>
-            <p className="text-[0.8125rem] break-words text-ink-700">
-              將刪除下列單號：
-              <span className="num break-words font-semibold text-ink-900">{confirmNoList.join('、')}</span>
-              {confirmNoRest > 0 && (
-                <span className="text-ink-500">…等 {selectedQuotes.length} 張</span>
-              )}
-            </p>
-            <p className="mt-2 text-[0.8125rem] font-semibold text-warn">
-              將一併刪除這些單的所有明細與議價紀錄，且無法復原。
-            </p>
-            {nonDraftSelected > 0 && (
-              <p className="mt-2 text-[0.8125rem] text-alert">
-                其中 {nonDraftSelected} 張不是草稿狀態，已送審／核可／議價過，刪除後將失去該筆往來紀錄。
-                若只是不再進行，建議保留存查。
-              </p>
-            )}
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                className="btn btn-danger"
-                disabled={busy}
-                onClick={() => void deleteSelected()}
-              >
-                {busy ? '刪除中…' : `確認刪除 ${selectedQuotes.length} 張`}
-              </button>
-              <button
-                type="button"
-                className="btn"
-                disabled={busy}
-                onClick={() => setConfirmBatch(false)}
-              >
-                取消
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="card">
-        <h2 className="card-title">報價單列表</h2>
-
-        {/* 篩選列：手機直排（每個欄位各佔滿一行），sm 以上才回到橫排 */}
-        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-          <div className="w-full sm:w-auto">
-            <label className="label">狀態</label>
-            <select
-              className="field w-full sm:w-40"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as QuoteStatus | 'all')}
-            >
-              <option value="all">全部</option>
-              {(Object.keys(STATUS_LABEL) as QuoteStatus[]).map((s) => (
-                <option key={s} value={s}>{STATUS_LABEL[s]}</option>
-              ))}
-            </select>
-          </div>
-          <div className="w-full sm:min-w-[200px] sm:flex-1">
-            <label className="label">關鍵字（案名或單號）</label>
-            <input
-              className="field"
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              placeholder="輸入案名或單號搜尋…"
-            />
-          </div>
-          {isAdmin && selectedQuotes.length > 0 && (
+      <div className="card space-y-3">
+        {/* 分頁取代狀態下拉；每顆右側是該分頁在目前關鍵字下的張數 */}
+        <div className="flex flex-wrap gap-2">
+          {TABS.map((t) => (
             <button
+              key={t.key}
               type="button"
-              className="btn btn-danger w-full sm:w-auto"
-              disabled={busy}
-              onClick={openConfirmBatch}
+              className={`chip ${tab === t.key ? 'chip-on' : ''}`}
+              aria-pressed={tab === t.key}
+              onClick={() => setTabChoice(t.key)}
             >
-              刪除選取的 {selectedQuotes.length} 張
+              {t.label}
+              <span className="num ml-1.5 text-[0.6875rem] opacity-75">{counts[t.key]}</span>
             </button>
-          )}
-          <Link to="/quote/new" className="btn btn-primary w-full sm:w-auto">＋ 開新單</Link>
+          ))}
         </div>
 
-        {error && (
-          <div className="mb-3 rounded-md border border-warn/30 bg-warn-bg px-3 py-2 text-sm text-warn">
-            載入失敗：{error}
-          </div>
-        )}
+        <div className="w-full sm:max-w-md">
+          <label className="label" htmlFor="quote-keyword">關鍵字（案名或單號）</label>
+          <input
+            id="quote-keyword"
+            className="field"
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            placeholder="輸入案名或單號搜尋…"
+          />
+        </div>
 
-        {opError && (
-          <div className="mb-3 rounded-md border border-warn/30 bg-warn-bg px-3 py-2 text-sm text-warn">
-            {opError}
-          </div>
-        )}
-
-        {opWarn && (
-          <div className="mb-3 rounded-md border border-alert/40 bg-warn-bg px-3 py-2 text-sm text-alert">
-            {opWarn}
-          </div>
-        )}
-
-        {notice && (
-          <div className="mb-3 rounded-md border border-green/40 bg-green/5 px-3 py-2 text-sm text-green">
-            {notice}
-          </div>
-        )}
+        {error && <Alert kind="error" title="載入失敗">{error}</Alert>}
+        {opError && <Alert kind="error">{opError}</Alert>}
+        {opWarn && <Alert kind="warn">{opWarn}</Alert>}
+        {notice && <Alert kind="success">{notice}</Alert>}
 
         {loading ? (
           <div className="py-10 text-center text-sm text-ink-500">載入中…</div>
         ) : quotes.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 py-12 text-center">
-            <p className="text-sm text-ink-500">目前還沒有任何報價單，建立第一張報價單開始使用。</p>
-            <Link to="/quote/new" className="btn btn-primary">＋ 開新單</Link>
-          </div>
+          <EmptyState
+            title="還沒有任何報價單"
+            hint="建立第一張報價單開始使用。"
+            action={<Link to="/quote/new" className="btn btn-primary">＋ 開新單</Link>}
+          />
+        ) : visible.length === 0 ? (
+          <EmptyState
+            title="這個條件下沒有單"
+            hint="換一個分頁，或把關鍵字清掉再看一次。"
+            action={(
+              <button
+                type="button"
+                className="btn"
+                onClick={() => { setTabChoice('all'); setKeyword('') }}
+              >
+                清除篩選
+              </button>
+            )}
+          />
         ) : (
           <>
-            {/* 手機把表格轉成卡片後 <thead> 會被隱藏，連帶失去表頭的全選框，
+            {/* 批次刪除自成一列、緊鄰勾選欄；主 CTA 已移到 PageHeader，兩者不再並排。
+                手機把表格轉成卡片後 <thead> 會被隱藏，連帶失去表頭的全選框，
                 這裡補一個只在手機出現的全選控制，行為與表頭那顆完全相同。 */}
-            {isManager && filtered.length > 0 && (
-              <label className="mb-2 flex items-center gap-2 text-[0.8125rem] text-ink-700 sm:hidden">
-                <input
-                  type="checkbox"
-                  aria-label="全選目前篩選後的報價單"
-                  checked={allVisibleSelected}
-                  disabled={busy || filtered.length === 0}
-                  onChange={(e) => toggleAllVisible(e.target.checked)}
-                />
-                全選目前篩選的 {filtered.length} 張
-              </label>
+            {isManager && (
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="flex items-center gap-2 text-[0.8125rem] text-ink-700 sm:hidden">
+                    <input
+                      type="checkbox"
+                      aria-label="全選目前篩選後的報價單"
+                      checked={allVisibleSelected}
+                      disabled={busy}
+                      onChange={(e) => toggleAllVisible(e.target.checked)}
+                    />
+                    全選目前篩選的 {visible.length} 張
+                  </label>
+                  {isAdmin && selectedQuotes.length > 0 && (
+                    <button
+                      type="button"
+                      className="btn btn-danger"
+                      disabled={busy}
+                      onClick={openConfirmBatch}
+                    >
+                      刪除選取的 {selectedQuotes.length} 張
+                    </button>
+                  )}
+                </div>
+
+                {/* 確認面板就放在觸發它的按鈕正下方，不再擺到頁首讓人回頭找 */}
+                {confirmBatch && (
+                  <ConfirmPanel
+                    tone="danger"
+                    title={`確認刪除選取的 ${selectedQuotes.length} 張報價單`}
+                    confirmLabel={`確認刪除 ${selectedQuotes.length} 張`}
+                    busy={busy}
+                    onConfirm={() => void deleteSelected()}
+                    onCancel={() => setConfirmBatch(false)}
+                  >
+                    <p className="break-words">
+                      將刪除下列單號：
+                      <span className="num break-words font-semibold text-ink-900">
+                        {confirmNoList.join('、')}
+                      </span>
+                      {confirmNoRest > 0 && (
+                        <span className="text-ink-500">…等 {selectedQuotes.length} 張</span>
+                      )}
+                    </p>
+                    <p className="mt-2 font-semibold text-warn">
+                      將一併刪除這些單的所有明細與議價紀錄，且無法復原。
+                    </p>
+                    {nonDraftSelected > 0 && (
+                      <p className="mt-2 text-alert">
+                        其中 {nonDraftSelected} 張不是草稿狀態，已送審／核可／議價過，刪除後將失去該筆往來紀錄。
+                        若只是不再進行，建議保留存查。
+                      </p>
+                    )}
+                  </ConfirmPanel>
+                )}
+              </div>
             )}
+
             <div className="table-scroll">
               <table className="rwd-table w-full border-collapse">
                 <thead>
@@ -488,32 +528,27 @@ export default function QuoteListPage() {
                           type="checkbox"
                           aria-label="全選目前篩選後的報價單"
                           checked={allVisibleSelected}
-                          disabled={busy || filtered.length === 0}
+                          disabled={busy}
                           onChange={(e) => toggleAllVisible(e.target.checked)}
                         />
                       </th>
                     )}
-                    <th className="th">單號</th>
+                    <SortTh label="單號" column="quote_no" sort={sort} onSort={toggleSort} />
                     <th className="th">案名</th>
                     <th className="th">申請單位</th>
                     {isManager && <th className="th">建立人</th>}
-                    <th className="th">日期</th>
+                    <SortTh label="日期" column="quote_date" sort={sort} onSort={toggleSort} />
                     <th className="th">狀態</th>
-                    <th className="th num">合計金額</th>
+                    <SortTh
+                      label="合計金額" column="total" sort={sort} onSort={toggleSort} className="num"
+                    />
                     <th className="th">操作</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.length === 0 ? (
-                    <tr>
-                      <td className="td text-center text-ink-500" colSpan={isManager ? 9 : 7}>
-                        {/* 手機卡片模式下 td 變成 flex，要靠 w-full 的 span 才置中得了 */}
-                        <span className="block w-full text-center">無符合篩選條件的報價單。</span>
-                      </td>
-                    </tr>
-                  ) : (
-                    filtered.map((q) => (
-                      <tr key={q.id}>
+                  {visible.map((q) => (
+                    <Fragment key={q.id}>
+                      <tr>
                         {isManager && (
                           /* 勾選格不給 data-label：手機卡片上用內嵌文字說明即可 */
                           <td className="td text-center">
@@ -545,12 +580,9 @@ export default function QuoteListPage() {
                         )}
                         <td className="td" data-label="日期">{q.quote_date}</td>
                         <td className="td" data-label="狀態">
-                          <span className={`tag ${STATUS_TAG_CLASS[q.status]}`}>{STATUS_LABEL[q.status]}</span>
-                          {q.l1_skipped && (
-                            <span className="tag ml-1 bg-alert/15 text-alert" title="未經工務處長核可，由副部長直接核定">越級</span>
-                          )}
+                          <StatusTag status={q.status} l1Skipped={q.l1_skipped} />
                         </td>
-                        <td className="td num" data-label="合計金額">{money(totals[q.id] ?? 0)}</td>
+                        <td className="td num" data-label="合計金額">{money(q.total)}</td>
                         {/* 操作格不給 data-label：手機會自動佔滿整行，按鈕改 2 欄排列比較好按 */}
                         <td className="td">
                           <div className="grid w-full grid-cols-2 gap-1.5 sm:flex sm:w-auto sm:flex-wrap">
@@ -573,12 +605,62 @@ export default function QuoteListPage() {
                           </div>
                         </td>
                       </tr>
-                    ))
-                  )}
+
+                      {/* 單筆確認也貼著它的刪除鈕：橫跨整列插在該列正下方 */}
+                      {confirmOne?.id === q.id && (
+                        <tr>
+                          <td className="td" colSpan={colCount}>
+                            {/* 這張表在 .table-scroll 裡，面板外層要 min-w-0 才不會把表格撐寬 */}
+                            <div className="w-full min-w-0">
+                              <ConfirmPanel
+                                tone="danger"
+                                title="確認刪除報價單"
+                                confirmLabel="確認刪除"
+                                busy={busy}
+                                onConfirm={() => void deleteOne(q)}
+                                onCancel={() => setConfirmOne(null)}
+                              >
+                                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                                  <dt className="text-ink-500">單號</dt>
+                                  <dd className="min-w-0 break-words font-semibold text-ink-900">
+                                    {q.quote_no}
+                                  </dd>
+                                  <dt className="text-ink-500">案名</dt>
+                                  <dd className="min-w-0 break-words text-ink-900">{q.project}</dd>
+                                  <dt className="text-ink-500">狀態</dt>
+                                  <dd className="min-w-0">
+                                    <StatusTag status={q.status} l1Skipped={q.l1_skipped} />
+                                  </dd>
+                                  <dt className="text-ink-500">合計金額</dt>
+                                  <dd className="num font-semibold text-deep">{money(q.total)}</dd>
+                                </dl>
+                                <p className="mt-3 font-semibold text-warn">
+                                  將一併刪除此單的所有明細與議價紀錄，且無法復原。
+                                </p>
+                                {q.status !== 'draft' && (
+                                  <p className="mt-2 text-alert">
+                                    此單已送審／核可／議價過，刪除後將失去該筆往來紀錄。若只是不再進行，建議保留存查。
+                                  </p>
+                                )}
+                              </ConfirmPanel>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  ))}
                 </tbody>
               </table>
             </div>
           </>
+        )}
+
+        {/* 200 張是伺服器一次載回的上限，不是「總共只有這些」。誠實講在清單底部，
+            免得有人搜不到舊單以為單不見了。 */}
+        {!loading && quotes.length >= LOAD_LIMIT && (
+          <p className="text-[0.6875rem] text-ink-500">
+            已載入最新 {LOAD_LIMIT} 張；更舊的單目前搜尋不到（伺服器端分頁待後續處理）。
+          </p>
         )}
       </div>
     </div>
