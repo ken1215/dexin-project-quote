@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DraftQuote } from '../types'
 import { decodeDraft, draftKey, encodeDraft } from '../lib/draftStorage'
 
@@ -15,14 +15,22 @@ export function useDraftAutosave(
   { userId: string; quoteId?: string; draft: DraftQuote; enabled: boolean },
 ) {
   const key = draftKey(userId, quoteId)
-  const [restored, setRestored] = useState<{ savedAt: number; draft: DraftQuote } | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // 掛載時讀一次。刻意只在 key 變動時跑，不跟著 draft 跑。
-  useEffect(() => {
-    if (!enabled || !userId) return
-    try { setRestored(decodeDraft(localStorage.getItem(key))) } catch { setRestored(null) }
+  // 讀一次暫存。刻意只綁 key，不跟著 draft 跑——跟著 draft 跑的話，
+  // 去抖寫回的內容下一輪就被自己讀回來，還原提示永遠關不掉。
+  // 這裡在 render 當下算出來，不寫成 useEffect + setState：
+  // oxlint 的 react(set-state-in-effect) 會擋（本 repo 基準 23 warnings 不得劣化），
+  // 而且 effect 裡 setState 會白白多跑一輪 render。
+  const saved = useMemo(() => {
+    if (!enabled || !userId) return null
+    try { return decodeDraft(localStorage.getItem(key)) } catch { return null }
   }, [key, enabled, userId])
+
+  // 「這個 key 的暫存已經處理掉了」只記 key、不複製資料，
+  // setState 一律由事件觸發（套用／捨棄／存檔成功），不由 effect 觸發。
+  const [handledKey, setHandledKey] = useState<string | null>(null)
+  const restored = handledKey === key ? null : saved
 
   useEffect(() => {
     if (!enabled || !userId) return
@@ -35,12 +43,12 @@ export function useDraftAutosave(
 
   const clear = () => {
     try { localStorage.removeItem(key) } catch { /* 同上 */ }
-    setRestored(null)
+    setHandledKey(key)
   }
 
   return {
     restored,
-    applyRestored: () => { const d = restored?.draft; setRestored(null); return d },
+    applyRestored: () => { const d = restored?.draft; setHandledKey(key); return d },
     discardRestored: clear,
     clear,
   }
