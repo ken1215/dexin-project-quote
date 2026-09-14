@@ -271,6 +271,59 @@ Deno.serve(async (req) => {
     return json({ quote, routing, missing_notify_email: missing })
   }
 
+  // ── 3.6 補發（人工觸發，寄的是這張單「目前狀態」的正式通知）──────
+  //
+  // 為什麼需要它：webhook 只在狀態**變動**的當下觸發，而且失敗不重試。
+  // 所以至少三種情況會需要補寄——單子在通知系統上線前就核定了、
+  // 當時 webhook 還沒建、或某人的 notify_email 是事後才補填的。
+  // 沒有這個入口就只能去資料庫把狀態改來改去硬觸發，那會污染簽核紀錄。
+  //
+  // 與 selftest 的差別：selftest 用假單驗版型，這支用**真實單據**寄**真實收件人**。
+  // 主旨加註「（補發）」是刻意的：收件者要看得出這不是剛剛發生的狀態變更，
+  // 否則會以為單子又動了一次而回頭去確認。
+  if (body.action === 'resend') {
+    const sbUrl = Deno.env.get('SUPABASE_URL') ?? ''
+    const sbKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    if (!sbUrl || !sbKey) return json({ error: '缺平台注入的 SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY' }, 500)
+    const admin = createClient(sbUrl, sbKey)
+
+    const quoteNo = String(body.quote_no ?? '').trim()
+    if (!quoteNo) return json({ error: 'resend 需要 quote_no' }, 400)
+
+    const { data: quote } = await admin
+      .from('quotes').select('id, quote_no, project, dept, status, created_by, review_note')
+      .eq('quote_no', quoteNo).maybeSingle()
+    if (!quote) return json({ error: `查無單號 ${quoteNo}` }, 404)
+
+    const { data: profiles, error: pErr } = await admin
+      .from('profiles').select('id, role, active, notify_email')
+    if (pErr) return json({ error: pErr.message }, 500)
+
+    // oldStatus 給一個不可能相等的值，強制走完收件規則——
+    // 補發的前提就是「狀態沒有正在變動」，用真實的 old 值會直接回空陣列。
+    const to = resolveRecipients({
+      newStatus: (quote as QuoteRecord).status,
+      oldStatus: '__resend__',
+      createdBy: (quote as QuoteRecord).created_by,
+      profiles: (profiles ?? []) as Profile[],
+    })
+    if (to.length === 0) {
+      return json({ sent: 0, reason: `狀態 ${(quote as QuoteRecord).status} 沒有對應的收件人，或收件人都沒填 notify_email` })
+    }
+
+    const mail = buildMail({
+      record: quote as QuoteRecord,
+      baseUrl,
+      subjectSuffix: '（補發）',
+    })
+    try {
+      await sendMail(gmailUser, gmailPassword, to, mail.subject, mail.text, mail.html)
+      return json({ sent: to.length, to, status: (quote as QuoteRecord).status })
+    } catch (e) {
+      return json({ error: e instanceof Error ? e.message : String(e) }, 500)
+    }
+  }
+
   // ── 4. 以下是 webhook 路徑 ──────────────────────────────────────
   // 不是 quotes 的 UPDATE 就安靜跳過。回 200 而不是 4xx：webhook 可能被誤設到
   // 別的表或別的事件，那是設定問題，不該在 pg_net 留下一整排看起來很嚴重的錯誤。
