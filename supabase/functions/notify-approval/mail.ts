@@ -167,7 +167,7 @@ export function buildMail(input: { record: QuoteRecord; baseUrl: string }): {
   const base = baseUrl.replace(/\/+$/, '')
   const link = `${base}/#/quote/${record.id}`
 
-  const subject = `[德新報價系統] ${quoteNo} ${statusText}`
+  const subject = encodeMimeHeader(`[德新報價系統] ${quoteNo} ${statusText}`)
 
   const lines = [
     `報價單 ${quoteNo} 的狀態已變更為「${statusText}」。`,
@@ -314,4 +314,62 @@ function escapeHtml(v: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
+}
+
+/**
+ * 把一段可能含中文的標頭值編成 RFC 2047 的 base64 encoded-word，
+ * 並保證回傳的整串是**純 ASCII、且不以編碼字開頭**。
+ *
+ * ── 為什麼非自己編不可（2026-09-14 線上事故）─────────────────────
+ * denomailer 1.6.0 的 quotedPrintableEncodeInline 會拿「內文」的 QP 規則
+ * 去編含非 ASCII 的標頭：每 74 個字元插一個「等號 + CRLF」的軟換行。
+ * 那在內文是合法的，在標頭不是——標頭折行必須是「CRLF + 空白」，
+ * 裸 CRLF 會直接終止整個標頭區。後果是 Content-Type 連同其後所有標頭
+ * 全部掉進 body，信件用戶端把整封信當純文字顯示，收件者看到一整片
+ * MIME 原始碼。上游 main 分支至今仍是同一段程式碼，升版解決不了。
+ *
+ * ── 為什麼這樣就繞得過去 ─────────────────────────────────────────
+ * 那支函式自己留了出路：
+ *     if (hasNonAsciiCharacters(data) || data.startsWith("=?")) { ...編碼... }
+ *     return data
+ * 純 ASCII 而且不以編碼字開頭的值，它原樣放行。RFC 2047 的 encoded-word
+ * 本來就是純 ASCII，所以我們自己編好它就完全碰不到我們。
+ * 結尾那個「以編碼字開頭就補一個空白」不是美觀問題：單號為 null 時
+ * orDash() 會回全形破折號，主旨就會以 `=?` 開頭而被重新編碼一次。
+ *
+ * ⚠️ 這個限制同樣適用於 From 的顯示名與任何其他含中文的標頭，
+ *    不是只有主旨。加新標頭一律先過這一關。
+ */
+export function encodeMimeHeader(value: string): string {
+  // encoded-word 連同 `=?utf-8?B?` 與 `?=` 不得超過 75 字元（RFC 2047）。
+  // 扣掉 12 字元的框，base64 只剩 63 字元 ≈ 47 bytes；中日韓一字 3 bytes，
+  // 取 14 字一組（14×3=42 bytes → 56 字元 base64 → 全長 68）留有餘裕。
+  const CHARS_PER_WORD = 14
+
+  const toBase64 = (v: string): string => {
+    const bytes = new TextEncoder().encode(v)
+    let binary = ''
+    for (const b of bytes) binary += String.fromCharCode(b)
+    return btoa(binary)
+  }
+
+  // 拆成 ASCII／非 ASCII 交替的片段。ASCII 片段原樣留著——單號在主旨裡
+  // 保持可讀，順便讓整串不會以編碼字開頭。
+  const segments = value.match(/[\u0000-\u007f]+|[^\u0000-\u007f]+/g) ?? []
+  let out = ''
+  for (const seg of segments) {
+    if (!/[^\u0000-\u007f]/.test(seg)) {
+      out += seg
+      continue
+    }
+    // Array.from 依「字元」而非 UTF-16 單元切，避免把代理對劈成兩半
+    const chars = Array.from(seg)
+    const words: string[] = []
+    for (let i = 0; i < chars.length; i += CHARS_PER_WORD) {
+      words.push(`=?utf-8?B?${toBase64(chars.slice(i, i + CHARS_PER_WORD).join(''))}?=`)
+    }
+    // 相鄰 encoded-word 之間的空白，解碼時會被吃掉（RFC 2047 §6.2）
+    out += words.join(' ')
+  }
+  return out.startsWith('=?') ? ` ${out}` : out
 }

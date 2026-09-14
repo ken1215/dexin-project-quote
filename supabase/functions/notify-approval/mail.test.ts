@@ -10,6 +10,18 @@
  * 執行：node --experimental-strip-types supabase/functions/notify-approval/mail.test.ts
  */
 import assert from 'node:assert/strict'
+
+/**
+ * 主旨在 buildMail 出來時已經是 RFC 2047 的 encoded-word（純 ASCII），
+ * 那是為了繞過 denomailer 折斷標頭的 bug（見檔尾那組測試）。
+ * 要斷言「人看到什麼」就得先解回來——直接對編碼後的字串比對中文一定不會過。
+ */
+const decodeSubject = (v: string): string =>
+  v.replace(
+    /=\?utf-8\?B\?([A-Za-z0-9+/=]+)\?=/g,
+    (_m, b64: string) =>
+      new TextDecoder().decode(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))),
+  )
 import { buildMail, resolveRecipients } from './mail.ts'
 import type { Profile, QuoteRecord } from './mail.ts'
 
@@ -103,8 +115,8 @@ const rec = (o: Partial<QuoteRecord> = {}): QuoteRecord => ({
 
 {
   const m = buildMail({ record: rec(), baseUrl: 'https://dexin-quote.pages.dev' })
-  assert.ok(m.subject.includes('Q26090001'), '主旨要含單號')
-  assert.ok(m.subject.includes('待處長核可'), '主旨要含狀態中文')
+  assert.ok(decodeSubject(m.subject).includes('Q26090001'), '主旨要含單號')
+  assert.ok(decodeSubject(m.subject).includes('待處長核可'), '主旨要含狀態中文')
   assert.ok(m.text.includes('神經醫學中心配電'), '內文要含案名')
   assert.ok(m.text.includes('工務處'), '內文要含需求單位')
   assert.ok(m.text.includes('https://dexin-quote.pages.dev/#/quote/abc-123'),
@@ -125,7 +137,7 @@ const rec = (o: Partial<QuoteRecord> = {}): QuoteRecord => ({
     record: rec({ status: 'rejected', review_note: '第 3 項單價高於標準品項，請附理由' }),
     baseUrl: 'https://dexin-quote.pages.dev',
   })
-  assert.ok(m.subject.includes('已退回'), '退回信主旨要看得出是退回')
+  assert.ok(decodeSubject(m.subject).includes('已退回'), '退回信主旨要看得出是退回')
   assert.ok(m.text.includes('第 3 項單價高於標準品項，請附理由'), '退回信內文要含退回理由')
 }
 
@@ -136,7 +148,7 @@ const rec = (o: Partial<QuoteRecord> = {}): QuoteRecord => ({
     baseUrl: 'https://dexin-quote.pages.dev',
   })
   assert.ok(!m.text.includes('上一輪的舊註記'), '非退回信不要夾帶舊的審核註記')
-  assert.ok(m.subject.includes('已核定'))
+  assert.ok(decodeSubject(m.subject).includes('已核定'))
 }
 
 // 欄位為 null（資料庫允許）不可讓信變成 "null"
@@ -145,7 +157,7 @@ const rec = (o: Partial<QuoteRecord> = {}): QuoteRecord => ({
     record: rec({ quote_no: null, project: null, dept: null, review_note: null }),
     baseUrl: 'https://dexin-quote.pages.dev',
   })
-  assert.ok(!m.subject.includes('null'), '主旨不可出現 null 字樣')
+  assert.ok(!decodeSubject(m.subject).includes('null'), '主旨不可出現 null 字樣')
   assert.ok(!m.text.includes('null'), '內文不可出現 null 字樣')
 }
 
@@ -195,6 +207,51 @@ const rec = (o: Partial<QuoteRecord> = {}): QuoteRecord => ({
   ] as const) {
     assert.ok(!re.test(m.html), `信件版型出現${name}，金額一律留在系統裡`)
     assert.ok(!re.test(m.text), `純文字版出現${name}，金額一律留在系統裡`)
+  }
+}
+
+// ── 主旨的 MIME 編碼（2026-09-14 線上事故的回歸測試）──────────────
+// denomailer 1.6.0 的 quotedPrintableEncodeInline 會拿「內文」的 QP 規則去編
+// 含非 ASCII 的標頭：每 74 個字元插一個「等號 + CRLF」的軟換行。但標頭的折行
+// 必須是「CRLF + 空白」，裸 CRLF 會直接終止標頭區——Content-Type 跟著消失，
+// 整封信被當成純文字，收件者看到的是一整片 MIME 原始碼。上游 main 至今未修。
+// 出路是它自己留的：純 ASCII 且不以問號開頭的編碼字，它原樣放行。
+// 所以主旨改由我們自己編成 RFC 2047 的 base64 encoded-word。
+{
+  /** 逐字複製 denomailer 的判斷式——它會不會動我們的主旨 */
+  const denomailerWouldTouch = (v: string) =>
+    /[^\u0000-\u007f]/.test(v) || v.startsWith('=?')
+
+  const decodeWords = (v: string) =>
+    v.replace(
+      /=\?utf-8\?B\?([A-Za-z0-9+/=]+)\?=/g,
+      (_m, b64: string) =>
+        new TextDecoder().decode(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))),
+    )
+
+  for (const status of ['submitted', 'approved_l1', 'approved', 'rejected']) {
+    const { subject } = buildMail({ record: rec({ status }), baseUrl: 'https://x.test' })
+    assert.ok(
+      !denomailerWouldTouch(subject),
+      `主旨會被 denomailer 重新編碼而折斷整封信（status=${status}）：${subject}`,
+    )
+    // 解得回去才算數，不能只是「變成 ASCII」
+    assert.ok(decodeWords(subject).includes('Q26090001'), `主旨解碼後要看得到單號：${subject}`)
+  }
+
+  // 單號為 null 時 orDash 會回全形破折號（非 ASCII），主旨就會以編碼字開頭，
+  // 那正是被重新編碼的另一條路
+  {
+    const { subject } = buildMail({ record: rec({ quote_no: null }), baseUrl: 'https://x.test' })
+    assert.ok(!denomailerWouldTouch(subject), `單號為 null 時主旨仍不可被重編：${subject}`)
+  }
+
+  // 每個 encoded-word 不得超過 RFC 2047 的 75 字元上限
+  {
+    const { subject } = buildMail({ record: rec({ status: 'approved_l1' }), baseUrl: 'https://x.test' })
+    for (const w of subject.match(/=\?utf-8\?B\?[A-Za-z0-9+/=]+\?=/g) ?? []) {
+      assert.ok(w.length <= 75, `encoded-word 超過 75 字元（${w.length}）：${w}`)
+    }
   }
 }
 

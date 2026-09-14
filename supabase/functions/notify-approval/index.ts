@@ -87,7 +87,7 @@
 //       node --experimental-strip-types supabase/functions/notify-approval/mail.test.ts
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts'
-import { buildMail, resolveRecipients } from './mail.ts'
+import { buildMail, encodeMimeHeader, resolveRecipients } from './mail.ts'
 import type { Profile, QuoteRecord } from './mail.ts'
 
 const json = (body: unknown, status = 200) =>
@@ -136,7 +136,9 @@ async function sendMail(
     // 多個收件人放同一個 to 一起寄一封就好：這些人本來就是同一件事的關係人，
     // 逐一寄會讓 Gmail 在短時間內收到大量相同內容的信而觸發寄信頻率限制。
     await client.send({
-      from: `德新報價系統 <${gmailUser}>`,
+      // 顯示名也得自己編。它現在只有 6 個中文字（QP 編碼後 54 字元）剛好躲過
+      // denomailer 的 74 字元折行，是運氣不是設計——改長一個字就會折斷整封信。
+      from: `${encodeMimeHeader('德新報價系統')} <${gmailUser}>`,
       to,
       subject,
       // 兩份都給＝multipart/alternative。信件用戶端挑得動就顯示 html，
