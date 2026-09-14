@@ -123,6 +123,9 @@ Deno.serve(async (req) => {
             role: byId.get(u.id)?.role ?? 'staff',
             active: byId.get(u.id)?.active ?? true,
             must_change_password: byId.get(u.id)?.must_change_password ?? false,
+            // 這一行沒補的話，前端帳號頁的「通知信箱」欄永遠是空的——
+            // 上面 select('*') 雖然撈得到，但這個 map 是逐欄明列的白名單，漏列＝不存在。
+            notify_email: byId.get(u.id)?.notify_email ?? '',
           })),
         })
       }
@@ -135,6 +138,9 @@ Deno.serve(async (req) => {
         if (!mayTouchRole(role)) {
           return json({ error: '工務處長只能建立「同仁」帳號，其他角色請洽行政管理部' }, 403)
         }
+        // 選填，不做格式驗證：這是主管自己填的內部通訊錄欄位，填錯的代價只是收不到信，
+        // 擋下來反而會讓「先建帳號、之後再補信箱」這個正常流程卡住。非字串一律視為沒填。
+        const notifyEmail = typeof body.notify_email === 'string' ? body.notify_email.trim() : ''
 
         if (!isEmployeeNo(loginId) && !loginId.includes('@')) {
           return json({ error: '請填 6 碼數字工號，外部單位帳號才填 Email' }, 400)
@@ -156,10 +162,22 @@ Deno.serve(async (req) => {
         // 由主管建立的帳號在這裡明確設成啟用
         // must_change_password：主管發出的初始密碼（留空＝工號）本人首次登入必須換掉。
         // 在換掉之前，db/23 讓所有身分判斷函式回 false，等於讀不到任何業務資料。
+        //
+        // notify_email：為什麼要多這一欄，而不是直接用登入用的 email——
+        // 內部同仁的登入帳號是 6 碼工號合成出來的 `工號@dexin.local`，dexin.local 是
+        // 假網域，寄出去只會被退信。簽核流程要通知的正好是這群人，所以真正收得到信的
+        // 地址必須另外由主管人工填一欄，這裡沒有任何自動推導的空間。
+        // 空字串＝不寄（不是錯誤，也不是尚未設定的待辦）：新帳號預設就是空的，
+        // 主管想讓誰收到信才填誰，這是刻意的「預設安靜」。
+        // 醫院採購（role = procurement）填了也不會收到信：依 2026-09-14 決策，
+        // 第一版只寄內部（送審→工務處長、第一關核可→行政管理部、核定／退回→開單人），
+        // 對外通知維持既有管道。排除發生在寄信端（notify-approval），不是在這裡把欄位清空，
+        // 這樣日後決策改成要寄對外通知時，地址還在、不必請主管重填一次。
         await admin.from('profiles')
           .update({
             full_name: fullName || loginId, role, active: true,
             must_change_password: true,
+            notify_email: notifyEmail,
           })
           .eq('id', data.user.id)
         return json({ ok: true, id: data.user.id })

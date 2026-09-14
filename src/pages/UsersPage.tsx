@@ -19,6 +19,12 @@ interface AccountRow {
   last_sign_in_at: string | null
   /** 主管發出的初始／重設密碼尚未被本人換掉 */
   must_change_password: boolean
+  /**
+   * 簽核通知信要寄去哪裡。**不等於上面的 email**——內部同仁的登入帳號是
+   * `工號@dexin.local` 這種合成地址，假網域寄不出去，所以真正收得到信的地址
+   * 只能由主管人工填。空字串＝這個人不收簽核通知（預設值，不是待辦）。
+   */
+  notify_email: string
 }
 
 
@@ -65,7 +71,9 @@ export default function UsersPage() {
 
   // 新增帳號表單
   const [showNew, setShowNew] = useState(false)
-  const [nf, setNf] = useState({ email: '', password: '', full_name: '', role: 'staff' as Role })
+  // nf 會被原樣當成 payload 丟給 callAdmin('create', nf)，所以這裡多一個鍵
+  // 就等於 Edge Function 收得到 body.notify_email，不必另外組裝。
+  const [nf, setNf] = useState({ email: '', password: '', full_name: '', role: 'staff' as Role, notify_email: '' })
 
   // 重設密碼 / 刪除確認
   const [pwFor, setPwFor] = useState<AccountRow | null>(null)
@@ -108,6 +116,7 @@ export default function UsersPage() {
     return (p.full_name !== undefined && p.full_name !== r.full_name)
       || (p.role !== undefined && p.role !== r.role)
       || (p.active !== undefined && p.active !== r.active)
+      || (p.notify_email !== undefined && p.notify_email !== r.notify_email)
   })
 
   async function saveProfiles() {
@@ -117,6 +126,11 @@ export default function UsersPage() {
         const r = rows.find((x) => x.id === id)!
         const { error } = await supabase.from('profiles').update({
           full_name: val(r, 'full_name'), role: val(r, 'role'), active: val(r, 'active'),
+          // `?? ''` 不是多餘的保險：前端與 Edge Function 是分開部署的，
+          // 若前端先上線而 admin-users 還沒重新部署，list 回來的列裡根本沒有
+          // notify_email 這個鍵，型別上是 string、實際上是 undefined，
+          // 直接 .trim() 會讓**整個儲存動作**炸掉（連單純改姓名的那一列也一起死）。
+          notify_email: (val(r, 'notify_email') ?? '').trim(),
         }).eq('id', id)
         if (error) throw error
       }
@@ -131,7 +145,7 @@ export default function UsersPage() {
     try {
       await callAdmin('create', nf)
       flash(`已建立帳號 ${nf.email}`)
-      setShowNew(false); setNf({ email: '', password: '', full_name: '', role: 'staff' })
+      setShowNew(false); setNf({ email: '', password: '', full_name: '', role: 'staff', notify_email: '' })
       await load()
     } catch (e) { fail(e) }
     setBusy('')
@@ -224,6 +238,10 @@ export default function UsersPage() {
           {isAdmin
             ? '刪除帳號限行政管理部（部長／副部長）；名下還有報價單的帳號會被擋下，請改為停用。'
             : '您是工務處長：可建立、停用、重設密碼，但範圍限「同仁」；其他角色與刪除帳號請洽行政管理部。'}
+        </p>
+        <p className="mt-2 text-ink-500">
+          通知信箱：簽核流程的狀態變動會寄信到這裡（送審→工務處長、第一關核可→行政管理部、
+          核定／退回→開單人）；留空就不寄。醫院採購帳號不需要填，系統第一版只通知內部。
         </p>
         {/* 角色說明表：兩欄敘述型表格，手機保留原本上下對照的排版，只做橫捲保險 */}
         <div className="mt-3 table-scroll">
@@ -329,6 +347,14 @@ export default function UsersPage() {
                   {isAdmin && <option value="procurement">醫院採購（對方）</option>}
                 </select>
               </div>
+              {/* 通知信箱單獨佔兩欄：email 地址比其他欄位長，擠在四分之一寬會看不到尾巴。
+                  建帳號當下不知道信箱也沒關係，之後在下面的清單裡補填即可。 */}
+              <div className="md:col-span-2">
+                <label className="label">通知信箱（選填）</label>
+                <input className="field" type="email" value={nf.notify_email} autoComplete="off"
+                  onChange={(e) => setNf({ ...nf, notify_email: e.target.value })}
+                  placeholder="name@example.com" />
+              </div>
             </div>
             <div className="mt-3 flex flex-col items-start gap-2 sm:flex-row sm:items-center">
               <button className="btn btn-primary w-full sm:w-auto" disabled={busy === 'create'} onClick={() => void createUser()}>
@@ -355,6 +381,7 @@ export default function UsersPage() {
                 <tr>
                   <th className="th text-left">工號</th>
                   <th className="th text-left">姓名</th>
+                  <th className="th text-left">通知信箱</th>
                   <th className="th">角色</th>
                   <th className="th">啟用</th>
                   <th className="th">建立日</th>
@@ -380,6 +407,17 @@ export default function UsersPage() {
                     <td className="td p-1" data-label="姓名">
                       <input className="field" value={val(r, 'full_name')}
                         onChange={(e) => edit(r.id, { full_name: e.target.value })} />
+                    </td>
+                    {/* 自己的通知信箱允許改（不像角色與啟用那樣擋 isSelf）——
+                        填錯只是自己收不到信，沒有把自己鎖在門外的風險。
+                        工務處長被 mayTouch 擋在「同仁」以外，與資料庫政策
+                        profiles_dept_head_staff 同一條界線，前端只是不要顯示按不動的欄位。 */}
+                    <td className="td p-1" data-label="通知信箱">
+                      <input className="field" type="email" value={val(r, 'notify_email') ?? ''}
+                        disabled={!mayTouch(r)}
+                        title={mayTouch(r) ? '' : '工務處長只能改「同仁」的通知信箱'}
+                        placeholder="name@example.com"
+                        onChange={(e) => edit(r.id, { notify_email: e.target.value })} />
                     </td>
                     <td className="td p-1" data-label="角色">
                       <select className="field" value={val(r, 'role')}
