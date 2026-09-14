@@ -60,14 +60,19 @@ const STATUS_LABEL: Record<string, string> = {
  * 哪個「新狀態」要寄給哪些角色（使用者 2026-09-14 拍板）。
  *
  *   submitted   → 工務處長（dept_head）：有單等你核可
- *   approved_l1 → 副部長（manager）與行政管理部長（admin_head）：處長核可了，等你核定
+ *   approved_l1 → 副部長（manager）：處長核可了，等你核定（部長不收這關，見下方說明）
+ *   approved    → 開單人 ＋ 行政管理部長（admin_head）備查
  *
  * approved / rejected 的收件人不是角色而是「這張單的開單人」，所以不在這張表裡，
  * 由 CREATOR_STATUSES 另外處理。表裡沒有的狀態（draft / negotiating / closed）一律不寄。
  */
 const ROLE_RECIPIENTS: Record<string, string[]> = {
   submitted: ['dept_head'],
-  approved_l1: ['manager', 'admin_head'],
+  // 第二關的「等你核定」只給副部長（manager）。
+  // 行政管理部長（admin_head）雖然同樣有核定權（is_admin），但使用者
+  // 2026-09-14 指定不發這一關：他要的是核定**完成後**的備查（見下面 approved），
+  // 不是過程中的待辦提醒。兩者不要混為一談——部長的權限沒變，只是不被打擾。
+  approved_l1: ['manager'],
   // 核定後加發行政管理部長備查（使用者 2026-09-14 追加）。
   // 這一列與 CREATOR_STATUSES 的 'approved' **同時**生效：開單人收到「你的單過了」，
   // 部長收到同一封做備查。掛的是角色不是人名，換人做部長時不必改程式。

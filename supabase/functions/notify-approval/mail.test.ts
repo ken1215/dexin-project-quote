@@ -48,9 +48,13 @@ const sorted = (v: string[]) => [...v].sort()
 assert.deepEqual(pick('submitted', 'draft'), ['dh1@example.com'],
   'submitted 寄給啟用中的工務處長')
 
-assert.deepEqual(sorted(pick('approved_l1', 'submitted')),
-  ['ah1@example.com', 'mg1@example.com'],
-  'approved_l1 要同時寄給副部長（manager）與行政管理部長（admin_head）')
+// 2026-09-14 調整：第二關的「等你核定」只通知副部長（manager）。
+// 部長（admin_head）不收這一關——他要的是核定完成後的備查信，不是待辦提醒。
+// 他仍然有核定權限（is_admin），只是不再被這關的通知打擾。
+assert.deepEqual(pick('approved_l1', 'submitted'), ['mg1@example.com'],
+  'approved_l1 只寄給副部長（manager），部長不收待辦提醒')
+assert.ok(!pick('approved_l1', 'submitted').includes('ah1@example.com'),
+  '部長不該收到第二關的待辦通知')
 
 // 2026-09-14 起 approved 除了開單人，還加發行政管理部長（admin_head）備查。
 // 這條斷言原本是「只寄給開單人」，是規則改了才改它——不是為了讓測試過。
