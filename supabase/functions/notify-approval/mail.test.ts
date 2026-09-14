@@ -255,4 +255,35 @@ const rec = (o: Partial<QuoteRecord> = {}): QuoteRecord => ({
   }
 }
 
+// ── 主旨後綴（2026-09-14 的二次翻車）─────────────────────────────
+// 第一次修好主旨編碼之後，selftest 仍然寄出壞信：因為它把中文的
+// 「（版型測試）」接在**已經編碼完成**的 subject 後面，整串又含了非 ASCII，
+// denomailer 於是再編一次、又折斷標頭。改接「已編碼的片段」也不行——
+// 那會產生兩個中間沒有空白的相鄰 encoded-word，不合 RFC 2047 §6.2。
+// 唯一對的做法是把後綴當原始文字交給 buildMail，整串只編一次。
+{
+  const denomailerWouldTouch = (v: string) =>
+    /[^\u0000-\u007f]/.test(v) || v.startsWith('=?')
+
+  const { subject } = buildMail({
+    record: rec({ status: 'rejected' }),
+    baseUrl: 'https://x.test',
+    subjectSuffix: '（版型測試）',
+  })
+
+  assert.ok(!denomailerWouldTouch(subject), `帶後綴的主旨會被重新編碼：${subject}`)
+  assert.ok(
+    !/\?==\?/.test(subject),
+    `出現兩個中間沒有空白的相鄰 encoded-word，不合 RFC 2047：${subject}`,
+  )
+
+  const decoded = subject.replace(
+    /=\?utf-8\?B\?([A-Za-z0-9+/=]+)\?=/g,
+    (_m, b64: string) =>
+      new TextDecoder().decode(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))),
+  )
+  assert.ok(decoded.includes('版型測試'), `後綴解碼後要看得到：${decoded}`)
+  assert.ok(decoded.includes('已退回'), `狀態解碼後要看得到：${decoded}`)
+}
+
 console.log('mail.ts 自我檢查全數通過')

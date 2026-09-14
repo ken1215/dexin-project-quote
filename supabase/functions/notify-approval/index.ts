@@ -205,12 +205,8 @@ Deno.serve(async (req) => {
       review_note: '（範例）第 3 項單價高於底價，請附廠商報價後重送。',
     }
     try {
-      const mail = buildMail({ record: sample, baseUrl })
-      await sendMail(
-        gmailUser, gmailPassword, [to],
-        `${mail.subject}（版型測試）`,
-        mail.text, mail.html,
-      )
+      const mail = buildMail({ record: sample, baseUrl, subjectSuffix: '（版型測試）' })
+      await sendMail(gmailUser, gmailPassword, [to], mail.subject, mail.text, mail.html)
       return json({ ok: true, status: sampleStatus })
     } catch (e) {
       // 這裡刻意把 SMTP 的原始錯誤訊息回出去——這個入口只有握有 NOTIFY_HOOK_SECRET

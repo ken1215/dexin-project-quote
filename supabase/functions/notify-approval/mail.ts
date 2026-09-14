@@ -154,7 +154,19 @@ const orDash = (v: string | null | undefined): string => {
  * @param baseUrl 前端網站網址（APP_BASE_URL）。前端用的是 HashRouter（src/App.tsx），
  *                報價單路徑是 `#/quote/:id`，四種通知狀態共用同一個連結形狀。
  */
-export function buildMail(input: { record: QuoteRecord; baseUrl: string }): {
+export function buildMail(input: {
+  record: QuoteRecord
+  baseUrl: string
+  /**
+   * 附加在主旨末尾的**原始**文字（例：selftest 的「（版型測試）」）。
+   * 刻意收原始文字而不是讓呼叫端自己接在 subject 後面——subject 回去時
+   * 已經是 encoded-word，在後面接中文會讓整串重新含有非 ASCII，
+   * denomailer 就會再編一次而折斷整封信（2026-09-14 就是這樣二次翻車）；
+   * 接「已編碼」的片段也不行，兩個 encoded-word 之間沒有空白不合 RFC 2047。
+   * 從原始文字一路組到底、只編一次，這兩個坑就都不存在。
+   */
+  subjectSuffix?: string
+}): {
   subject: string
   text: string
   html: string
@@ -167,7 +179,9 @@ export function buildMail(input: { record: QuoteRecord; baseUrl: string }): {
   const base = baseUrl.replace(/\/+$/, '')
   const link = `${base}/#/quote/${record.id}`
 
-  const subject = encodeMimeHeader(`[德新報價系統] ${quoteNo} ${statusText}`)
+  const subject = encodeMimeHeader(
+    `[德新報價系統] ${quoteNo} ${statusText}${input.subjectSuffix ?? ''}`,
+  )
 
   const lines = [
     `報價單 ${quoteNo} 的狀態已變更為「${statusText}」。`,
