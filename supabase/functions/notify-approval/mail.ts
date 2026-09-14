@@ -142,10 +142,13 @@ const orDash = (v: string | null | undefined): string => {
 }
 
 /**
- * 組出通知信的主旨與純文字內文。
+ * 組出通知信的主旨、純文字內文與 CIS 版型的 HTML 內文。
  *
- * 只做純文字不做 HTML：這封信的唯一任務是「叫人回系統看單」，
- * 真正的內容（金額、明細）一律留在系統裡，信裡不重複貼——
+ * 兩種內文都給：HTML 是給看得到樣式的收件者，純文字是 multipart 的另一半——
+ * 有人把信箱設成純文字模式、有人用手錶或通知列預覽，那時只剩 text 這一份。
+ * 兩份內容必須等價，不能只在 HTML 裡講重要的事。
+ *
+ * **兩份都不含金額與明細**：這封信的唯一任務是「叫人回系統看單」。
  * 信件會被轉寄、會留在手機上，報價金額不該散落在信箱裡。
  *
  * @param baseUrl 前端網站網址（APP_BASE_URL）。前端用的是 HashRouter（src/App.tsx），
@@ -154,6 +157,7 @@ const orDash = (v: string | null | undefined): string => {
 export function buildMail(input: { record: QuoteRecord; baseUrl: string }): {
   subject: string
   text: string
+  html: string
 } {
   const { record, baseUrl } = input
   const statusText = STATUS_LABEL[record.status] ?? record.status
@@ -187,5 +191,127 @@ export function buildMail(input: { record: QuoteRecord; baseUrl: string }): {
     '（本信由德新報價系統自動發出，請勿直接回覆。）',
   )
 
-  return { subject, text: lines.join('\n') }
+  return {
+    subject,
+    text: lines.join('\n'),
+    html: buildHtml({ record, statusText, quoteNo, link }),
+  }
+}
+
+/**
+ * HTML 內文。設計上的幾個限制，動之前請先讀：
+ *
+ * 1. **一律用 table 排版、樣式一律寫成 inline style**。信件用戶端（尤其 Outlook）
+ *    會把 <style> 區塊整段丟掉，flex/grid 更是不支援。這裡看起來像 2005 年的寫法，
+ *    是因為信箱的排版引擎就停在那裡。
+ * 2. **不放任何圖片**，連標誌都不放。Gmail 預設擋遠端圖片，擋掉之後標誌會變成破圖框，
+ *    比純文字字標更難看；而把圖片轉成 base64 內嵌會讓信件肥大又常被判垃圾信。
+ *    所以標誌改用文字字標，永遠渲染得出來。
+ * 3. **淺底深字，不用深藍底白字的橫條**（使用者偏好）。層級靠左側色條與字級拉開，
+ *    不靠色塊撞色。行距放寬到 1.8。
+ * 4. 色票取自這個系統自己的 `src/index.css`（德新墨階 ＋ 新芽綠 ＋ CIS 深藍），
+ *    不是集團簡報模板那一套——信要長得像它連過去的那個系統。
+ * 5. **所有來自資料庫的字串都要經 escapeHtml()**：案名、需求單位、退回理由都是
+ *    使用者自己打的，裡面出現 `<` 或 `&` 會把版面弄壞。
+ */
+function buildHtml(input: {
+  record: QuoteRecord
+  statusText: string
+  quoteNo: string
+  link: string
+}): string {
+  const { record, statusText, quoteNo, link } = input
+
+  // 狀態色：呼應系統裡 StatusTag 的語意——等人動作用藍、完成用綠、退回用警示紅
+  const ACCENT: Record<string, string> = {
+    submitted: '#008CD6',   // 亮藍：等處長
+    approved_l1: '#0054A7', // 深藍：等核決層
+    approved: '#00A94F',    // CIS 綠：已核定
+    rejected: '#C0392B',    // 警示紅：已退回
+  }
+  const accent = ACCENT[record.status] ?? '#4B4745'
+
+  const FONT = "'Microsoft JhengHei','微軟正黑體',-apple-system,'Segoe UI',sans-serif"
+  const e = escapeHtml
+
+  /** 明細列：左欄標籤用墨 500，右欄值用墨 900 */
+  const row = (label: string, value: string) =>
+    `<tr>` +
+    `<td style="padding:6px 16px 6px 0;font-size:13px;color:#78736E;white-space:nowrap;vertical-align:top;">${e(label)}</td>` +
+    `<td style="padding:6px 0;font-size:14px;color:#3E3A39;line-height:1.8;">${e(value)}</td>` +
+    `</tr>`
+
+  const rows = [
+    row('案名', orDash(record.project)),
+    row('需求單位', orDash(record.dept)),
+    row('目前狀態', statusText),
+    // 退回理由只在退回時附上，理由同純文字版
+    record.status === 'rejected' ? row('退回理由', orDash(record.review_note)) : '',
+  ].join('')
+
+  return `<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F6F5F2;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F6F5F2;">
+<tr><td align="center" style="padding:24px 12px;">
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+         style="max-width:560px;background:#ffffff;border:1px solid #DEDCD8;border-radius:10px;font-family:${FONT};">
+
+    <!-- 字標：新芽綠方塊 ＋ 系統名，不放圖片 -->
+    <tr><td style="padding:22px 24px 0;">
+      <span style="display:inline-block;width:10px;height:10px;background:#8FC31F;border-radius:2px;"></span>
+      <span style="margin-left:8px;font-size:13px;color:#78736E;letter-spacing:.06em;">德新物業 · 專案工程報價系統</span>
+    </td></tr>
+
+    <!-- 標題：左側色條分層，淺底深字 -->
+    <tr><td style="padding:18px 24px 0;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+        <tr>
+          <td width="3" style="background:${accent};border-radius:2px;font-size:0;line-height:0;">&nbsp;</td>
+          <td style="padding-left:14px;">
+            <div style="font-size:20px;font-weight:700;color:#3E3A39;line-height:1.5;">${e(quoteNo)}</div>
+            <div style="margin-top:2px;font-size:15px;font-weight:600;color:${accent};line-height:1.6;">${e(statusText)}</div>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+
+    <!-- 明細 -->
+    <tr><td style="padding:18px 24px 0;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">${rows}</table>
+    </td></tr>
+
+    <!-- 主要動作 -->
+    <tr><td style="padding:22px 24px 0;">
+      <a href="${e(link)}" style="display:inline-block;padding:11px 22px;background:#0054A7;color:#ffffff;
+         font-size:14px;font-weight:600;text-decoration:none;border-radius:6px;">開啟報價單</a>
+      <div style="margin-top:10px;font-size:12px;color:#78736E;line-height:1.8;word-break:break-all;">
+        按鈕沒反應請複製這個網址：<br>${e(link)}
+      </div>
+    </td></tr>
+
+    <!-- 頁尾 -->
+    <tr><td style="padding:20px 24px 22px;">
+      <div style="border-top:1px solid #DEDCD8;padding-top:14px;font-size:12px;color:#78736E;line-height:1.8;">
+        本信不含金額與明細，請點連結回系統查看。<br>
+        由德新報價系統自動發出，請勿直接回覆。
+      </div>
+    </td></tr>
+
+  </table>
+
+</td></tr></table>
+</body></html>`
+}
+
+/** 信件用戶端不會幫你擋，來自資料庫的字串一律先過這一關 */
+function escapeHtml(v: string): string {
+  return v
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }

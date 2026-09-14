@@ -149,4 +149,53 @@ const rec = (o: Partial<QuoteRecord> = {}): QuoteRecord => ({
   assert.ok(!m.text.includes('null'), '內文不可出現 null 字樣')
 }
 
+// ── HTML 版型 ──────────────────────────────────────────────────
+// 使用者自己打的字會直接進 HTML，沒跳脫就會把版面弄壞（或更糟）
+{
+  const m = buildMail({
+    record: rec({ project: '<script>alert(1)</script> & "引號" 案' }),
+    baseUrl: 'https://dexin-quote.pages.dev',
+  })
+  assert.ok(!m.html.includes('<script>'), '案名裡的標籤必須被跳脫，不可原樣進 HTML')
+  assert.ok(m.html.includes('&lt;script&gt;'), '跳脫後的文字仍要看得到')
+  assert.ok(m.html.includes('&amp;') && m.html.includes('&quot;'), '& 與雙引號也要跳脫')
+}
+
+// 四種狀態各有自己的色，混用會讓「已退回」看起來像「已核定」
+{
+  const colorOf = (status: string) =>
+    buildMail({ record: rec({ status }), baseUrl: 'https://x.test' }).html
+  assert.ok(colorOf('approved').includes('#00A94F'), '已核定用 CIS 綠')
+  assert.ok(colorOf('rejected').includes('#C0392B'), '已退回用警示紅')
+  assert.ok(colorOf('submitted').includes('#008CD6'), '待處長核可用亮藍')
+  assert.ok(colorOf('approved_l1').includes('#0054A7'), '待核定用深藍')
+}
+
+// HTML 與純文字必須等價：重要的事不能只寫在其中一邊
+{
+  const m = buildMail({
+    record: rec({ status: 'rejected', review_note: '單價高於底價' }),
+    baseUrl: 'https://dexin-quote.pages.dev',
+  })
+  assert.ok(m.html.includes('單價高於底價'), '退回理由 HTML 版也要有')
+  assert.ok(m.text.includes('單價高於底價'), '退回理由純文字版也要有')
+  const link = 'https://dexin-quote.pages.dev/#/quote/'
+  assert.ok(m.html.includes(link) && m.text.includes(link), '兩邊的連結要一致')
+}
+
+// 信裡絕不可出現「金額數字」——這是刻意的約束，不是忘了加。
+// 檢查的是數字樣態不是關鍵字：頁尾本來就寫著「本信不含金額與明細」，
+// 用關鍵字掃會被自己的說明文字絆倒，而那句話正是這條約束的宣告。
+{
+  const m = buildMail({ record: rec({ status: 'approved' }), baseUrl: 'https://x.test' })
+  for (const [name, re] of [
+    ['千分位數字', /\d{1,3}(?:,\d{3})+/],
+    ['新臺幣符號', /NT\$|＄|\$\s*\d/],
+    ['金額加單位', /\d+\s*元/],
+  ] as const) {
+    assert.ok(!re.test(m.html), `信件版型出現${name}，金額一律留在系統裡`)
+    assert.ok(!re.test(m.text), `純文字版出現${name}，金額一律留在系統裡`)
+  }
+}
+
 console.log('mail.ts 自我檢查全數通過')

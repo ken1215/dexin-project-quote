@@ -122,6 +122,7 @@ async function sendMail(
   to: string[],
   subject: string,
   text: string,
+  html: string,
 ): Promise<void> {
   const client = new SMTPClient({
     connection: {
@@ -138,7 +139,10 @@ async function sendMail(
       from: `德新報價系統 <${gmailUser}>`,
       to,
       subject,
+      // 兩份都給＝multipart/alternative。信件用戶端挑得動就顯示 html，
+      // 純文字模式、通知列預覽、手錶則落回 content。兩份內容必須等價。
       content: text,
+      html,
     })
   } finally {
     // 連線一定要收掉。Edge Function 的執行個體會被重複使用，
@@ -184,14 +188,28 @@ Deno.serve(async (req) => {
   if (body.action === 'selftest') {
     const to = String(body.to ?? '').trim()
     if (!to) return json({ error: 'selftest 需要收件地址 to' }, 400)
+    // 用一張假單走**完全相同的** buildMail，寄出來的就是同仁真的會收到的版型。
+    // 刻意不寄「這是一封測試信」那種特製內容：那只證明 SMTP 通，證明不了版型。
+    // status 可由 body 指定，四種狀態（submitted／approved_l1／approved／rejected）
+    // 的配色與欄位各不相同，要逐一看過就改這個參數再打一次。
+    const sampleStatus = String(body.status ?? 'submitted')
+    const sample = {
+      id: '00000000-0000-0000-0000-000000000000',
+      quote_no: 'TEST-0000',
+      project: '（範例）門診候診區天花板漏水修繕',
+      dept: '（範例）行政管理部 工務處',
+      status: sampleStatus,
+      created_by: null,
+      review_note: '（範例）第 3 項單價高於底價，請附廠商報價後重送。',
+    }
     try {
+      const mail = buildMail({ record: sample, baseUrl })
       await sendMail(
         gmailUser, gmailPassword, [to],
-        '[德新報價系統] SMTP 自我測試',
-        '這是一封測試信。收到它代表 Edge Function 連得上 smtp.gmail.com:465，\n'
-          + '簽核通知信的寄送路徑沒有問題。',
+        `${mail.subject}（版型測試）`,
+        mail.text, mail.html,
       )
-      return json({ ok: true })
+      return json({ ok: true, status: sampleStatus })
     } catch (e) {
       // 這裡刻意把 SMTP 的原始錯誤訊息回出去——這個入口只有握有 NOTIFY_HOOK_SECRET
       // 的人叫得動，而看不到真正的錯誤就沒辦法判斷是密碼錯、兩步驟驗證沒開，
@@ -235,9 +253,9 @@ Deno.serve(async (req) => {
   // 把正常情況記成失敗只會讓真正該查的錯誤被淹沒。
   if (to.length === 0) return json({ sent: 0 })
 
-  const { subject, text } = buildMail({ record, baseUrl })
+  const { subject, text, html } = buildMail({ record, baseUrl })
   try {
-    await sendMail(gmailUser, gmailPassword, to, subject, text)
+    await sendMail(gmailUser, gmailPassword, to, subject, text, html)
   } catch (e) {
     // 真的寄失敗就回 500——這一筆該在 webhook 紀錄裡顯示成失敗，
     // 才有人會發現「通知信整批沒寄出去」。
