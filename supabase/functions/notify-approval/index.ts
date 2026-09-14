@@ -216,6 +216,61 @@ Deno.serve(async (req) => {
     }
   }
 
+  // ── 3.5 收件人體檢（不寄信，只回報「現在寄得出去嗎」）──────────
+  //
+  // 為什麼要有這個入口：這套通知的單點故障不是程式，是**沒填 notify_email**。
+  // 沒填的人不會報錯、不會進垃圾信匣，只是安靜地收不到——而最容易漏的偏偏是
+  // 工務處長：他只改得到 staff 的列，自己那一格得請副部長或部長代填，
+  // 而他正是第一關的收件人。所以留一個隨時可查的體檢入口。
+  //
+  // 刻意呼叫**同一支** resolveRecipients，不在這裡（或在 SQL 裡）把規則重寫一遍：
+  // 重寫的版本會和正式路徑各自演化，體檢通過而實際漏寄是最糟的結果。
+  if (body.action === 'recipients') {
+    // 這兩個在下面的 webhook 段落才用 const 宣告，在這裡直接引用會踩 TDZ
+    // （ReferenceError → 500 Internal Server Error，而且看不到我們自己的錯誤訊息）
+    const sbUrl = Deno.env.get('SUPABASE_URL') ?? ''
+    const sbKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    if (!sbUrl || !sbKey) return json({ error: '缺平台注入的 SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY' }, 500)
+    const admin = createClient(sbUrl, sbKey)
+    const { data: profiles, error: pErr } = await admin
+      .from('profiles').select('id, role, active, notify_email, full_name')
+    if (pErr) return json({ error: pErr.message }, 500)
+    const all = (profiles ?? []) as (Profile & { full_name: string })[]
+
+    // 指定單號就連開單人一起算（approved／rejected 是寄給開單人，不是角色）
+    const quoteNo = String(body.quote_no ?? '').trim()
+    let quote: { quote_no: string; project: string; status: string; created_by: string | null } | null = null
+    if (quoteNo) {
+      const { data } = await admin
+        .from('quotes').select('quote_no, project, status, created_by')
+        .eq('quote_no', quoteNo).maybeSingle()
+      quote = data as typeof quote
+      if (!quote) return json({ error: `查無單號 ${quoteNo}` }, 404)
+    }
+
+    const nameOf = (mail: string) =>
+      all.find((p) => (p.notify_email ?? '').trim() === mail)?.full_name ?? '?'
+
+    const steps = ['submitted', 'approved_l1', 'approved', 'rejected']
+    const routing: Record<string, string[]> = {}
+    for (const st of steps) {
+      const to = resolveRecipients({
+        newStatus: st,
+        oldStatus: '__none__',            // 保證「狀態有變」，才走得到規則
+        createdBy: quote?.created_by ?? null,
+        profiles: all,
+      })
+      routing[st] = to.map((m) => `${nameOf(m)} <${m}>`)
+    }
+
+    // 誰還沒填信箱——採購不列（本來就不寄），停用不列（不該再收信）
+    const missing = all
+      .filter((p) => p.active && p.role !== 'procurement' && !(p.notify_email ?? '').trim())
+      .map((p) => `${p.full_name || '(未命名)'}（${p.role}）`)
+
+    return json({ quote, routing, missing_notify_email: missing })
+  }
+
   // ── 4. 以下是 webhook 路徑 ──────────────────────────────────────
   // 不是 quotes 的 UPDATE 就安靜跳過。回 200 而不是 4xx：webhook 可能被誤設到
   // 別的表或別的事件，那是設定問題，不該在 pg_net 留下一整排看起來很嚴重的錯誤。

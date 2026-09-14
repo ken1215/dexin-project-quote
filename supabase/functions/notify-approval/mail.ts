@@ -68,6 +68,11 @@ const STATUS_LABEL: Record<string, string> = {
 const ROLE_RECIPIENTS: Record<string, string[]> = {
   submitted: ['dept_head'],
   approved_l1: ['manager', 'admin_head'],
+  // 核定後加發行政管理部長備查（使用者 2026-09-14 追加）。
+  // 這一列與 CREATOR_STATUSES 的 'approved' **同時**生效：開單人收到「你的單過了」，
+  // 部長收到同一封做備查。掛的是角色不是人名，換人做部長時不必改程式。
+  // 退回（rejected）刻意不在此列——備查的是「完成核定」這件事，不是簽核過程。
+  approved: ['admin_head'],
 }
 
 /** 這兩個狀態是「結果回報」，只通知當初開這張單的人 */
@@ -115,21 +120,27 @@ export function resolveRecipients(input: {
 
   const out: string[] = []
 
+  // 兩條規則**各自獨立生效、可以疊加**，不是二選一：
+  // 核定（approved）同時符合「通知開單人」與「加發部長備查」，兩邊都要加進來。
+  // 最後的去重會處理「部長自己就是開單人」這種重疊，不會寄兩份。
   if (CREATOR_STATUSES.includes(newStatus)) {
-    // 核定／退回：只通知開單人。注意這裡走的是**同一組**過濾條件
+    // 核定／退回通知開單人。注意這裡走的是**同一組**過濾條件
     // （停用、沒填地址、採購都不寄），不對開單人開後門——
     // 開單人若是已停用的離職同仁，寄過去也只是寄進一個沒人看的信箱。
     const addr = mailableAddress(profiles.find((p) => p.id === createdBy))
     if (addr) out.push(addr)
-  } else {
-    const roles = ROLE_RECIPIENTS[newStatus]
-    if (!roles) return [] // draft / negotiating / closed 等：不在通知範圍內
+  }
+
+  const roles = ROLE_RECIPIENTS[newStatus]
+  if (roles) {
     for (const p of profiles) {
       if (!roles.includes(p.role)) continue
       const addr = mailableAddress(p)
       if (addr) out.push(addr)
     }
   }
+
+  // 兩張表都沒提到這個狀態（draft / negotiating / closed）＝不在通知範圍，out 保持空陣列
 
   // 去重：同一個人可能同時符合多條規則，主管之間也可能共用一個部門信箱。
   return [...new Set(out)]

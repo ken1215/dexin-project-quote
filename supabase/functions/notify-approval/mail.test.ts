@@ -52,16 +52,20 @@ assert.deepEqual(sorted(pick('approved_l1', 'submitted')),
   ['ah1@example.com', 'mg1@example.com'],
   'approved_l1 要同時寄給副部長（manager）與行政管理部長（admin_head）')
 
-assert.deepEqual(pick('approved', 'approved_l1'), ['st1@example.com'],
-  'approved 只寄給開單人')
+// 2026-09-14 起 approved 除了開單人，還加發行政管理部長（admin_head）備查。
+// 這條斷言原本是「只寄給開單人」，是規則改了才改它——不是為了讓測試過。
+assert.deepEqual(sorted(pick('approved', 'approved_l1')),
+  ['ah1@example.com', 'st1@example.com'],
+  'approved 寄給開單人，並加發行政管理部長備查')
 
 assert.deepEqual(pick('rejected', 'submitted'), ['st1@example.com'],
   'rejected 只寄給開單人')
 
 // ── 2. 兩條非典型轉換（規劃者點名要測）─────────────────────────
 // 副部長越級核定（l1_skipped）：submitted 直接跳到 approved，照 new status 判收件人。
-assert.deepEqual(pick('approved', 'submitted'), ['st1@example.com'],
-  '越級核定仍然只通知開單人')
+assert.deepEqual(sorted(pick('approved', 'submitted')),
+  ['ah1@example.com', 'st1@example.com'],
+  '越級核定一樣照 new status 判：開單人 ＋ 部長備查（備查不因為跳過第一關而漏掉）')
 // 已核定後又被退回：一樣看 new status。
 assert.deepEqual(pick('rejected', 'approved'), ['st1@example.com'],
   '已核定改退回仍然只通知開單人')
@@ -86,15 +90,22 @@ assert.deepEqual(pick('approved', 'approved'), [], '狀態未變不寄（即使�
   assert.ok(!all.includes('pc1@example.com'),
     '醫院採購（procurement）即使啟用且填了地址也絕不收信')
 }
-// 就算採購自己是開單人也不寄（同一條過濾，不對開單人開後門）
-assert.deepEqual(pick('approved', 'approved_l1', 'pc1'), [],
-  '開單人若為採購角色一樣不寄')
+// 就算採購自己是開單人也不寄（同一條過濾，不對開單人開後門）。
+// 2026-09-14 起 approved 會加發部長備查，所以名單不再是空的——
+// 要驗的是「採購沒收到」，不是「沒有人收到」，斷言改寫成前者。
+{
+  const to = pick('approved', 'approved_l1', 'pc1')
+  assert.ok(!to.includes('pc1@example.com'), '開單人若為採購角色一樣不寄')
+  assert.deepEqual(to, ['ah1@example.com'],
+    '此時只剩部長的備查信，沒有任何一封寄給採購')
+}
 
 // 停用帳號排除
 assert.ok(!pick('submitted', 'draft').includes('dh2@example.com'),
   '停用的處長不收信')
-assert.deepEqual(pick('approved', 'approved_l1', 'st9'), [],
-  '停用的開單人不收信')
+// 同上：approved 現在必然帶一封部長備查，所以驗的是「停用者不在名單裡」
+assert.deepEqual(pick('approved', 'approved_l1', 'st9'), ['ah1@example.com'],
+  '停用的開單人不收信（名單裡只剩部長的備查信）')
 
 // 沒填 notify_email（空字串或只有空白）排除
 assert.ok(!pick('submitted', 'draft').some((e) => e.trim() === ''),
@@ -103,9 +114,12 @@ assert.ok(!pick('submitted', 'draft').some((e) => e.trim() === ''),
 // 同一個地址只出現一次（dh1 與 dh4 填了同一個信箱）
 assert.equal(pick('submitted', 'draft').length, 1, '重複地址要去重')
 
-// 查無此開單人（帳號已被刪）不該爆，回空陣列
-assert.deepEqual(pick('approved', 'approved_l1', 'ghost'), [], '查無開單人時回空陣列')
-assert.deepEqual(pick('approved', 'approved_l1', null), [], 'created_by 為 null 時回空陣列')
+// 查無此開單人（帳號已被刪）不該爆。2026-09-14 起 approved 一定帶一封部長備查，
+// 所以正確結果不是空陣列而是「只有部長」——備查刻意不因為開單人查不到而跟著消失。
+assert.deepEqual(pick('approved', 'approved_l1', 'ghost'), ['ah1@example.com'],
+  '查無開單人時不爆，且部長備查照發')
+assert.deepEqual(pick('approved', 'approved_l1', null), ['ah1@example.com'],
+  'created_by 為 null 時不爆，且部長備查照發')
 
 // ── 5. 信件內容 ─────────────────────────────────────────────────
 const rec = (o: Partial<QuoteRecord> = {}): QuoteRecord => ({
@@ -284,6 +298,38 @@ const rec = (o: Partial<QuoteRecord> = {}): QuoteRecord => ({
   )
   assert.ok(decoded.includes('版型測試'), `後綴解碼後要看得到：${decoded}`)
   assert.ok(decoded.includes('已退回'), `狀態解碼後要看得到：${decoded}`)
+}
+
+// ── 核定後加發部長備查（使用者 2026-09-14 追加）────────────────
+// 「所有已完成核定的報價單都要發給行政管理部長備查」。
+// 掛的是**角色** admin_head 不是某個人名——換人做部長時不必改程式。
+{
+  const profiles = [
+    { id: 'creator', role: 'staff', active: true, notify_email: 'staff@x.test' },
+    { id: 'boss', role: 'admin_head', active: true, notify_email: 'head@x.test' },
+    { id: 'vice', role: 'manager', active: true, notify_email: 'vice@x.test' },
+    { id: 'dept', role: 'dept_head', active: true, notify_email: 'dept@x.test' },
+  ]
+  const at = (newStatus: string, createdBy: string | null = 'creator') =>
+    resolveRecipients({ newStatus, oldStatus: 'whatever', createdBy, profiles })
+
+  const approved = at('approved')
+  assert.ok(approved.includes('staff@x.test'), '核定信仍要寄給開單人')
+  assert.ok(approved.includes('head@x.test'), '核定信要加發部長備查')
+  assert.ok(!approved.includes('vice@x.test'), '備查只給部長，副部長不在此列')
+  assert.ok(!approved.includes('dept@x.test'), '備查只給部長，處長不在此列')
+
+  // 退回不是「完成核定」，不必備查
+  const rejected = at('rejected')
+  assert.ok(rejected.includes('staff@x.test'), '退回信寄給開單人')
+  assert.ok(!rejected.includes('head@x.test'), '退回不備查，只有核定才發部長')
+
+  // 部長自己開的單被核定：只能出現一次，不可因為「開單人」與「備查」兩條規則各加一次
+  const both = at('approved', 'boss')
+  assert.strictEqual(
+    both.filter((m) => m === 'head@x.test').length, 1,
+    '部長同時是開單人與備查對象時，不可收到兩份',
+  )
 }
 
 console.log('mail.ts 自我檢查全數通過')
