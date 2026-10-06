@@ -11,7 +11,7 @@ import {
 } from '../types'
 
 /* ═══════════════════════════════════════════════════════════════
-   立德新股份有限公司(德新物業) → 聯新國際醫院　工程標單（列印／轉 PDF 版）
+   立德新股份有限公司(德新物業) → 聯新國際醫院　工程報價單（列印／轉 PDF 版）
    版面依聯新國際醫療集團 CIS：深藍 #0054A7、亮藍 #008CD6、
    CIS 綠 #00A94F、淺藍 #D3EDFB，墨色 5 階，金額一律 tabular-nums。
    用色克制——整份文件只有「合計」列是滿版深藍，其餘靠淺藍底與細線。
@@ -229,7 +229,7 @@ function SheetHeader(
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right">
-            <div className="text-[10px] tracking-[0.3em] text-ink-500">工程標單</div>
+            <div className="text-[10px] tracking-[0.3em] text-ink-500">工程報價單</div>
             <span className={'mt-[2px] inline-block rounded-sm border px-3 py-[3px] text-[14px] font-bold tracking-[0.2em] ' + KIND[kind].badgeCls}>
               {KIND[kind].badge}
             </span>
@@ -682,7 +682,7 @@ export default function PrintPage() {
         )}
 
         <p className="mt-2 text-[11px] text-ink-500">
-          本標單依單價庫 {catalogVersion} 計算，金額單位新臺幣元。★ 標示者為非標準單價之臨時項目，理由詳見明細頁。
+          本報價單依單價庫 {catalogVersion} 計算，金額單位新臺幣元。★ 標示者為非標準單價之臨時項目，理由詳見明細頁。
         </p>
 
         {/* ── 佐證附註 ── */}
