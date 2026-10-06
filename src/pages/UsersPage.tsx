@@ -241,7 +241,7 @@ export default function UsersPage() {
         </p>
         <p className="mt-2 text-ink-500">
           通知信箱：簽核流程的狀態變動會寄信到這裡（送審→工務處長、第一關核可→行政管理部、
-          核定／退回→開單人）；留空就不寄。醫院採購帳號不需要填，系統第一版只通知內部。
+          核定／退回→開單人）；留空就不寄。第一版只通知院內。
         </p>
         {/* 角色說明表：兩欄敘述型表格，手機保留原本上下對照的排版，只做橫捲保險 */}
         <div className="mt-3 table-scroll">
@@ -271,7 +271,7 @@ export default function UsersPage() {
               <tr>
                 <td className="td whitespace-nowrap font-semibold">行政管理部副部長</td>
                 <td className="td">
-                  全部功能 ＋ 簽核第二關（核定）＋ 越級核定 ＋ 議價定案 ＋ 管理所有角色的帳號。
+                  全部功能 ＋ 簽核第二關（核定）＋ 越級核定 ＋ <b>議價減價與定案（唯一）</b> ＋ 管理所有角色的帳號。
                 </td>
               </tr>
               <tr>
@@ -279,16 +279,8 @@ export default function UsersPage() {
                 <td className="td">
                   權限等同副部長，
                   <span className="text-warn">但單價維護與物價指數只能看、不能改</span>
-                  （含標準單價、底價、工率與日薪）。
-                </td>
-              </tr>
-              <tr>
-                <td className="td whitespace-nowrap font-semibold text-alert">醫院採購</td>
-                <td className="td">
-                  <span className="text-alert">這是對方（聯新國際醫院採購單位）的帳號，不是自家人。</span>
-                  只看得到已核可送出的報價單與自己提的議價，
-                  <b>看不到單價庫、底價、成本、佐證與報價專用章</b>。
-                  可逐項提出建議單價，但不能修改單據、也不能定案。
+                  （含標準單價、底價、工率與日薪）；
+                  <span className="text-warn">不能議價減價／定案</span>（議價頁只能檢視）。
                 </td>
               </tr>
             </tbody>
@@ -344,7 +336,6 @@ export default function UsersPage() {
                   {isAdmin && <option value="dept_head">工務處長（簽核第一關）</option>}
                   {isAdmin && <option value="manager">行政管理部副部長（最終核決）</option>}
                   {isAdmin && <option value="admin_head">行政管理部長（同副部長，單價唯讀）</option>}
-                  {isAdmin && <option value="procurement">醫院採購（對方）</option>}
                 </select>
               </div>
               {/* 通知信箱單獨佔兩欄：email 地址比其他欄位長，擠在四分之一寬會看不到尾巴。
@@ -421,22 +412,25 @@ export default function UsersPage() {
                     </td>
                     <td className="td p-1" data-label="角色">
                       <select className="field" value={val(r, 'role')}
-                        disabled={isSelf(r) || !isAdmin}
+                        disabled={isSelf(r) || !isAdmin || r.role === 'procurement'}
                         title={isSelf(r) ? '不能改自己的角色，避免把自己鎖在門外'
-                          : !isAdmin ? '變更角色限行政管理部（部長／副部長）' : ''}
+                          : !isAdmin ? '變更角色限行政管理部（部長／副部長）'
+                          : r.role === 'procurement' ? '採購角色已下線，請保留停用' : ''}
                         onChange={(e) => edit(r.id, { role: e.target.value as Role })}>
                         <option value="staff">同仁</option>
                         <option value="dept_head">工務處長</option>
                         <option value="manager">行政管理部副部長</option>
                         <option value="admin_head">行政管理部長</option>
-                        <option value="procurement">醫院採購（對方）</option>
+                        {/* 採購角色 2026-10-06 下線：只為了既有列顯示得出來，不可再選 */}
+                        {r.role === 'procurement' && <option value="procurement" disabled>醫院採購（已停用）</option>}
                       </select>
                     </td>
                     <td className="td text-center" data-label="啟用">
                       <input type="checkbox" checked={val(r, 'active')}
-                        disabled={isSelf(r) || !mayTouch(r)}
+                        disabled={isSelf(r) || !mayTouch(r) || r.role === 'procurement'}
                         title={isSelf(r) ? '不能停用自己'
-                          : !mayTouch(r) ? '工務處長只能停用「同仁」' : ''}
+                          : !mayTouch(r) ? '工務處長只能停用「同仁」'
+                          : r.role === 'procurement' ? '採購角色已下線，資料庫會強制維持停用' : ''}
                         onChange={(e) => edit(r.id, { active: e.target.checked })} />
                     </td>
                     <td className="td num" data-label="建立日">{fmtDate(r.created_at)}</td>

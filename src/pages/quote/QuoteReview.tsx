@@ -41,9 +41,9 @@ export default function QuoteReview({ q }: { q: UseQuoteDraft }) {
 
   /** 唯讀原因：三種鎖定情境的說法不同，主管要看得出「為什麼不能改」 */
   const lockReason = q.draft.status === 'approved'
-    ? '本單已核定，金額與明細已鎖定；要調整金額請至「議價」頁處理，或退回草稿重跑簽核。'
+    ? '本單已核定，金額與明細已鎖定；減價定案請由副部長至「議價」頁處理，或退回重跑簽核。'
     : q.frozen
-      ? '本單已進入議價／定案階段，在此改寫明細會清除議價紀錄，故已鎖定；金額異動請至「議價」頁處理。'
+      ? '本單已定案（或為舊制議價中），在此改寫明細會清除議價紀錄，故已鎖定。'
       : '本單已送審，如需修改請洽核決主管退回。'
 
   return (
@@ -113,7 +113,7 @@ export default function QuoteReview({ q }: { q: UseQuoteDraft }) {
         />
 
         <div className="space-y-4 lg:sticky lg:top-16 lg:self-start">
-          <TotalsCard totals={q.totals} mgmtFeeRate={mgmtFeeRate} taxRate={taxRate} />
+          <TotalsCard totals={q.totals} mgmtFeeRate={mgmtFeeRate} taxRate={taxRate} origTotal={q.origTotal} />
 
           {/* 核可／核定這兩顆在手機已經在釘底動作列，這裡一律 hidden sm:inline-flex，
               同一顆按鈕不得在一支手機上出現兩次（改版前踩過）。
@@ -137,7 +137,7 @@ export default function QuoteReview({ q }: { q: UseQuoteDraft }) {
                   <button
                     type="button" className="btn btn-primary hidden w-full sm:inline-flex" disabled={q.saving}
                     onClick={() => void q.onApproveFinal()}
-                  >核定（第二關·可送採購）</button>
+                  >核定（第二關）</button>
                 )}
                 {/* 處長請假時不要卡單：副部長從待審單直接核定，trigger 會記 l1_skipped */}
                 {q.canReviewL1 && isAdmin && (

@@ -12,7 +12,7 @@ const link = ({ isActive }: { isActive: boolean }) =>
   (isActive ? 'bg-white/20 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white')
 
 export default function Layout() {
-  const { profile, isManager, isProcurement, signOut } = useAuth()
+  const { profile, isManager, signOut } = useAuth()
   const { settings, error } = useRefData()
   const version = String(settings.catalog_version ?? '')
   const [pwOpen, setPwOpen] = useState(false)
@@ -25,20 +25,15 @@ export default function Layout() {
 
   const nav = (
     <>
-      {/* 醫院採購是對方的人：只給議價入口，其餘一概不顯示 */}
-      {isProcurement ? (
-        <NavLink to="/client" className={link}>報價議價</NavLink>
-      ) : (
-        // 「開新單」從導覽移到右側主 CTA，這裡只留清單入口＋待我處理徽章
-        <NavLink to="/" end className={link}>
-          報價單
-          {pending > 0 && (
-            <span className="ml-1.5 rounded-full bg-sprout px-1.5 text-[0.6875rem] font-semibold text-ink-900">
-              {pending}
-            </span>
-          )}
-        </NavLink>
-      )}
+      {/* 「開新單」從導覽移到右側主 CTA，這裡只留清單入口＋待我處理徽章 */}
+      <NavLink to="/" end className={link}>
+        報價單
+        {pending > 0 && (
+          <span className="ml-1.5 rounded-full bg-sprout px-1.5 text-[0.6875rem] font-semibold text-ink-900">
+            {pending}
+          </span>
+        )}
+      </NavLink>
       {/* 維護頁自成一群，與上面的作業頁用一條分隔線隔開 */}
       {isManager && (
         <>
@@ -55,25 +50,19 @@ export default function Layout() {
   const account = (
     <>
       {/* 主要動作：開單是這套系統的主線，從導覽列升級成整條 header 唯一的實心按鈕。
-          放在 account 群組開頭，桌機列與漢堡選單各渲染一次（兩者永遠只有一個可見）。
-          醫院採購不開單，所以不給。 */}
-      {!isProcurement && (
-        <Link to="/quote/new" className="btn border-white bg-white text-deep hover:bg-light hover:text-deep">
-          ＋ 開新單
-        </Link>
-      )}
+          放在 account 群組開頭，桌機列與漢堡選單各渲染一次（兩者永遠只有一個可見）。 */}
+      <Link to="/quote/new" className="btn border-white bg-white text-deep hover:bg-light hover:text-deep">
+        ＋ 開新單
+      </Link>
       <span className="text-white/85">
         {profile?.full_name || '—'}
         <span className="ml-1.5 rounded-full bg-white/20 px-2 py-0.5 text-[0.6875rem]">
           {ROLE_LABEL[profile?.role ?? 'staff']}
         </span>
       </span>
-      {/* 醫院採購是對方的人，帳號由我方發，不給自助改密碼 */}
-      {!isProcurement && (
-        <button onClick={() => setPwOpen(true)} className="btn border-white/35 bg-white/15 text-white hover:border-white hover:text-white">
-          改密碼
-        </button>
-      )}
+      <button onClick={() => setPwOpen(true)} className="btn border-white/35 bg-white/15 text-white hover:border-white hover:text-white">
+        改密碼
+      </button>
       <button onClick={() => void signOut()} className="btn border-white/35 bg-white/15 text-white hover:border-white hover:text-white">
         登出
       </button>
@@ -90,8 +79,7 @@ export default function Layout() {
             <span className="sm:hidden">德新報價系統</span>
             <span className="hidden sm:inline">德新物業專案工程報價系統</span>
           </h1>
-          {/* 單價庫版本是我方內部的標籤，醫院採購沒必要看到 */}
-          {version && !isProcurement && (
+          {version && (
             <span className="hidden text-xs text-white/70 lg:inline">單價庫 {version}</span>
           )}
 

@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useRefData } from '../context/RefDataContext'
-import { calcTotals, laborListPrice, lineAmount, money } from '../lib/calc'
+import { calcTotals, discountText, laborListPrice, lineAmount, money } from '../lib/calc'
 import {
   EVIDENCE_LABEL,
   type DraftSection, type EvidenceKind, type Quote, type QuoteLine,
@@ -284,7 +284,7 @@ export default function PrintPage() {
    * 原本的 navigate(-1) 在那個情境下是完全無作用的（實際回報的災情）。
    *   - 由我方程式開的新分頁（window.opener 有值）→ 關掉這個分頁
    *   - 同一分頁內導覽過來的 → 回上一頁
-   *   - 直接貼網址進來的 → 回首頁（Guard 會把採購導到他們的議價頁）
+   *   - 直接貼網址進來的 → 直接回首頁
    */
   const openedInNewTab = typeof window !== 'undefined' && Boolean(window.opener)
   const goBack = useCallback(() => {
@@ -312,7 +312,7 @@ export default function PrintPage() {
    *
    * **預設關、且只有副部長與工務處長能打開**（使用者 2026-09-13 裁示）。
    * 那一頁印的是「工資單價 ＝ 技術工日薪 ÷ 工率」與逐項工率基準——是計價基礎的自我揭露，
-   * 不該由同仁按一下列印就跟著送到醫院採購手上。
+   * 不該由同仁按一下列印就跟著送到院方手上。
    *
    * ⚠️ 權限閘門掛在**值**上（下面的 showProd），不是只把勾選框藏起來：
    * 改版前這個框對所有人顯示且預設開，同仁的 localStorage 裡很可能已經留著 'print.prod=1'；
@@ -427,10 +427,36 @@ export default function PrintPage() {
   )
 
   /**
+   * 定案前的原單價（db/29 quote_lines.orig_price，副部長定案改價時保留）。只收「真的被改過價」的列，
+   * 明細頁單價格靠它印出劃線的原單價。改版前定案的舊單全部是 null → 空物件 → 不顯示任何折扣。
+   */
+  const origOf: Record<string, number> = useMemo(
+    () => Object.fromEntries(lines
+      .filter((l) => l.orig_price !== null && Number(l.orig_price) !== Number(l.unit_price))
+      .map((l) => [l.id, Number(l.orig_price)])),
+    [lines],
+  )
+  /** 同 draftSections，但單價換回原報價——只拿來算「原報價合計」 */
+  const origSections: DraftSection[] = useMemo(
+    () => draftSections.map((s) => ({
+      ...s,
+      lines: s.lines.map((l) => ({ ...l, unit_price: origOf[l.key] ?? l.unit_price })),
+    })),
+    [draftSections, origOf],
+  )
+  // 原報價合計不帶 round_off（抹零是定案時給的讓利），定案合計（totals）帶——四處同一口徑
+  const origTotals = useMemo(
+    () => calcTotals(origSections, feeRate, busRate),
+    [origSections, feeRate, busRate],
+  )
+  /** 折扣幅度只在已定案的單顯示；沒降價（含舊單）discountText 回空字串，整區不渲染 */
+  const discount = quote?.status === 'closed' ? discountText(origTotals.total, totals.total) : ''
+
+  /**
    * 單價依據：**依來源歸類，一類一行**，不逐項印 evidence_note。
    *
    * evidence_note 是寫給自己看的推導過程（「組價 375 扣除明盒 13」「歷史成交 10 筆 100~150 元」），
-   * 逐條印出去有兩個問題：紙面囉嗦，而且把歷史成交低點攤給採購看等於邀請對方往下押。
+   * 逐條印出去有兩個問題：紙面囉嗦，而且把歷史成交低點攤給院方看等於邀請對方往下押。
    * 這裡只講「依據哪個權威來源」與「涵蓋哪些品項」，該講的講清楚，不該給的不給。
    */
   const evidenceNotes = useMemo(() => {
@@ -557,7 +583,7 @@ export default function PrintPage() {
           列印 / 轉 PDF
         </button>
         <button type="button" className="btn" onClick={goBack}>{openedInNewTab ? '關閉此分頁' : '返回'}</button>
-        {/* 只有副部長與工務處長看得到這個選項；同仁與醫院採購連框都不該出現。
+        {/* 只有副部長與工務處長看得到這個選項；同仁連框都不該出現。
             預設未勾，所以標籤要寫清楚勾下去會對外揭露什麼。 */}
         {canEditPrices && prodRows.length > 0 && (
           <label className="flex cursor-pointer items-center gap-1.5 text-xs text-ink-700">
@@ -645,6 +671,15 @@ export default function PrintPage() {
             </tr>
           </tbody>
         </table>
+
+        {/* 定案單：原報價 → 定案、折扣幅度，一眼看出這張單讓了多少（使用者 2026-10-06 要求） */}
+        {discount && (
+          <div className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 border-l-4 border-green bg-light/40 px-4 py-2 text-[11.5px] text-ink-700">
+            <span>原報價合計 <span className="num text-ink-500 line-through">{money(origTotals.total)}</span></span>
+            <span>→ 定案合計 <span className="num font-bold text-deep">{money(totals.total)}</span></span>
+            <span className="font-bold text-green">折扣幅度 {discount}</span>
+          </div>
+        )}
 
         <p className="mt-2 text-[11px] text-ink-500">
           本標單依單價庫 {catalogVersion} 計算，金額單位新臺幣元。★ 標示者為非標準單價之臨時項目，理由詳見明細頁。
@@ -757,7 +792,7 @@ export default function PrintPage() {
                 {sec.lines.map((l, li) => {
                   const tone = l.is_custom ? ' text-warn' : ''
                   // 工資列把法源與「牌價 × 折數」印在品名下——單價欄只有一個數字，
-                  // 採購看不出 4,509 是休息日加給打完折的結果，折讓也就白給了
+                  // 院方看不出 4,509 是休息日加給打完折的結果，折讓也就白給了
                   const lr = l.labor_rate_id
                     ? laborRates.find((r) => r.id === l.labor_rate_id)
                     : undefined
@@ -784,7 +819,16 @@ export default function PrintPage() {
                       </td>
                       <td className={TD + ' text-center' + tone}>{l.unit}</td>
                       <td className={TD + ' num' + tone}>{l.qty}</td>
-                      <td className={TD + ' num' + tone}>{money(l.unit_price)}</td>
+                      <td className={TD + ' num' + tone}>
+                        {/* 定案改過價的列：劃掉的原單價疊在定案單價上方（多一行，SHEET_ROWS 估算暫不調） */}
+                        {origOf[l.key] !== undefined ? (
+                          <>
+                            <span className="text-[10.5px] text-ink-500 line-through">{money(origOf[l.key])}</span>
+                            <br />
+                            {money(l.unit_price)}
+                          </>
+                        ) : money(l.unit_price)}
+                      </td>
                       <td className={TD + ' num' + tone}>{money(lineAmount(l.unit_price, l.qty))}</td>
                       <td className={TD_MUTED + (l.is_custom ? ' text-warn' : '')}>
                         {l.is_custom ? l.reason : l.note}

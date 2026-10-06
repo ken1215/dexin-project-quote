@@ -70,6 +70,8 @@ export interface UseQuoteDraft {
   locked: boolean; frozen: boolean
   canReviewL1: boolean; canReviewL2: boolean; canReview: boolean
   totals: Totals
+  /** 定案前原報價合計（含稅）；未定案或無議價改價時為 null */
+  origTotal: number | null
   justAdded: { id: string; qty: number } | null
   setReviewNote: (v: string) => void
   setIssues: (v: string[]) => void
@@ -152,6 +154,9 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
         quote_date: quote.quote_date,
         status: quote.status,
         round_off: Number(quote.round_off) || 0,
+        orig_prices: Object.fromEntries(lines
+          .filter((x) => x.orig_price !== null && Number(x.orig_price) !== Number(x.unit_price))
+          .map((x) => [x.id, Number(x.orig_price)])),
         sections: secs.length
           ? secs.map((sec) => ({
               key: sec.id,
@@ -168,7 +173,7 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
   }, [id])
 
   /* ── 權限／唯讀 ─────────────────────────────────────────── */
-  // 議價中／已定案的單一律凍結（主管也不例外）：本頁存檔是「整段砍掉重寫」，
+  // 已核定／已定案（含舊的議價中）的單一律凍結（主管也不例外）：本頁存檔是「整段砍掉重寫」，
   // 明細列會換成新 id，negotiations.line_id 會被 on delete cascade 連帶清光。
   // 這兩種狀態的金額異動只能在議價頁做。
   // 核定(approved)之後金額已由 db/22 A3 在資料庫層鎖死，明細寫不進去；
@@ -401,6 +406,19 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
     () => calcTotals(draft.sections, mgmtFeeRate, taxRate, draft.round_off),
     [draft.sections, mgmtFeeRate, taxRate, draft.round_off],
   )
+  /**
+   * 定案前的原報價合計（不帶 round_off）；沒有議價改價紀錄（也沒抹零）時為 null，畫面就不顯示折扣幅度。
+   * 只在已定案時有值——approved 單 orig_prices 本來就是空，這行是把「折扣只在定案後顯示」的口徑寫明。
+   */
+  const origTotal = useMemo(() => {
+    if (draft.status !== 'closed') return null
+    const op = draft.orig_prices ?? {}
+    if (!Object.keys(op).length && !draft.round_off) return null
+    const secs = draft.sections.map((s) => ({
+      ...s, lines: s.lines.map((l) => ({ ...l, unit_price: op[l.key] ?? l.unit_price })),
+    }))
+    return calcTotals(secs, mgmtFeeRate, taxRate).total
+  }, [draft.status, draft.sections, draft.orig_prices, draft.round_off, mgmtFeeRate, taxRate])
 
   /* ── 存檔 ───────────────────────────────────────────────── */
   /** 資料庫層 check constraint 的前置把關，避免存檔時吃到看不懂的 DB 錯誤 */
@@ -625,7 +643,7 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
     const skipping = draft.status === 'submitted'
     const ok = await advance('approved', skipping
       ? '已越級核定（未經工務處長），系統已留痕。'
-      : '已核定，可送醫院採購。')
+      : '已核定，副部長可至議價頁減價定案。')
     // 只有真的成功才點亮越級標記——失敗時畫面不能謊報
     if (ok && skipping) setL1Skipped(true)
   }
@@ -653,6 +671,7 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
     locked, frozen,
     canReviewL1, canReviewL2, canReview,
     totals,
+    origTotal,
     justAdded,
     setReviewNote,
     setIssues,

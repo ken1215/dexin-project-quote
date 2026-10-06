@@ -39,6 +39,22 @@ export function calcTotals(
 }
 
 /**
+ * 折扣幅度文字：1000 → 900 得「-10.0%（約 9 折）」、2151 → 2000 得「-7.0%（約 9.3 折）」；
+ * 沒降價回空字串。
+ * 全系統折扣幅度文字唯一來源：議價頁 Stat／TotalsCard／PrintPage／QuoteListPage 都用這支，
+ * 不要在頁面裡另算一份百分比，否則四處小數點會對不起來。
+ *
+ * 折數＝比率 × 10（0.9 → 9 折、0.85 → 8.5 折），與議價頁折數輸入框、物價指數頁、
+ * 列印頁的 discountLabel 同一套寫法。曾經誤寫成比率 × 100 而印出「90 折」，
+ * 列印給院方的文件會整個看錯，所以這裡的倍率不要再動。小數取兩位（8.75 折）。
+ */
+export function discountText(orig: number, fin: number): string {
+  if (!(orig > 0) || fin >= orig) return ''
+  const r = fin / orig
+  return `-${((1 - r) * 100).toFixed(1)}%（約 ${Math.round(r * 1000) / 100} 折）`
+}
+
+/**
  * 整單打折並取整：每項單價 × 折數取整到元，含稅合計再往下抹到 roundTo 的倍數，
  * 抹掉的零頭回傳為 roundOff（交給 calcTotals 的第 4 個參數）。
  * 往下抹是讓利給院方的方向；roundTo ≦ 1 表示只打折不抹零。

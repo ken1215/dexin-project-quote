@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert/strict'
 import {
-  calcTotals, concessionPct, discountAndRound, indexedPrice, laborListPrice, laborPrice, lineAmount,
+  calcTotals, concessionPct, discountAndRound, discountText, indexedPrice, laborListPrice, laborPrice, lineAmount,
   sectionsForPersist, validateQuote,
 } from './calc.ts'
 import type { DraftQuote, DraftSection, LaborRate, MaterialIndex, PriceItem } from '../types.ts'
@@ -248,6 +248,32 @@ assert.deepEqual(
   const back = secs.map((s) => ({ ...s, lines: s.lines.map((l) => ({ ...l, unit_price: r.prices[l.key] })) }))
   assert.equal(calcTotals(back, 0.09, 0.05, r.roundOff).total, r.total)
   assert.equal(discountAndRound(secs, 0.09, 0.05, 1, 1).roundOff, 0, '不打折不抹零＝原價')
+}
+
+// ── 9. 折扣幅度文字：議價頁 Stat／TotalsCard／列印總表／清單共用這一支 ──
+assert.equal(discountText(2151, 2000), '-7.0%（約 9.3 折）')
+assert.equal(discountText(1000, 900), '-10.0%（約 9 折）', '比率 0.9 是 9 折，不是 90 折')
+assert.equal(discountText(1000, 850), '-15.0%（約 8.5 折）', '折數＝比率 × 10')
+assert.equal(discountText(1000, 875), '-12.5%（約 8.75 折）', '折數保留兩位小數')
+assert.ok(!/\d{2,} 折/.test(discountText(1000, 800)), '折數不得出現 80 折這種放大十倍的寫法')
+assert.equal(discountText(1000, 1000), '', '沒降價不顯示')
+assert.equal(discountText(1000, 1100), '', '漲價不顯示（議價只會往下）')
+assert.equal(discountText(0, 100), '', '原價 0 不能除以零')
+assert.equal(discountText(-5, -10), '', '負數原價一律不顯示')
+
+{
+  // 定案流程：orig 單價 → discountAndRound 9 折抹千 → 寫回 unit_price、orig_price 留原價、round_off 留零頭。
+  // 釘住 PrintPage／QuoteListPage／useQuoteDraft／議價頁共用的口徑：原報價合計不帶 round_off，定案合計帶。
+  const orig: DraftSection[] = [{ key: 'a', title: '甲', lines: [line({ key: 'x', unit_price: 1250, qty: 37 }), line({ key: 'y', unit_price: 837, qty: 11 })] }]
+  const r = discountAndRound(orig, 0.09, 0.05, 0.9, 1000)
+  const closed = orig.map((s) => ({ ...s, lines: s.lines.map((l) => ({ ...l, unit_price: r.prices[l.key] })) }))
+  const origTotal = calcTotals(orig, 0.09, 0.05).total           // 不帶 round_off
+  const finalTotal = calcTotals(closed, 0.09, 0.05, r.roundOff).total
+  assert.equal(finalTotal, r.total)
+  assert.ok(finalTotal < origTotal, '定案合計必須低於原報價合計')
+  assert.ok(discountText(origTotal, finalTotal).startsWith('-'), '有 orig_price 的定案單一定顯示折扣幅度')
+  // 舊單：orig_price 全為 null → 原報價合計等於定案合計 → 不顯示
+  assert.equal(discountText(finalTotal, finalTotal), '', '沒有 orig_price 的舊單不顯示折扣幅度')
 }
 
 console.log('calc.ts 自我檢查全數通過')

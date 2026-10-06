@@ -7,31 +7,14 @@ const TAG_CLASS: Record<QuoteStatus, string> = {
   submitted: 'bg-alert/15 text-alert',
   approved_l1: 'bg-alert/25 text-alert',
   approved: 'bg-green/15 text-green',
-  negotiating: 'bg-bright/15 text-bright',
+  negotiating: 'bg-bright/15 text-bright',   // 舊單顯示用（議價中已退出流程）
   closed: 'bg-deep/15 text-deep',
   rejected: 'bg-warn-bg text-warn',
 }
 
-/**
- * 對外用語：醫院採購不該看到我方內部流程狀態。
- * 這份對照表與 VISIBLE_STATUS 是同一條界線，改動前先想清楚會露出什麼。
- */
-const CLIENT_LABEL: Partial<Record<QuoteStatus, string>> = {
-  approved: '已收到報價',
-  negotiating: '議價中',
-  closed: '已定案',
-}
-
 export default function StatusTag(
-  { status, l1Skipped = false, variant = 'internal' }:
-  { status: QuoteStatus; l1Skipped?: boolean; variant?: 'internal' | 'client' },
+  { status, l1Skipped = false }: { status: QuoteStatus; l1Skipped?: boolean },
 ) {
-  if (variant === 'client') {
-    const label = CLIENT_LABEL[status] ?? '處理中'
-    const cls = CLIENT_LABEL[status] ? TAG_CLASS[status] : 'bg-ink-200 text-ink-700'
-    // 對外一律不顯示越級核定——那是我方內部的簽核細節
-    return <span className={`tag ${cls}`}>{label}</span>
-  }
   return (
     <span className="inline-flex flex-wrap items-center gap-1">
       <span className={`tag ${TAG_CLASS[status]}`}>{STATUS_LABEL[status]}</span>

@@ -3,30 +3,30 @@ import { Link, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useRefData } from '../context/RefDataContext'
-import { calcTotals, concessionPct, discountAndRound, evidenceSentence, money } from '../lib/calc'
+import { calcTotals, concessionPct, discountAndRound, discountText, evidenceSentence, money } from '../lib/calc'
 import Alert from '../components/ui/Alert'
 import ConfirmPanel from '../components/ui/ConfirmPanel'
 import EmptyState from '../components/ui/EmptyState'
 import PageHeader from '../components/ui/PageHeader'
 import Stat from '../components/ui/Stat'
 import StatusTag from '../components/ui/StatusTag'
+import { RESPONSE_LABEL } from '../types'
 import type {
-  DraftLine, DraftSection, NegoResponse, Negotiation,
+  DraftLine, DraftSection, Negotiation,
   PriceFloor, Quote, QuoteLine, QuoteSection,
 } from '../types'
 
-const RESPONSE_LABEL: Record<NegoResponse, string> = {
-  accept: '接受',
-  partial: '部分讓步',
-  hold: '堅持原價',
-}
-
+/**
+ * 2026-10-06 起議價簡化成「副部長直接減價 → 定案」：院方還價、我方回應兩欄拿掉，
+ * 每列只剩定案單價與理由。理由預設「協議折價」，副部長可再補充。
+ */
 interface RowState {
-  client_offer: string
-  response: NegoResponse | ''
   final_price: string
   rationale: string
 }
+
+/** 理由欄預設文字；也是歷程上 response='discount' 的中文標籤 */
+const DEFAULT_RATIONALE = RESPONSE_LABEL.discount
 
 const numOf = (s: string): number => {
   const v = Number(s)
@@ -48,9 +48,8 @@ const timeText = (iso: string): string => {
 
 export default function NegotiationPage() {
   const { id } = useParams<{ id: string }>()
-  const { profile, session } = useAuth()
-  /** 總價打折取整只給在職副部長（部長也不行）；db/28 的 trigger 是真正的閘門 */
-  const isViceDirector = profile?.role === 'manager' && Boolean(profile?.active)
+  // 減價、抹零、定案只給在職副部長（部長進得來但只能看）；db/29 的 RPC／trigger 才是真正的閘門
+  const { isViceDirector } = useAuth()
   const { items, indexOf, evidenceOf, mgmtFeeRate, taxRate } = useRefData()
 
   const [quote, setQuote] = useState<Quote | null>(null)
@@ -65,7 +64,7 @@ export default function NegotiationPage() {
   const [error, setError] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [confirmClose, setConfirmClose] = useState(false)
-  /** 整單打折取整（副部長／部長）：輸入「幾折」，如 9、8.5 */
+  /** 整單打折取整（副部長）：輸入「幾折」，如 9、8.5 */
   const [discZhe, setDiscZhe] = useState('9')
   const [roundTo, setRoundTo] = useState(1000)
   /** 已套用的抹零金額；任何一列定案單價被手動改過就歸零（零頭不再對得上） */
@@ -95,23 +94,13 @@ export default function NegotiationPage() {
     setNegos((n.data ?? []) as Negotiation[])
     setFloors((f.data ?? []) as PriceFloor[])
     setRows(Object.fromEntries(ql.map((x): [string, RowState] => [x.id, {
-      client_offer: '',
-      response: '',
       final_price: String(Number(x.unit_price)),
-      rationale: '',
+      rationale: DEFAULT_RATIONALE,
     }])))
     setLoading(false)
   }, [id])
 
   useEffect(() => { void load() }, [load])
-
-  const reloadNegos = useCallback(async () => {
-    if (!id) return
-    const { data, error: e } = await supabase
-      .from('negotiations').select('*').eq('quote_id', id).order('round')
-    if (e) { setError(`議價歷程重新載入失敗：${e.message}`); return }
-    setNegos((data ?? []) as Negotiation[])
-  }, [id])
 
   const setRow = (lineId: string, patch: Partial<RowState>) => {
     if ('final_price' in patch) setRoundOff(0)
@@ -123,6 +112,12 @@ export default function NegotiationPage() {
     const f = floors.find((x) => x.item_id === itemId)
     return f ? Number(f.floor_price) : null
   }
+
+  /**
+   * 「我方原單價」基準：已定案的單 unit_price 已被覆寫成定案價，要靠 orig_price
+   * （db/29，第一次改價時保留）才算得出原報價；沒改過價的列 orig_price 為 null，就用 unit_price。
+   */
+  const baseOf = (l: QuoteLine): number => Number(l.orig_price ?? l.unit_price)
 
   const finalOf = (l: QuoteLine): number => {
     const r = rows[l.id]
@@ -161,10 +156,11 @@ export default function NegotiationPage() {
   const tax = quote ? Number(quote.tax_rate) : taxRate
   // 同一份分組結果同時餵給合計與表格，少算一次也少一次不一致的機會
   const finalSections = buildSections(finalOf)
-  const origTotals = calcTotals(buildSections((l) => Number(l.unit_price)), mgmt, tax)
+  // 原報價合計不帶 round_off（抹零是定案時給的讓利），定案合計帶——與列印頁／清單／單據頁同一口徑
+  const origTotals = calcTotals(buildSections(baseOf), mgmt, tax)
   const finalTotals = calcTotals(finalSections, mgmt, tax, roundOff)
   const diff = origTotals.total - finalTotals.total
-  const totalPct = concessionPct(origTotals.total, finalTotals.total)
+  const discText = discountText(origTotals.total, finalTotals.total)
 
   // 項次在 render 當下一次推導完；原本靠 JSX 內 `seq += 1` 累加，
   // oxlint react(immutability) 會警告「render 完成後仍在改變數」。
@@ -182,7 +178,7 @@ export default function NegotiationPage() {
   const discountOk = discount > 0 && discount <= 1
   // 以「我方原單價」為基準打折，不疊在已議過的定案價上——按兩次 9 折不會變 81 折
   const discPreview = discountOk
-    ? discountAndRound(buildSections((l) => Number(l.unit_price)), mgmt, tax, discount, roundTo)
+    ? discountAndRound(buildSections(baseOf), mgmt, tax, discount, roundTo)
     : null
 
   const applyDiscount = () => {
@@ -191,33 +187,15 @@ export default function NegotiationPage() {
     const note = `整單 ${discZhe} 折${roundTo > 1 ? `，合計${ROUND_TO.find((x) => x.v === roundTo)?.label}` : ''}`
     setRows((prev) => Object.fromEntries(lines.map((l): [string, RowState] => {
       const r = prev[l.id]
-      // 先拿掉上一次套用留下的「整單 N 折」，重按套用不會疊兩行
+      // 先拿掉上一次套用留下的「整單 N 折」，重按套用不會疊兩行；剩下空的就回到預設「協議折價」
       const prevRat = (r?.rationale ?? '').split('\n').filter((x) => !/^整單 .+ 折/.test(x)).join('\n').trimEnd()
-      const rat = prevRat ? `${prevRat}\n${note}` : note
       return [l.id, {
-        client_offer: r?.client_offer ?? '',
-        response: 'partial',
-        final_price: String(discPreview.prices[l.id] ?? Number(l.unit_price)),
-        rationale: rat,
+        final_price: String(discPreview.prices[l.id] ?? baseOf(l)),
+        rationale: `${prevRat || DEFAULT_RATIONALE}\n${note}`,
       }]
     })))
     setRoundOff(discPreview.roundOff)
     setMsg(`已套用${note}：定案後合計 ${money(discPreview.total)}。確認無誤後按「本案定案」寫回。`)
-  }
-
-  const maxRound = negos.reduce((a, n) => Math.max(a, Number(n.round) || 0), 0)
-  const nextRound = maxRound + 1
-
-  const onResponse = (l: QuoteLine, v: NegoResponse | '') => {
-    const r = rows[l.id]
-    if (v === 'accept') {
-      const offer = r ? r.client_offer.trim() : ''
-      setRow(l.id, { response: v, final_price: offer === '' ? (r ? r.final_price : '') : offer })
-    } else if (v === 'hold') {
-      setRow(l.id, { response: v, final_price: String(Number(l.unit_price)) })
-    } else {
-      setRow(l.id, { response: v })
-    }
   }
 
   const appendEvidence = (l: QuoteLine) => {
@@ -239,72 +217,25 @@ export default function NegotiationPage() {
     setRow(l.id, { rationale: cur.trim() ? `${cur.trimEnd()}\n${sentence}` : sentence })
   }
 
-  const setStatusNegotiating = async () => {
-    if (!quote) return
-    setBusy(true); setError(null); setMsg(null)
-    const { error: e } = await supabase.from('quotes')
-      .update({ status: 'negotiating', updated_at: new Date().toISOString() })
-      .eq('id', quote.id)
-    setBusy(false)
-    if (e) { setError(`狀態更新失敗：${e.message}`); return }
-    setQuote({ ...quote, status: 'negotiating' })
-    setMsg('已將本單狀態切換為「議價中」。')
-  }
-
-  const saveRound = async () => {
-    if (!quote) return
-    setError(null); setMsg(null)
-    const targets = lines.filter((l) => {
-      const r = rows[l.id]
-      return Boolean(r) && (r.client_offer.trim() !== '' || r.response !== '')
-    })
-    if (!targets.length) {
-      setError('沒有可儲存的內容：請至少為一列填入院方還價或選擇我方回應。')
-      return
-    }
-    const payload = targets.map((l) => {
-      const r = rows[l.id]
-      return {
-        quote_id: quote.id,
-        line_id: l.id,
-        round: nextRound,
-        client_offer: r.client_offer.trim() === '' ? null : numOf(r.client_offer),
-        response: r.response === '' ? null : r.response,
-        final_price: r.final_price.trim() === '' ? null : numOf(r.final_price),
-        rationale: r.rationale,
-        responded_by: profile?.id ?? session?.user.id ?? null,
-      }
-    })
-    setBusy(true)
-    const { error: e } = await supabase.from('negotiations').insert(payload)
-    setBusy(false)
-    if (e) { setError(`儲存失敗：${e.message}`); return }
-    setMsg(`第 ${nextRound} 輪議價已儲存，共 ${payload.length} 項。`)
-    await reloadNegos()
-  }
-
   const closeCase = async () => {
     if (!quote) return
     setBusy(true); setError(null); setMsg(null)
-    // 核定後的 quote_lines／母單狀態前端已寫不進去，改由 RPC 在同一交易內完成，
-    // 不會再出現「單價寫回一半、狀態沒改」的半套結果。
-    // 畫面上每一列都送（含沒填的），由 RPC 決定哪幾列要寫歷程、哪幾列跳過不改價，
-    // 前端不先過濾才不會漏掉使用者還沒按「儲存本輪議價」的內容。
+    // 核定後的 quote_lines／母單狀態前端已寫不進去，改由 RPC 在同一交易內完成
+    // （寫回單價＋orig_price 留原價＋狀態＋round_off），不會出現半套結果。
+    // 每一列都送，但只有「定案價 ≠ 現行單價」的列帶 response='discount'＋定案價＋理由；
+    // 沒變價的列送全空，RPC 就不寫歷程、不改價，也不會把 orig_price 塞成等於現價。
     const payload = lines.map((l) => {
-      const r = rows[l.id]
-      const offer = r ? r.client_offer.trim() : ''
-      const fin = r ? r.final_price.trim() : ''
-      // 理由一律送原文，連空字串也照送——saveRound 寫進 negotiations 的就是原字串，
-      // 這裡若把空值轉成 null，RPC 比對「與最新一筆完全相同」時 '' 與 null 不相等，
-      // 先按「儲存本輪議價」再定案就會在歷程上多出一筆重複回合。
-      // 空理由算不算「有內容」由 RPC 判定（契約允許 null／空字串），前端不代為判空。
-      return {
-        line_id: l.id,
-        client_offer: offer === '' ? null : numOf(offer),
-        response: r && r.response !== '' ? r.response : null,
-        final_price: fin === '' ? null : numOf(fin),
-        rationale: r ? r.rationale : '',
-      }
+      const fin = finalOf(l)
+      const changed = fin !== Number(l.unit_price)
+      return changed
+        ? {
+            line_id: l.id,
+            response: 'discount',
+            final_price: fin,
+            // 使用者把理由清空時仍記「協議折價」，歷程上不會出現沒有理由的改價
+            rationale: rows[l.id]?.rationale.trim() || DEFAULT_RATIONALE,
+          }
+        : { line_id: l.id, response: null, final_price: null, rationale: '' }
     })
     const { data, error: e } = await supabase.rpc('close_quote_case', {
       p_quote_id: quote.id,
@@ -315,9 +246,8 @@ export default function NegotiationPage() {
     if (e) { setError(`定案失敗：${e.message}`); return }
     const res = (data ?? {}) as { round?: number; rows_logged?: number; lines_updated?: number }
     setConfirmClose(false)
-    // 不報 rows_logged：先按「儲存本輪議價」再定案時，RPC 會判定重複而全數跳過，
-    // 顯示「寫入 0 筆」會被誤讀成失敗。
-    setMsg(`本案已定案：第 ${Number(res.round ?? 0)} 輪、寫回 ${Number(res.lines_updated ?? 0)} 項單價。`)
+    // lines_updated（db/29 起）＝實際改價的項數；只抹零不改單價時會是 0，屬正常。
+    setMsg(`本案已定案：第 ${Number(res.round ?? 0)} 輪、改價 ${Number(res.lines_updated ?? 0)} 項。`)
     await load()
   }
 
@@ -336,7 +266,15 @@ export default function NegotiationPage() {
     )
   }
 
+  /**
+   * 可操作＝在職副部長且單子是已核定（或舊制議價中）。不滿足就整頁唯讀：
+   * 部長進得來看歷程與折扣，但看不到任何輸入框與按鈕。畫面藏按鈕不算權限，RPC 才是。
+   */
+  const editable = isViceDirector && (quote.status === 'approved' || quote.status === 'negotiating')
+  const closed = quote.status === 'closed'
   const rounds = Array.from(new Set(negos.map((n) => Number(n.round)))).sort((a, b) => b - a)
+  // 「院方還價」只有改版前（採購角色還在）的舊歷程才有值，新單不渲染這一欄
+  const hasOffer = negos.some((n) => n.client_offer !== null)
   const nameOfLine = (lineId: string | null): string => {
     if (!lineId) return '整單'
     return lines.find((l) => l.id === lineId)?.name ?? '（項目已刪除）'
@@ -380,20 +318,6 @@ export default function NegotiationPage() {
             <div className="text-ink-900">{quote.quote_date}</div>
           </div>
         </div>
-
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            className="btn"
-            disabled={busy || quote.status === 'negotiating' || quote.status === 'closed'}
-            onClick={() => void setStatusNegotiating()}
-          >
-            切換為「議價中」
-          </button>
-          <span className="min-w-0 text-xs text-ink-500">
-            本輪將存為第 {nextRound} 輪（目前已有 {maxRound} 輪紀錄）
-          </span>
-        </div>
       </div>
 
       {/* 整單的四個關鍵數字。改版前分散在頁首、右欄試算表與兩處低於底價提示，
@@ -405,12 +329,17 @@ export default function NegotiationPage() {
           label="差額（讓價）"
           value={<span className={diff > 0 ? 'text-warn' : 'text-ink-700'}>{money(diff)}</span>}
         />
+        {/* 與列印頁／單據頁／清單同一支 discountText；沒降價（含改版前定案的舊單）顯示 — */}
         <Stat
-          label="總讓步幅度"
-          value={<span className={pctTone(totalPct)}>{totalPct.toFixed(1)}%</span>}
+          label="折扣幅度"
+          value={<span className="text-green">{discText || '—'}</span>}
         />
       </div>
 
+      {closed && <Alert kind="info">本案已定案，金額以定案版為準。</Alert>}
+      {!isViceDirector && !closed && (
+        <Alert kind="info">議價減價與定案限行政管理部副部長；本頁僅供檢視。</Alert>
+      )}
       {error && <Alert kind="error">{error}</Alert>}
       {msg && <Alert kind="success">{msg}</Alert>}
       {belowFloor.length > 0 && (
@@ -424,7 +353,7 @@ export default function NegotiationPage() {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_310px]">
         <div className="min-w-0 space-y-4">
           <div className="card">
-            <div className="card-title">逐項議價</div>
+            <div className="card-title">逐項減價</div>
             {lines.length === 0 ? (
               /* action 的文字刻意與頁首那顆「回單據」不同：
                  Task 11 會逐頁比對可見按鈕文字有無重複。 */
@@ -437,7 +366,7 @@ export default function NegotiationPage() {
               /* 手機：rwd-table 把每一列變成一張品項卡（欄位名由 data-label 長出來）；
                  sm 以上恢復寬表格，橫捲交給 .table-scroll，body 不會橫捲。 */
               <div className="table-scroll">
-              <table className="rwd-table w-full border-collapse sm:min-w-[1120px]">
+              <table className="rwd-table w-full border-collapse sm:min-w-[960px]">
                 <thead>
                   <tr>
                     <th className="th w-10">項次</th>
@@ -445,8 +374,6 @@ export default function NegotiationPage() {
                     <th className="th w-14">單位</th>
                     <th className="th num w-16">數量</th>
                     <th className="th num w-24">我方原單價</th>
-                    <th className="th num w-28">院方還價</th>
-                    <th className="th w-28">我方回應</th>
                     <th className="th num w-28">定案單價</th>
                     <th className="th num w-20">讓步幅度</th>
                     <th className="th min-w-[230px]">理由／佐證</th>
@@ -456,7 +383,7 @@ export default function NegotiationPage() {
                   {finalSections.map((sec) => (
                     <Fragment key={sec.key}>
                       <tr>
-                        <td className="td bg-light/50 font-semibold text-deep" colSpan={10}>
+                        <td className="td bg-light/50 font-semibold text-deep" colSpan={8}>
                           {sec.title || '（未命名大項）'}
                         </td>
                       </tr>
@@ -464,7 +391,7 @@ export default function NegotiationPage() {
                         const l = lines.find((x) => x.id === dl.key)
                         if (!l) return null
                         const r = rows[l.id]
-                        const orig = Number(l.unit_price)
+                        const orig = baseOf(l)
                         const fin = finalOf(l)
                         const pct = concessionPct(orig, fin)
                         const fp = floorOf(l.item_id)
@@ -487,35 +414,19 @@ export default function NegotiationPage() {
                             <td className="td" data-label="單位">{l.unit}</td>
                             <td className="td num" data-label="數量">{Number(l.qty)}</td>
                             <td className="td num" data-label="我方原單價">{money(orig)}</td>
-                            <td className="td" data-label="院方還價">
-                              <input
-                                type="number"
-                                className="field num"
-                                value={r ? r.client_offer : ''}
-                                onChange={(e) => setRow(l.id, { client_offer: e.target.value })}
-                              />
-                            </td>
-                            <td className="td" data-label="我方回應">
-                              <select
-                                className="field"
-                                value={r ? r.response : ''}
-                                onChange={(e) => onResponse(l, e.target.value as NegoResponse | '')}
-                              >
-                                <option value="">— 未回應 —</option>
-                                <option value="accept">{RESPONSE_LABEL.accept}</option>
-                                <option value="partial">{RESPONSE_LABEL.partial}</option>
-                                <option value="hold">{RESPONSE_LABEL.hold}</option>
-                              </select>
-                            </td>
                             <td className="td" data-label="定案單價">
                               {/* 手機時這格是 flex 容器，多個子元素要先包成一個 */}
                               <div className="min-w-0 flex-1">
-                                <input
-                                  type="number"
-                                  className="field num"
-                                  value={r ? r.final_price : ''}
-                                  onChange={(e) => setRow(l.id, { final_price: e.target.value })}
-                                />
+                                {editable ? (
+                                  <input
+                                    type="number"
+                                    className="field num"
+                                    value={r ? r.final_price : ''}
+                                    onChange={(e) => setRow(l.id, { final_price: e.target.value })}
+                                  />
+                                ) : (
+                                  <span className="num">{money(fin)}</span>
+                                )}
                                 {under && fp !== null && (
                                   <div className="mt-1 text-[0.6875rem] font-semibold text-warn">
                                     低於底價 {money(fp - fin)} 元
@@ -526,24 +437,31 @@ export default function NegotiationPage() {
                             <td className={`td num ${pctTone(pct)}`} data-label="讓步幅度">
                               {pct.toFixed(1)}%
                             </td>
-                            {/* 理由欄不給 data-label：手機時佔整行，欄位名改用行內小標 */}
+                            {/* 理由欄不給 data-label：手機時佔整行，欄位名改用行內小標。
+                                唯讀時顯示 —：定案過的理由看下方議價歷程 */}
                             <td className="td">
                               <div className="w-full min-w-0">
                                 <div className="label sm:hidden">理由／佐證</div>
-                                <textarea
-                                  className="field"
-                                  rows={2}
-                                  value={r ? r.rationale : ''}
-                                  onChange={(e) => setRow(l.id, { rationale: e.target.value })}
-                                  placeholder="說明堅持原價或讓步的理由"
-                                />
-                                <button
-                                  type="button"
-                                  className="btn mt-1 w-full text-sm sm:text-xs"
-                                  onClick={() => appendEvidence(l)}
-                                >
-                                  帶入佐證
-                                </button>
+                                {editable ? (
+                                  <>
+                                    <textarea
+                                      className="field"
+                                      rows={2}
+                                      value={r ? r.rationale : ''}
+                                      onChange={(e) => setRow(l.id, { rationale: e.target.value })}
+                                      placeholder="協議折價；可補充讓價理由或帶入佐證"
+                                    />
+                                    <button
+                                      type="button"
+                                      className="btn mt-1 w-full text-sm sm:text-xs"
+                                      onClick={() => appendEvidence(l)}
+                                    >
+                                      帶入佐證
+                                    </button>
+                                  </>
+                                ) : (
+                                  <span className="text-ink-500">—</span>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -562,7 +480,7 @@ export default function NegotiationPage() {
             {rounds.length === 0 ? (
               <EmptyState
                 title="尚無議價紀錄"
-                hint="填好上方逐項議價並按「儲存本輪議價」後，每一輪都會列在這裡。"
+                hint="副部長定案後，每一輪改價都會列在這裡。"
               />
             ) : (
               <div className="space-y-4">
@@ -582,8 +500,8 @@ export default function NegotiationPage() {
                           <thead>
                             <tr>
                               <th className="th min-w-[140px]">品名</th>
-                              <th className="th num w-24">院方還價</th>
-                              <th className="th w-24">我方回應</th>
+                              {hasOffer && <th className="th num w-24">院方還價</th>}
+                              <th className="th w-24">回應</th>
                               <th className="th num w-24">定案價</th>
                               <th className="th min-w-[240px]">理由</th>
                             </tr>
@@ -597,10 +515,12 @@ export default function NegotiationPage() {
                                     {nameOfLine(n.line_id)}
                                   </div>
                                 </td>
-                                <td className="td num" data-label="院方還價">
-                                  {n.client_offer === null ? '—' : money(Number(n.client_offer))}
-                                </td>
-                                <td className="td" data-label="我方回應">
+                                {hasOffer && (
+                                  <td className="td num" data-label="院方還價">
+                                    {n.client_offer === null ? '—' : money(Number(n.client_offer))}
+                                  </td>
+                                )}
+                                <td className="td" data-label="回應">
                                   {n.response ? RESPONSE_LABEL[n.response] : '—'}
                                 </td>
                                 <td className="td num" data-label="定案價">
@@ -649,29 +569,25 @@ export default function NegotiationPage() {
               ))}
             </dl>
 
-            {/* 手機：主要動作釘在畫面底部（.action-bar）；sm 以上改回上下堆疊的整寬按鈕 */}
-            <div className="action-bar mt-3 sm:flex-col">
-              <button
-                type="button"
-                className="btn btn-primary w-full"
-                disabled={busy || lines.length === 0}
-                onClick={() => void saveRound()}
-              >
-                {busy ? '處理中…' : `儲存本輪議價（第 ${nextRound} 輪）`}
-              </button>
-              <button
-                type="button"
-                className="btn btn-danger w-full"
-                disabled={busy || quote.status === 'closed' || lines.length === 0}
-                onClick={() => { setMsg(null); setError(null); setConfirmClose(true) }}
-              >
-                本案定案
-              </button>
-            </div>
+            {/* 手機：主要動作釘在畫面底部（.action-bar）；sm 以上改回整寬按鈕。
+                「儲存本輪議價」已拿掉（2026-10-06 議價簡化）：減價只有定案這一步。
+                不可操作（非副部長、或單子不在已核定）就整顆不渲染。 */}
+            {editable && (
+              <div className="action-bar mt-3 sm:flex-col">
+                <button
+                  type="button"
+                  className="btn btn-danger w-full"
+                  disabled={busy || !editable || lines.length === 0}
+                  onClick={() => { setMsg(null); setError(null); setConfirmClose(true) }}
+                >
+                  {busy ? '處理中…' : '本案定案'}
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* 整單打折取整：只給副部長。畫面藏起來不是權限，資料庫 trigger 才是。 */}
-          {isViceDirector && quote.status !== 'closed' && lines.length > 0 && (
+          {/* 整單打折取整：只給副部長。畫面藏起來不是權限，資料庫 trigger／RPC 才是。 */}
+          {editable && lines.length > 0 && (
             <div className="card">
               <div className="card-title">整單打折取整</div>
               <div className="grid grid-cols-2 gap-2">
@@ -727,7 +643,7 @@ export default function NegotiationPage() {
             </div>
           )}
 
-          {confirmClose && (
+          {confirmClose && editable && (
             <ConfirmPanel
               tone="danger"
               title="確認定案"
@@ -739,11 +655,11 @@ export default function NegotiationPage() {
               <p>
                 此動作會將本單 {lines.length} 項的報價單價
                 <span className="font-semibold text-warn">直接覆寫為上方的定案單價</span>
-                ，並把狀態改為「已定案」。覆寫後列印出來的即為定案版金額，原報價金額不再保留。
+                ，並把狀態改為「已定案」。原報價單價會另存保留，列印時以劃線並列顯示折扣幅度。
               </p>
               <p className="mt-2">
                 定案後合計 <span className="num font-semibold text-deep">{money(finalTotals.total)}</span>
-                ，較原報價讓價 {money(diff)} 元（{totalPct.toFixed(1)}%）。
+                ，較原報價讓價 {money(diff)} 元{discText ? `（${discText}）` : ''}。
               </p>
               {belowFloor.length > 0 && (
                 <p className="mt-2 font-semibold text-warn">

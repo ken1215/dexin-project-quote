@@ -1,4 +1,4 @@
-import { money } from '../../lib/calc'
+import { discountText, money } from '../../lib/calc'
 import type { Totals } from '../../lib/calc'
 
 /**
@@ -6,8 +6,8 @@ import type { Totals } from '../../lib/calc'
  * 不要在審閱頁另刻一份「看起來差不多」的版本。
  */
 export default function TotalsCard(
-  { totals, mgmtFeeRate, taxRate }:
-  { totals: Totals; mgmtFeeRate: number; taxRate: number },
+  { totals, mgmtFeeRate, taxRate, origTotal }:
+  { totals: Totals; mgmtFeeRate: number; taxRate: number; origTotal?: number | null },
 ) {
   return (
     <div className="card">
@@ -44,6 +44,19 @@ export default function TotalsCard(
               {money(totals.total)}
             </td>
           </tr>
+          {/* 定案後（status=closed 且有 orig_price 才會有值）：原報價合計與折扣幅度，一眼看出這張單讓了多少 */}
+          {origTotal != null && discountText(origTotal, totals.total) && (
+            <>
+              <tr>
+                <td className="pt-2 text-[0.75rem] text-ink-500">原報價合計</td>
+                <td className="num pt-2 text-[0.75rem] text-ink-500 line-through">{money(origTotal)}</td>
+              </tr>
+              <tr>
+                <td className="py-1 font-semibold text-green">議價折扣幅度</td>
+                <td className="num py-1 font-semibold text-green">{discountText(origTotal, totals.total)}</td>
+              </tr>
+            </>
+          )}
         </tbody>
       </table>
     </div>

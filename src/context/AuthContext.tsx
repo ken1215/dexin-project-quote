@@ -7,7 +7,7 @@ import type { Profile } from '../types'
  * 工號登入用的合成網域。使用者輸入 6 碼工號，實際送給 Supabase 的是
  * `工號@dexin.local`——Supabase Auth 只認 email，但這個信箱永遠不會收信
  * （建帳號時 email_confirm: true，忘記密碼一律洽主管）。
- * 醫院採購那類外部帳號沿用真實 email，所以這裡只轉換「純 6 碼數字」。
+ * 歷史外部帳號可能是真實 email，所以這裡只轉換純 6 碼數字。
  */
 export const EMP_DOMAIN = 'dexin.local'
 export const isEmployeeNo = (v: string) => /^\d{6}$/.test(v.trim())
@@ -31,8 +31,11 @@ interface AuthValue {
   isAdmin: boolean
   /** 能改單價的人＝副部長或工務處長。部長只能看（見 db/21 is_price_editor） */
   canEditPrices: boolean
-  /** 醫院採購：只能看已送出的單並登錄還價，看不到單價庫與底價 */
-  isProcurement: boolean
+  /**
+   * 唯一能在議價頁減價、抹零與定案的人＝在職副部長；部長不在內。
+   * 對應 db/29 is_vice_director()——這裡只決定畫面藏不藏按鈕，真正把關在資料庫。
+   */
+  isViceDirector: boolean
   /** 主管發出的初始密碼還沒換掉：資料庫層已把業務資料全關掉，畫面要擋在改密碼頁 */
   mustChangePassword: boolean
   /** 自家人（同仁或主管） */
@@ -50,7 +53,7 @@ const Ctx = createContext<AuthValue>({
   session: null, profile: null, loading: true, isManager: false,
   isDeptHead: false, isAdmin: false, canEditPrices: false,
   mustChangePassword: false, reloadProfile: async () => {},
-  isProcurement: false, isInternal: false,
+  isViceDirector: false, isInternal: false,
   signIn: async () => '未初始化', signOut: async () => {},
   changePassword: async () => '未初始化',
 })
@@ -96,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isDeptHead: profile?.role === 'dept_head' && profile.active,
     isAdmin: (profile?.role === 'manager' || profile?.role === 'admin_head') && profile.active,
     canEditPrices: (profile?.role === 'manager' || profile?.role === 'dept_head') && profile.active,
-    isProcurement: profile?.role === 'procurement' && profile.active,
+    isViceDirector: profile?.role === 'manager' && profile.active,
     mustChangePassword: Boolean(profile?.active && profile.must_change_password),
     async reloadProfile() {
       if (!session) return

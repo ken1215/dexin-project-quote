@@ -2,8 +2,7 @@ import type { ReactNode } from 'react'
 
 /**
  * 德新 CIS 的頁面語彙：編號 ＋ 英文小標 ／ 中文大標。
- * 編號跟著導覽順序走（01 報價單、02 開單、03 單價、04 指數、05 人員、06 議價）；
- * 醫院採購端只有一頁，不編號。
+ * 編號跟著導覽順序走（01 報價單、02 開單、03 單價、04 指數、05 人員、06 議價）。
  */
 export default function PageHeader(
   { index, eyebrow, title, actions }:

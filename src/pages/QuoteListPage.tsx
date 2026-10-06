@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { calcTotals, money } from '../lib/calc'
+import { calcTotals, discountText, money } from '../lib/calc'
 import { matchesTab, sortQuotes } from '../lib/quoteFilters'
 import type { QuoteTab, SortKey } from '../lib/quoteFilters'
 import Alert from '../components/ui/Alert'
@@ -30,28 +30,42 @@ const TABS: { key: QuoteTab; label: string }[] = [
   { key: 'all', label: '全部' },
 ]
 
-/** 清單列＝單據本體 ＋ 算好的合計金額（quoteFilters 的純函式吃的就是這個形狀） */
-type Row = Quote & { total: number }
+/**
+ * 清單列＝單據本體 ＋ 算好的合計金額（quoteFilters 的純函式吃的就是這個形狀）。
+ * orig＝定案前原報價合計（沒有 orig_price 的單等於 total），只拿來顯示折扣幅度，排序仍用 total。
+ */
+type Row = Quote & { total: number; orig: number }
 
 interface SortState { key: SortKey; dir: 'asc' | 'desc' }
 
-/** 用共用的 calcTotals 算單一報價單的合計金額（單一虛擬大項裝入所有明細即可） */
-function quoteTotal(quote: Quote, lines: QuoteLine[]): number {
-  const draftLines: DraftLine[] = lines.map((l) => ({
+/**
+ * 用共用的 calcTotals 算單一報價單的合計金額（單一虛擬大項裝入所有明細即可）。
+ * total＝現行單價＋round_off（定案單即定案合計）；orig＝orig_price ?? unit_price 且不帶 round_off
+ * （抹零是定案時給的讓利）——與列印頁／單據頁／議價頁同一口徑。
+ */
+function quoteTotal(quote: Quote, lines: QuoteLine[]): { total: number; orig: number } {
+  const toDraft = (l: QuoteLine, unitPrice: number): DraftLine => ({
     key: l.id,
     item_id: l.item_id,
     labor_rate_id: l.labor_rate_id,
     name: l.name,
     spec: l.spec,
     unit: l.unit,
-    unit_price: l.unit_price,
+    unit_price: unitPrice,
     qty: l.qty,
     is_custom: l.is_custom,
     reason: l.reason,
     note: l.note,
-  }))
-  const sections: DraftSection[] = [{ key: 'all', title: '', lines: draftLines }]
-  return calcTotals(sections, quote.mgmt_fee_rate, quote.tax_rate, quote.round_off).total
+  })
+  const cur: DraftSection[] = [{ key: 'all', title: '', lines: lines.map((l) => toDraft(l, l.unit_price)) }]
+  const orig: DraftSection[] = [{
+    key: 'all', title: '',
+    lines: lines.map((l) => toDraft(l, Number(l.orig_price ?? l.unit_price))),
+  }]
+  return {
+    total: calcTotals(cur, quote.mgmt_fee_rate, quote.tax_rate, quote.round_off).total,
+    orig: calcTotals(orig, quote.mgmt_fee_rate, quote.tax_rate, 0).total,
+  }
 }
 
 /**
@@ -89,10 +103,10 @@ function SortTh(
 }
 
 export default function QuoteListPage() {
-  const { profile, isManager, isAdmin, isProcurement } = useAuth()
+  const { profile, isManager, isAdmin } = useAuth()
 
   const [quotes, setQuotes] = useState<Quote[]>([])
-  const [totals, setTotals] = useState<Record<string, number>>({})
+  const [totals, setTotals] = useState<Record<string, { total: number; orig: number }>>({})
   const [creators, setCreators] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -170,7 +184,7 @@ export default function QuoteListPage() {
         if (arr) arr.push(l)
         else linesByQuote.set(l.quote_id, [l])
       }
-      const totalMap: Record<string, number> = {}
+      const totalMap: Record<string, { total: number; orig: number }> = {}
       for (const q of list) {
         totalMap[q.id] = quoteTotal(q, linesByQuote.get(q.id) ?? [])
       }
@@ -212,7 +226,7 @@ export default function QuoteListPage() {
   const userId = profile?.id ?? ''
 
   const rows = useMemo<Row[]>(
-    () => quotes.map((q) => ({ ...q, total: totals[q.id] ?? 0 })),
+    () => quotes.map((q) => ({ ...q, total: totals[q.id]?.total ?? 0, orig: totals[q.id]?.orig ?? 0 })),
     [quotes, totals],
   )
 
@@ -235,11 +249,9 @@ export default function QuoteListPage() {
 
   /**
    * 預設分頁：一律從「待我處理」開始，載完之後若一張都沒有就落到「進行中」——
-   * 不要讓人一進來就看到空畫面。醫院採購沒有待辦定義，直接給「全部」。
+   * 不要讓人一進來就看到空畫面。
    */
-  const defaultTab: QuoteTab = isProcurement
-    ? 'all'
-    : (loading || counts.todo > 0 ? 'todo' : 'active')
+  const defaultTab: QuoteTab = loading || counts.todo > 0 ? 'todo' : 'active'
   const tab = tabChoice ?? defaultTab
 
   const visible = useMemo(
@@ -581,13 +593,20 @@ export default function QuoteListPage() {
                         <td className="td" data-label="狀態">
                           <StatusTag status={q.status} l1Skipped={q.l1_skipped} />
                         </td>
-                        <td className="td num" data-label="合計金額">{money(q.total)}</td>
+                        <td className="td num" data-label="合計金額">
+                          {money(q.total)}
+                          {/* 只有定案且有 orig_price 的單才有折扣幅度；改版前定案的舊單 orig＝total，不顯示 */}
+                          {q.status === 'closed' && discountText(q.orig, q.total) && (
+                            <span className="ml-1.5 text-[0.6875rem] text-green">{discountText(q.orig, q.total)}</span>
+                          )}
+                        </td>
                         {/* 操作格不給 data-label：手機會自動佔滿整行，按鈕改 2 欄排列比較好按 */}
                         <td className="td">
                           <div className="grid w-full grid-cols-2 gap-1.5 sm:flex sm:w-auto sm:flex-wrap">
                             <Link to={`/quote/${q.id}`} className="btn">編輯</Link>
                             <a href={`#/print/${q.id}`} target="_blank" rel="noopener noreferrer" className="btn">列印</a>
-                            {/* 議價頁是 adminOnly，處長看得到卻進不去只會撞拒絕畫面 */}
+                            {/* 議價頁是 adminOnly（處長看得到卻進不去只會撞拒絕畫面）。
+                                副部長可減價定案；部長進去只能看 */}
                             {isAdmin && (
                               <Link to={`/nego/${q.id}`} className="btn">議價</Link>
                             )}
@@ -631,7 +650,12 @@ export default function QuoteListPage() {
                                     <StatusTag status={q.status} l1Skipped={q.l1_skipped} />
                                   </dd>
                                   <dt className="text-ink-500">合計金額</dt>
-                                  <dd className="num font-semibold text-deep">{money(q.total)}</dd>
+                                  <dd className="num font-semibold text-deep">
+                                    {money(q.total)}
+                                    {q.status === 'closed' && discountText(q.orig, q.total) && (
+                                      <span className="ml-1.5 text-[0.6875rem] font-normal text-green">{discountText(q.orig, q.total)}</span>
+                                    )}
+                                  </dd>
                                 </dl>
                                 <p className="mt-3 font-semibold text-warn">
                                   將一併刪除此單的所有明細與議價紀錄，且無法復原。

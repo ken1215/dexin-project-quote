@@ -2,14 +2,14 @@
  * dept_head = 工務處長（簽核第一關 ＋ 單價庫維護，不能管帳號、不能議價定案）
  * manager   = 行政管理部副部長（最終核決，可越級核定）
  * admin_head = 行政管理部長（權限等同副部長，但單價維護只能讀不能改）
- * procurement = 聯新國際醫院採購單位（對方的人），權限與自家同仁完全不同
+ * procurement = 醫院採購（2026-10-06 下線，僅供顯示既有帳號；不可再建立）
  */
 export type Role = 'staff' | 'dept_head' | 'manager' | 'admin_head' | 'procurement'
 export type CostType = 'material' | 'consumable' | 'labor' | 'other'
 export type QuoteStatus =
   | 'draft' | 'submitted' | 'approved_l1' | 'approved'
   | 'negotiating' | 'closed' | 'rejected'
-export type NegoResponse = 'accept' | 'partial' | 'hold'
+export type NegoResponse = 'accept' | 'partial' | 'hold' | 'discount'
 export type EvidenceKind = 'index' | 'law' | 'market' | 'history'
 
 export interface Profile {
@@ -144,6 +144,8 @@ export interface QuoteLine {
   spec: string
   unit: string
   unit_price: number
+  /** 定案改價前的原報價（db/29）；沒議價改過價、或改版前定案的單為 null */
+  orig_price: number | null
   qty: number
   is_custom: boolean
   /** 臨時項目必填，資料庫層有 check constraint */
@@ -157,6 +159,7 @@ export interface Negotiation {
   quote_id: string
   line_id: string | null
   round: number
+  /** 院方還價。舊歷程會有值；2026-10 起採購角色下線，前端不再寫入 */
   client_offer: number | null
   response: NegoResponse | null
   final_price: number | null
@@ -196,6 +199,8 @@ export interface DraftQuote {
   status: QuoteStatus
   /** 定案時副部長寫入的整單折讓（取整抹零）；草稿恆為 0 */
   round_off?: number
+  /** 定案前的原報價單價，key = 明細 id；只收有被議價改過的列 */
+  orig_prices?: Record<string, number>
   sections: DraftSection[]
 }
 
@@ -204,7 +209,8 @@ export const ROLE_LABEL: Record<Role, string> = {
   dept_head: '工務處長',
   manager: '行政管理部副部長',
   admin_head: '行政管理部長',
-  procurement: '醫院採購',
+  // 角色已下線；保留字面值是因為資料庫既有列仍是這個 role，前端載到舊帳號不能炸
+  procurement: '醫院採購（已停用）',
 }
 
 export const STATUS_LABEL: Record<QuoteStatus, string> = {
@@ -212,9 +218,18 @@ export const STATUS_LABEL: Record<QuoteStatus, string> = {
   submitted: '待處長核可',
   approved_l1: '待副部長核定',
   approved: '已核定',
+  // 流程已不再進入此狀態（2026-10-06 起已核定直接定案），留著顯示舊單
   negotiating: '議價中',
   closed: '已定案',
   rejected: '已退回',
+}
+
+/** 議價歷程的回應代碼；新流程一律記 discount，其餘三種只會出現在舊歷程 */
+export const RESPONSE_LABEL: Record<NegoResponse, string> = {
+  accept: '接受',
+  partial: '部分讓步',
+  hold: '堅持原價',
+  discount: '協議折價',
 }
 
 export const COST_LABEL: Record<CostType, string> = {

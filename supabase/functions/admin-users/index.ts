@@ -11,7 +11,7 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 /** 工號登入的合成網域，與前端 AuthContext 的 EMP_DOMAIN 必須一致 */
 const EMP_DOMAIN = 'dexin.local'
 const isEmployeeNo = (v: string) => /^\d{6}$/.test(v)
-/** 帳號欄位收 6 碼工號（內部同仁）或真實 email（醫院採購那類外部帳號） */
+/** 帳號欄位收 6 碼工號；歷史外部 email 帳號仍可登入，但不再新建 */
 const toLoginEmail = (v: string) => (isEmployeeNo(v) ? `${v}@${EMP_DOMAIN}` : v)
 /** 密碼下限 6 碼——初始密碼就是 6 碼工號 */
 const MIN_PW = 6
@@ -133,8 +133,19 @@ Deno.serve(async (req) => {
       case 'create': {
         const loginId = String(body.email ?? '').trim()
         const fullName = String(body.full_name ?? '').trim()
-        const role = ['manager', 'admin_head', 'dept_head', 'procurement'].includes(String(body.role))
-          ? String(body.role) : 'staff'
+        // 角色白名單：沒帶 role 才預設 staff；帶了白名單外的值（含 2026-10-06 下線的
+        // procurement）一律 400 拒絕，**不降級成 staff**——
+        // 舊版人員頁或直接打 API 的「建採購帳號」若被默默轉成啟用中的內部同仁，
+        // 資料庫的採購停用 trigger（db/29）看到的是 staff 不會攔，
+        // 該帳號一改密碼就拿到內部同仁權限，等於外部人員被提權成內部人。
+        const ROLES = ['staff', 'manager', 'admin_head', 'dept_head']
+        const rawRole = body.role === undefined || body.role === null || body.role === ''
+          ? 'staff' : String(body.role)
+        if (rawRole === 'procurement') {
+          return json({ error: '醫院採購角色已於 2026-10-06 下線，不再建立採購帳號' }, 400)
+        }
+        if (!ROLES.includes(rawRole)) return json({ error: '未知的角色：' + rawRole }, 400)
+        const role = rawRole
         if (!mayTouchRole(role)) {
           return json({ error: '工務處長只能建立「同仁」帳號，其他角色請洽行政管理部' }, 403)
         }
@@ -142,8 +153,11 @@ Deno.serve(async (req) => {
         // 擋下來反而會讓「先建帳號、之後再補信箱」這個正常流程卡住。非字串一律視為沒填。
         const notifyEmail = typeof body.notify_email === 'string' ? body.notify_email.trim() : ''
 
-        if (!isEmployeeNo(loginId) && !loginId.includes('@')) {
-          return json({ error: '請填 6 碼數字工號，外部單位帳號才填 Email' }, 400)
+        // 只收 6 碼工號：外部 Email 帳號只存在於採購角色，該角色下線後不再新建；
+        // 若仍接受外部 Email，就會出現「外部信箱登入、卻是內部角色」的帳號。
+        // 歷史外部帳號仍可登入（toLoginEmail 保留非工號直通），但新建一律擋下。
+        if (!isEmployeeNo(loginId)) {
+          return json({ error: '請填 6 碼數字工號（外部 Email 帳號已不再新建）' }, 400)
         }
         const email = toLoginEmail(loginId)
         // 初始密碼留空＝與工號相同（外部 email 帳號沒有工號可帶，一定要填）
@@ -169,10 +183,7 @@ Deno.serve(async (req) => {
         // 地址必須另外由主管人工填一欄，這裡沒有任何自動推導的空間。
         // 空字串＝不寄（不是錯誤，也不是尚未設定的待辦）：新帳號預設就是空的，
         // 主管想讓誰收到信才填誰，這是刻意的「預設安靜」。
-        // 醫院採購（role = procurement）填了也不會收到信：依 2026-09-14 決策，
-        // 第一版只寄內部（送審→工務處長、第一關核可→行政管理部、核定／退回→開單人），
-        // 對外通知維持既有管道。排除發生在寄信端（notify-approval），不是在這裡把欄位清空，
-        // 這樣日後決策改成要寄對外通知時，地址還在、不必請主管重填一次。
+        // 採購角色已下線；notify-approval 的角色過濾保留為保險。
         await admin.from('profiles')
           .update({
             full_name: fullName || loginId, role, active: true,
