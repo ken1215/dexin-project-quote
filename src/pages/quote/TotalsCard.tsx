@@ -32,6 +32,12 @@ export default function TotalsCard(
             <td className="py-1 text-ink-700">營業稅 {(taxRate * 100).toFixed(1)}%</td>
             <td className="num py-1 text-ink-900">{money(totals.tax)}</td>
           </tr>
+          {totals.roundOff > 0 && (
+            <tr>
+              <td className="py-1 text-green">整單折讓（取整）</td>
+              <td className="num py-1 text-green">-{money(totals.roundOff)}</td>
+            </tr>
+          )}
           <tr className="border-t border-ink-200">
             <td className="py-1.5 font-semibold text-deep">合計</td>
             <td className="num py-1.5 text-[1rem] font-semibold text-deep">

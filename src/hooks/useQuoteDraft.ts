@@ -151,6 +151,7 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
         contact: quote.contact,
         quote_date: quote.quote_date,
         status: quote.status,
+        round_off: Number(quote.round_off) || 0,
         sections: secs.length
           ? secs.map((sec) => ({
               key: sec.id,
@@ -397,8 +398,8 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
 
   /* ── 合計 ───────────────────────────────────────────────── */
   const totals = useMemo(
-    () => calcTotals(draft.sections, mgmtFeeRate, taxRate),
-    [draft.sections, mgmtFeeRate, taxRate],
+    () => calcTotals(draft.sections, mgmtFeeRate, taxRate, draft.round_off),
+    [draft.sections, mgmtFeeRate, taxRate, draft.round_off],
   )
 
   /* ── 存檔 ───────────────────────────────────────────────── */

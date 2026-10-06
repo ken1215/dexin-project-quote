@@ -88,6 +88,8 @@ export default function NegotiationPage() {
 
     const ql = (l.data ?? []) as QuoteLine[]
     setQuote(q.data as Quote)
+    // 已定案的單要把當時抹掉的零頭讀回來，否則定案後合計又長回尾數
+    setRoundOff(Number((q.data as Quote).round_off) || 0)
     setSections((s.data ?? []) as QuoteSection[])
     setLines(ql)
     setNegos((n.data ?? []) as Negotiation[])
@@ -189,8 +191,9 @@ export default function NegotiationPage() {
     const note = `整單 ${discZhe} 折${roundTo > 1 ? `，合計${ROUND_TO.find((x) => x.v === roundTo)?.label}` : ''}`
     setRows((prev) => Object.fromEntries(lines.map((l): [string, RowState] => {
       const r = prev[l.id]
-      const rat = r?.rationale.trim() ? `${r.rationale.trimEnd()}
-${note}` : note
+      // 先拿掉上一次套用留下的「整單 N 折」，重按套用不會疊兩行
+      const prevRat = (r?.rationale ?? '').split('\n').filter((x) => !/^整單 .+ 折/.test(x)).join('\n').trimEnd()
+      const rat = prevRat ? `${prevRat}\n${note}` : note
       return [l.id, {
         client_offer: r?.client_offer ?? '',
         response: 'partial',

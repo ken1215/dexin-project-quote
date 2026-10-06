@@ -194,6 +194,8 @@ export interface DraftQuote {
   contact: string
   quote_date: string
   status: QuoteStatus
+  /** 定案時副部長寫入的整單折讓（取整抹零）；草稿恆為 0 */
+  round_off?: number
   sections: DraftSection[]
 }
 
