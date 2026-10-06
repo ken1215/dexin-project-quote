@@ -48,7 +48,9 @@ const timeText = (iso: string): string => {
 
 export default function NegotiationPage() {
   const { id } = useParams<{ id: string }>()
-  const { profile, session, isAdmin } = useAuth()
+  const { profile, session } = useAuth()
+  /** 總價打折取整只給在職副部長（部長也不行）；db/28 的 trigger 是真正的閘門 */
+  const isViceDirector = profile?.role === 'manager' && Boolean(profile?.active)
   const { items, indexOf, evidenceOf, mgmtFeeRate, taxRate } = useRefData()
 
   const [quote, setQuote] = useState<Quote | null>(null)
@@ -665,9 +667,8 @@ ${note}` : note
             </div>
           </div>
 
-          {/* 整單打折取整：只給副部長／部長（is_admin），定案 RPC 那端也只認 is_admin，
-              畫面藏起來不是權限，資料庫才是。 */}
-          {isAdmin && quote.status !== 'closed' && lines.length > 0 && (
+          {/* 整單打折取整：只給副部長。畫面藏起來不是權限，資料庫 trigger 才是。 */}
+          {isViceDirector && quote.status !== 'closed' && lines.length > 0 && (
             <div className="card">
               <div className="card-title">整單打折取整</div>
               <div className="grid grid-cols-2 gap-2">
