@@ -135,10 +135,38 @@ const TH = 'border border-ink-200 bg-light px-2 py-1.5 text-[11.5px] font-bold t
 const TD = 'border border-ink-200 px-2 py-1 text-[12px] text-ink-900'
 const TD_MUTED = 'border border-ink-200 px-2 py-1 text-[11px] text-ink-700'
 
+/* ── 頁別 ───────────────────────────────────────────────────────
+   單位回報：每頁頁首都只寫「工程標單」，分不出哪張是確認金額的頁。
+   改成每頁標明頁別——總表用唯一的實心深藍徽章，明細／工率標「附件」外框，
+   並在頁首正下方印一條提示，講清楚報價金額以哪一頁為準。 */
+
+type PageKind = 'summary' | 'detail' | 'prod'
+const KIND: Record<PageKind, { badge: string; badgeCls: string; hint: string; hintCls: string }> = {
+  summary: {
+    badge: '報價總表',
+    badgeCls: 'border-deep bg-deep text-white',
+    hint: '本頁為報價總表，「合計」即本案報價金額，核定與議價均以本頁為準。',
+    hintCls: 'border-deep bg-light text-deep font-bold',
+  },
+  detail: {
+    badge: '附件・明細表',
+    badgeCls: 'border-ink-500 text-ink-700',
+    hint: '本頁為報價明細（附件），僅供核對品項數量；報價金額以第 1 頁「報價總表」合計為準。',
+    hintCls: 'border-ink-200 bg-ink-50 text-ink-700',
+  },
+  prod: {
+    badge: '附件・工率分析',
+    badgeCls: 'border-ink-500 text-ink-700',
+    hint: '本頁為單價合理性說明（附件），不另計價；報價金額以第 1 頁「報價總表」合計為準。',
+    hintCls: 'border-ink-200 bg-ink-50 text-ink-700',
+  },
+}
+
 /* ── 一張紙：頁首 + 內容 + 頁尾頁碼 ───────────────────────────── */
 
 function Sheet(
-  { quote, stamp, catalogVersion, feeRate, busRate, page, total, children }: {
+  { kind, quote, stamp, catalogVersion, feeRate, busRate, page, total, children }: {
+    kind: PageKind
     quote: Quote
     stamp: { label: string; cls: string }
     catalogVersion: string
@@ -152,6 +180,7 @@ function Sheet(
   return (
     <section className={SHEET}>
       <SheetHeader
+        kind={kind}
         quote={quote}
         stamp={stamp}
         catalogVersion={catalogVersion}
@@ -160,7 +189,7 @@ function Sheet(
       />
       <div className="flex-1">{children}</div>
       <footer className="mt-6 border-t border-ink-200 pt-1.5 text-center text-[10px] tracking-[0.2em] text-ink-500">
-        第 {page} 頁 / 共 {total} 頁
+        {KIND[kind].badge}　·　第 {page} 頁 / 共 {total} 頁
       </footer>
     </section>
   )
@@ -178,7 +207,8 @@ function Field({ label, value }: { label: string; value: string }) {
 
 /** 每一頁都要出現的頁首 */
 function SheetHeader(
-  { quote, stamp, catalogVersion, feeRate, busRate }: {
+  { kind, quote, stamp, catalogVersion, feeRate, busRate }: {
+    kind: PageKind
     quote: Quote
     stamp: { label: string; cls: string }
     catalogVersion: string
@@ -198,9 +228,12 @@ function SheetHeader(
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <span className="rounded-sm border border-deep px-3 py-[3px] text-[13px] font-semibold tracking-[0.3em] text-deep">
-            工程標單
-          </span>
+          <div className="text-right">
+            <div className="text-[10px] tracking-[0.3em] text-ink-500">工程標單</div>
+            <span className={'mt-[2px] inline-block rounded-sm border px-3 py-[3px] text-[14px] font-bold tracking-[0.2em] ' + KIND[kind].badgeCls}>
+              {KIND[kind].badge}
+            </span>
+          </div>
           <span className="text-[11px] text-ink-700">
             單號　<span className="num text-ink-900">{quote.quote_no || '—'}</span>
           </span>
@@ -230,6 +263,10 @@ function SheetHeader(
         >
           {stamp.label}
         </div>
+      </div>
+
+      <div className={'mt-3 border-l-4 px-3 py-[5px] text-[11.5px] ' + KIND[kind].hintCls}>
+        {KIND[kind].hint}
       </div>
     </header>
   )
@@ -545,7 +582,7 @@ export default function PrintPage() {
       </div>
 
       {/* ── 總表頁 ── */}
-      <Sheet {...sheetProps} page={1}>
+      <Sheet {...sheetProps} kind="summary" page={1}>
         <table className="mt-4 w-full border-collapse">
           <thead>
             <tr>
@@ -589,10 +626,10 @@ export default function PrintPage() {
             {/* 全份文件唯一的滿版重色塊 */}
             <tr className="total-row">
               <td
-                className="border border-deep bg-deep px-2 py-[7px] text-right text-[15px] font-bold tracking-[0.3em] text-white"
+                className="border border-deep bg-deep px-2 py-[7px] text-right text-[15px] font-bold tracking-[0.15em] text-white"
                 colSpan={5}
               >
-                合計
+                合計（報價金額）
               </td>
               <td className="num border border-deep bg-deep px-2 py-[7px] text-[15px] font-bold text-white">
                 {money(totals.total)}
@@ -676,7 +713,7 @@ export default function PrintPage() {
 
       {/* ── 明細頁：大項依列數塞滿一張再換頁 ── */}
       {sectionPages.map((group, pi) => (
-        <Sheet {...sheetProps} page={pi + 2} key={group[0].sec.key}>
+        <Sheet {...sheetProps} kind="detail" page={pi + 2} key={group[0].sec.key}>
           {group.map(({ sec, si }) => {
           const subtotal = sec.lines.reduce((a, l) => a + lineAmount(l.unit_price, l.qty), 0)
           return (
@@ -752,7 +789,7 @@ export default function PrintPage() {
                     className={TD + ' border-t-deep text-right font-bold text-ink-700'}
                     colSpan={5}
                   >
-                    小計
+                    {cnNo(si)}、{sec.title} 小計
                   </td>
                   <td className={TD + ' num border-t-deep font-bold'}>{money(subtotal)}</td>
                   <td className={TD + ' border-t-deep'} />
@@ -766,7 +803,7 @@ export default function PrintPage() {
 
       {/* ── 工率分析：一筆工率都對不到就整區不渲染 ── */}
       {withProd && (
-        <Sheet {...sheetProps} page={totalPages}>
+        <Sheet {...sheetProps} kind="prod" page={totalPages}>
           <h2 className="mt-4 border-b-2 border-deep pb-1 text-[14px] font-bold tracking-wide text-deep">
             工率分析（單價合理性說明）
           </h2>
