@@ -51,7 +51,7 @@ function quoteTotal(quote: Quote, lines: QuoteLine[]): number {
     note: l.note,
   }))
   const sections: DraftSection[] = [{ key: 'all', title: '', lines: draftLines }]
-  return calcTotals(sections, quote.mgmt_fee_rate, quote.tax_rate).total
+  return calcTotals(sections, quote.mgmt_fee_rate, quote.tax_rate, quote.round_off).total
 }
 
 /**

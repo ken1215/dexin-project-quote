@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert/strict'
 import {
-  calcTotals, concessionPct, indexedPrice, laborListPrice, laborPrice, lineAmount,
+  calcTotals, concessionPct, discountAndRound, indexedPrice, laborListPrice, laborPrice, lineAmount,
   sectionsForPersist, validateQuote,
 } from './calc.ts'
 import type { DraftQuote, DraftSection, LaborRate, MaterialIndex, PriceItem } from '../types.ts'
@@ -232,6 +232,22 @@ assert.deepEqual(
   // 陰性對照：全部都有明細時不可動到任何一項
   const all = [s('甲', 1), s('乙', 2)]
   assert.equal(sectionsForPersist(all).length, 2, '沒有空大項時不得誤刪')
+}
+
+// ── 整單打折並取整 ─────────────────────────────────────────────
+{
+  const secs: DraftSection[] = [
+    { key: 'a', title: '甲', lines: [line({ key: 'x', unit_price: 1250, qty: 37 }), line({ key: 'y', unit_price: 837, qty: 11 })] },
+  ]
+  const r = discountAndRound(secs, 0.09, 0.05, 0.9, 1000)
+  assert.equal(r.prices.x, 1125)
+  assert.equal(r.prices.y, 753)
+  assert.equal(r.total % 1000, 0, '合計要整到千')
+  assert.ok(r.roundOff >= 0 && r.roundOff < 1000)
+  // 把結果餵回 calcTotals 必須算出同一個合計——列印頁與議價頁走的就是這條
+  const back = secs.map((s) => ({ ...s, lines: s.lines.map((l) => ({ ...l, unit_price: r.prices[l.key] })) }))
+  assert.equal(calcTotals(back, 0.09, 0.05, r.roundOff).total, r.total)
+  assert.equal(discountAndRound(secs, 0.09, 0.05, 1, 1).roundOff, 0, '不打折不抹零＝原價')
 }
 
 console.log('calc.ts 自我檢查全數通過')

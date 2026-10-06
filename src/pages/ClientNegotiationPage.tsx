@@ -142,7 +142,7 @@ function QuoteIndex() {
           ? Number(r.mgmt_fee_rate) : defMgmt
         const tax = Number.isFinite(Number(r.tax_rate)) && r.tax_rate !== null
           ? Number(r.tax_rate) : defTax
-        map[r.id] = calcTotals(sections, mgmt, tax).total
+        map[r.id] = calcTotals(sections, mgmt, tax, r.round_off).total
       }
       setTotals(map)
       setLoading(false)
@@ -324,7 +324,7 @@ function QuoteNegotiation({ quoteId }: { quoteId: string }) {
 
   // 同一份分組結果同時餵給合計與表格，少算一次也少一次不一致的機會
   const offerSections = buildSections(priceOf)
-  const origTotals = calcTotals(buildSections((l) => Number(l.unit_price)), mgmtRate, taxRate)
+  const origTotals = calcTotals(buildSections((l) => Number(l.unit_price)), mgmtRate, taxRate, quote?.round_off)
   const offerTotals = calcTotals(offerSections, mgmtRate, taxRate)
   const diff = offerTotals.total - origTotals.total
 

@@ -111,6 +111,8 @@ export interface Quote {
   status: QuoteStatus
   mgmt_fee_rate: number
   tax_rate: number
+  /** 整單折讓（取整抹零，含稅元、正數）；只有定案 RPC 寫得進去，未定案恆為 0 */
+  round_off: number
   created_by: string
   /** 第一關：工務處長核可（戳記由資料庫 trigger 蓋，前端不寫） */
   approved_l1_by: string | null

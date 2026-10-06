@@ -422,8 +422,8 @@ export default function PrintPage() {
     : taxRate
 
   const totals = useMemo(
-    () => calcTotals(draftSections, feeRate, busRate),
-    [draftSections, feeRate, busRate],
+    () => calcTotals(draftSections, feeRate, busRate, quote?.round_off),
+    [draftSections, feeRate, busRate, quote?.round_off],
   )
 
   /**
@@ -623,6 +623,14 @@ export default function PrintPage() {
               </td>
               <td className={TD + ' num font-semibold'}>{money(totals.tax)}</td>
             </tr>
+            {totals.roundOff > 0 && (
+              <tr>
+                <td className={TD + ' text-right font-semibold text-green'} colSpan={5}>
+                  整單折讓（取整）
+                </td>
+                <td className={TD + ' num font-semibold text-green'}>-{money(totals.roundOff)}</td>
+              </tr>
+            )}
             {/* 全份文件唯一的滿版重色塊 */}
             <tr className="total-row">
               <td

@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useRefData } from '../context/RefDataContext'
-import { calcTotals, concessionPct, evidenceSentence, money } from '../lib/calc'
+import { calcTotals, concessionPct, discountAndRound, evidenceSentence, money } from '../lib/calc'
 import Alert from '../components/ui/Alert'
 import ConfirmPanel from '../components/ui/ConfirmPanel'
 import EmptyState from '../components/ui/EmptyState'
@@ -33,6 +33,14 @@ const numOf = (s: string): number => {
   return Number.isFinite(v) ? v : 0
 }
 
+/** 取整單位：往下抹到這個倍數（1 = 只打折不抹零） */
+const ROUND_TO = [
+  { v: 1, label: '不抹零' },
+  { v: 100, label: '抹到百元' },
+  { v: 1000, label: '抹到千元' },
+  { v: 10000, label: '抹到萬元' },
+]
+
 const timeText = (iso: string): string => {
   const d = new Date(iso)
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString('zh-TW', { hour12: false })
@@ -40,7 +48,7 @@ const timeText = (iso: string): string => {
 
 export default function NegotiationPage() {
   const { id } = useParams<{ id: string }>()
-  const { profile, session } = useAuth()
+  const { profile, session, isAdmin } = useAuth()
   const { items, indexOf, evidenceOf, mgmtFeeRate, taxRate } = useRefData()
 
   const [quote, setQuote] = useState<Quote | null>(null)
@@ -55,6 +63,11 @@ export default function NegotiationPage() {
   const [error, setError] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [confirmClose, setConfirmClose] = useState(false)
+  /** 整單打折取整（副部長／部長）：輸入「幾折」，如 9、8.5 */
+  const [discZhe, setDiscZhe] = useState('9')
+  const [roundTo, setRoundTo] = useState(1000)
+  /** 已套用的抹零金額；任何一列定案單價被手動改過就歸零（零頭不再對得上） */
+  const [roundOff, setRoundOff] = useState(0)
 
   const load = useCallback(async () => {
     if (!id) { setError('網址缺少單據編號。'); setLoading(false); return }
@@ -97,6 +110,7 @@ export default function NegotiationPage() {
   }, [id])
 
   const setRow = (lineId: string, patch: Partial<RowState>) => {
+    if ('final_price' in patch) setRoundOff(0)
     setRows((prev) => ({ ...prev, [lineId]: { ...prev[lineId], ...patch } }))
   }
 
@@ -144,7 +158,7 @@ export default function NegotiationPage() {
   // 同一份分組結果同時餵給合計與表格，少算一次也少一次不一致的機會
   const finalSections = buildSections(finalOf)
   const origTotals = calcTotals(buildSections((l) => Number(l.unit_price)), mgmt, tax)
-  const finalTotals = calcTotals(finalSections, mgmt, tax)
+  const finalTotals = calcTotals(finalSections, mgmt, tax, roundOff)
   const diff = origTotals.total - finalTotals.total
   const totalPct = concessionPct(origTotals.total, finalTotals.total)
 
@@ -159,6 +173,32 @@ export default function NegotiationPage() {
     const fp = floorOf(l.item_id)
     return fp !== null && finalOf(l) < fp
   })
+
+  const discount = numOf(discZhe) / 10
+  const discountOk = discount > 0 && discount <= 1
+  // 以「我方原單價」為基準打折，不疊在已議過的定案價上——按兩次 9 折不會變 81 折
+  const discPreview = discountOk
+    ? discountAndRound(buildSections((l) => Number(l.unit_price)), mgmt, tax, discount, roundTo)
+    : null
+
+  const applyDiscount = () => {
+    if (!discPreview) { setError('折數請填 1～10 之間，例如 9 或 8.5。'); return }
+    setError(null); setMsg(null)
+    const note = `整單 ${discZhe} 折${roundTo > 1 ? `，合計${ROUND_TO.find((x) => x.v === roundTo)?.label}` : ''}`
+    setRows((prev) => Object.fromEntries(lines.map((l): [string, RowState] => {
+      const r = prev[l.id]
+      const rat = r?.rationale.trim() ? `${r.rationale.trimEnd()}
+${note}` : note
+      return [l.id, {
+        client_offer: r?.client_offer ?? '',
+        response: 'partial',
+        final_price: String(discPreview.prices[l.id] ?? Number(l.unit_price)),
+        rationale: rat,
+      }]
+    })))
+    setRoundOff(discPreview.roundOff)
+    setMsg(`已套用${note}：定案後合計 ${money(discPreview.total)}。確認無誤後按「本案定案」寫回。`)
+  }
 
   const maxRound = negos.reduce((a, n) => Math.max(a, Number(n.round) || 0), 0)
   const nextRound = maxRound + 1
@@ -264,6 +304,7 @@ export default function NegotiationPage() {
     const { data, error: e } = await supabase.rpc('close_quote_case', {
       p_quote_id: quote.id,
       p_rows: payload,
+      p_round_off: roundOff,
     })
     setBusy(false)
     if (e) { setError(`定案失敗：${e.message}`); return }
@@ -592,6 +633,9 @@ export default function NegotiationPage() {
                 { k: '定案後工程小計', v: money(finalTotals.works) },
                 { k: `管理費 ${(mgmt * 100).toFixed(1)}%`, v: money(finalTotals.mgmt) },
                 { k: `營業稅 ${(tax * 100).toFixed(1)}%`, v: money(finalTotals.tax) },
+                ...(finalTotals.roundOff > 0
+                  ? [{ k: '整單折讓（取整）', v: `-${money(finalTotals.roundOff)}` }]
+                  : []),
               ].map((row) => (
                 <div key={row.k} className="flex items-baseline gap-2 border-b border-ink-200 py-1">
                   <dt className="min-w-0 break-words text-ink-700">{row.k}</dt>
@@ -620,6 +664,64 @@ export default function NegotiationPage() {
               </button>
             </div>
           </div>
+
+          {/* 整單打折取整：只給副部長／部長（is_admin），定案 RPC 那端也只認 is_admin，
+              畫面藏起來不是權限，資料庫才是。 */}
+          {isAdmin && quote.status !== 'closed' && lines.length > 0 && (
+            <div className="card">
+              <div className="card-title">整單打折取整</div>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="min-w-0">
+                  <span className="label">折數（折）</span>
+                  <input
+                    type="number"
+                    className="field num"
+                    min={1}
+                    max={10}
+                    step={0.5}
+                    value={discZhe}
+                    onChange={(e) => setDiscZhe(e.target.value)}
+                  />
+                </label>
+                <label className="min-w-0">
+                  <span className="label">合計取整</span>
+                  <select className="field" value={roundTo} onChange={(e) => setRoundTo(Number(e.target.value))}>
+                    {ROUND_TO.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
+                  </select>
+                </label>
+              </div>
+              {discPreview ? (
+                <dl className="mt-2 space-y-1 text-[0.8125rem]">
+                  <div className="flex items-baseline gap-2">
+                    <dt className="text-ink-700">打折後合計</dt>
+                    <dd className="num ml-auto">{money(discPreview.total + discPreview.roundOff)}</dd>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <dt className="text-ink-700">抹零</dt>
+                    <dd className="num ml-auto">-{money(discPreview.roundOff)}</dd>
+                  </div>
+                  <div className="flex items-baseline gap-2 border-t border-ink-200 pt-1 font-semibold">
+                    <dt className="text-deep">定案合計</dt>
+                    <dd className="num ml-auto text-deep">{money(discPreview.total)}</dd>
+                  </div>
+                </dl>
+              ) : (
+                <p className="mt-2 text-xs text-warn">折數請填 1～10 之間，例如 9 或 8.5。</p>
+              )}
+              <button
+                type="button"
+                className="btn mt-3 w-full"
+                disabled={busy || !discPreview}
+                onClick={applyDiscount}
+              >
+                套用到定案單價
+              </button>
+              <p className="mt-1 text-[0.6875rem] text-ink-500">
+                以我方原單價為基準逐項打折（取整到元），零頭記為「整單折讓」印在報價總表。
+                套用後若再手動改任一列定案單價，抹零會取消。
+              </p>
+            </div>
+          )}
 
           {confirmClose && (
             <ConfirmPanel

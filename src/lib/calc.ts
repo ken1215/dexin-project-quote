@@ -11,17 +11,19 @@ export interface Totals {
   mgmt: number    // 工程管理費
   sub: number     // 小計（工程小計 + 管理費）
   tax: number     // 營業稅
+  roundOff: number // 整單折讓（取整抹零，正數；定案時由副部長寫入 quotes.round_off）
   total: number   // 合計
 }
 
 /**
  * 報價單金額計算 — 全系統唯一的一份公式。
- * 工程小計 → +管理費 → 小計 → +營業稅 → 合計，每層都四捨五入到元。
+ * 工程小計 → +管理費 → 小計 → +營業稅 → −整單折讓 → 合計，每層都四捨五入到元。
  */
 export function calcTotals(
   sections: DraftSection[],
   mgmtFeeRate: number,
   taxRate: number,
+  roundOff = 0,
 ): Totals {
   const secs = sections.map((s) => ({
     key: s.key,
@@ -32,7 +34,35 @@ export function calcTotals(
   const mgmt = Math.round(works * (Number(mgmtFeeRate) || 0))
   const sub = works + mgmt
   const tax = Math.round(sub * (Number(taxRate) || 0))
-  return { sections: secs, works, mgmt, sub, tax, total: sub + tax }
+  const off = Math.round(Number(roundOff) || 0)
+  return { sections: secs, works, mgmt, sub, tax, roundOff: off, total: sub + tax - off }
+}
+
+/**
+ * 整單打折並取整：每項單價 × 折數取整到元，含稅合計再往下抹到 roundTo 的倍數，
+ * 抹掉的零頭回傳為 roundOff（交給 calcTotals 的第 4 個參數）。
+ * 往下抹是讓利給院方的方向；roundTo ≦ 1 表示只打折不抹零。
+ */
+export function discountAndRound(
+  sections: DraftSection[],
+  mgmtFeeRate: number,
+  taxRate: number,
+  discount: number,
+  roundTo: number,
+): { prices: Record<string, number>; roundOff: number; total: number } {
+  const prices: Record<string, number> = {}
+  const disc = sections.map((s) => ({
+    ...s,
+    lines: s.lines.map((l) => {
+      const p = Math.round((Number(l.unit_price) || 0) * discount)
+      prices[l.key] = p
+      return { ...l, unit_price: p }
+    }),
+  }))
+  const raw = calcTotals(disc, mgmtFeeRate, taxRate).total
+  const step = roundTo > 1 ? roundTo : 1
+  const total = Math.floor(raw / step) * step
+  return { prices, roundOff: raw - total, total }
 }
 
 /**
