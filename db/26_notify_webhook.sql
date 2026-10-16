@@ -45,6 +45,8 @@ begin
     headers := jsonb_build_object(
                  'Content-Type',    'application/json',
                  'x-notify-secret', '<在此貼上 NOTIFY_HOOK_SECRET>'),
+    -- 預設 5 秒不夠 Gmail SMTP 寄完（2026-10-16 實測逾時），給 30 秒
+    timeout_milliseconds := 30000,
     body    := jsonb_build_object(
                  'type',       'UPDATE',
                  'table',      'quotes',
