@@ -66,7 +66,7 @@ const toDraftLine = (l: QuoteLine): DraftLine => ({
 export interface UseQuoteDraft {
   draft: DraftQuote; loading: boolean; saving: boolean
   err: string | null; notice: string | null; issues: string[]
-  reviewNote: string; l1Skipped: boolean
+  reviewNote: string; l1Skipped: boolean; returnedAt: string | null
   locked: boolean; frozen: boolean
   canReviewL1: boolean; canReviewL2: boolean; canReview: boolean
   totals: Totals
@@ -92,6 +92,7 @@ export interface UseQuoteDraft {
   onApproveL1: () => Promise<void>
   onApproveFinal: () => Promise<void>
   onReject: () => Promise<void>
+  onReturnPrev: () => Promise<void>
 }
 
 export function useQuoteDraft(id?: string): UseQuoteDraft {
@@ -112,6 +113,8 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
   const [reviewNote, setReviewNote] = useState('')
   /** 這張單是否由副部長越過工務處長直接核定（戳記在資料庫，這裡只負責顯示） */
   const [l1Skipped, setL1Skipped] = useState(false)
+  /** 副部長退回上一層級的時間；有值時畫面顯示退回意見 */
+  const [returnedAt, setReturnedAt] = useState<string | null>(null)
   /**
    * 剛按下「加入」的品項與加完的累計數量，用來給即時回饋。
    * 手機上明細區在螢幕外，不給回饋的話按了完全看不出有沒有進去；
@@ -124,7 +127,7 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
 
   /* ── 載入既有單據 ───────────────────────────────────────── */
   useEffect(() => {
-    if (!id) { setDraft(emptyDraft()); setReviewNote(''); setL1Skipped(false); setLoading(false); return }
+    if (!id) { setDraft(emptyDraft()); setReviewNote(''); setL1Skipped(false); setReturnedAt(null); setLoading(false); return }
     let cancelled = false
     setLoading(true)
     setErr(null)
@@ -167,6 +170,7 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
       })
       setReviewNote(quote.review_note)
       setL1Skipped(quote.l1_skipped)
+      setReturnedAt(quote.returned_at ?? null)
       setLoading(false)
     })()
     return () => { cancelled = true }
@@ -664,10 +668,34 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
     setNotice('已退回開單人。')
   }
 
+  /**
+   * 已核定的單退回上一層級（db/30，只有副部長）：
+   * 正常核定 → 待副部長核定（approved_l1）；越級核定沒有第一關可回 → 待處長核可（submitted）。
+   * 戳記清除與合法性一律由 trigger 處理。
+   */
+  const onReturnPrev = async () => {
+    if (!draft.id) return
+    if (!reviewNote.trim()) { setIssues(['退回上一層級時必須填寫退回意見']); return }
+    const prev: QuoteStatus = l1Skipped ? 'submitted' : 'approved_l1'
+    setIssues([]); setErr(null); setNotice(null); setSaving(true)
+    const r = await supabase.from('quotes').update({
+      status: prev,
+      review_note: reviewNote.trim(),
+      updated_at: new Date().toISOString(),
+    }).eq('id', draft.id).select('id, returned_at')
+    setSaving(false)
+    if (r.error) { setErr(`退回失敗：${r.error.message}`); return }
+    if (!r.data?.length) { setErr('退回失敗：權限不足，或此單狀態已被他人變更。'); return }
+    patchDraft({ status: prev })
+    setL1Skipped(false)
+    setReturnedAt(r.data[0].returned_at)
+    setNotice(prev === 'submitted' ? '已退回工務處長重新核可。' : '已退回至待副部長核定。')
+  }
+
   return {
     draft, loading, saving,
     err, notice, issues,
-    reviewNote, l1Skipped,
+    reviewNote, l1Skipped, returnedAt,
     locked, frozen,
     canReviewL1, canReviewL2, canReview,
     totals,
@@ -691,5 +719,6 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
     onApproveL1,
     onApproveFinal,
     onReject,
+    onReturnPrev,
   }
 }

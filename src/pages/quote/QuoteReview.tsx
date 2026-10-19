@@ -20,7 +20,9 @@ import TotalsCard from './TotalsCard'
  * 本元件只負責顯示，不自己推導權限——真正的把關在資料庫 RLS 與 trigger。
  */
 export default function QuoteReview({ q }: { q: UseQuoteDraft }) {
-  const { isDeptHead, isAdmin } = useAuth()
+  const { isDeptHead, isAdmin, isViceDirector } = useAuth()
+  /** 退回上一層級：只有副部長、只對已核定的單（db/30 trigger 才是真正的鎖） */
+  const canReturnPrev = isViceDirector && q.draft.status === 'approved'
   const {
     items, laborRates, laborBase, laborDiscount, mgmtFeeRate, taxRate,
     loading: refLoading, error: refError,
@@ -74,6 +76,9 @@ export default function QuoteReview({ q }: { q: UseQuoteDraft }) {
       {q.locked && <Alert kind="info">{lockReason}</Alert>}
       {q.draft.status === 'rejected' && q.reviewNote && (
         <Alert kind="warn" title="退回意見">{q.reviewNote}</Alert>
+      )}
+      {q.returnedAt && (q.draft.status === 'submitted' || q.draft.status === 'approved_l1') && q.reviewNote && (
+        <Alert kind="warn" title="副部長退回上一層級">{q.reviewNote}</Alert>
       )}
 
       {/* 表頭摘要：四格純文字。不要用 disabled input——那是改版前被打槍的做法。
@@ -157,6 +162,22 @@ export default function QuoteReview({ q }: { q: UseQuoteDraft }) {
                   type="button" className="btn btn-danger w-full" disabled={q.saving}
                   onClick={() => void q.onReject()}
                 >退回</button>
+              </div>
+            )}
+
+            {canReturnPrev && (
+              <div className="space-y-2 border-t border-ink-200 pt-2">
+                <div>
+                  <label className="label">退回意見（必填）</label>
+                  <textarea
+                    className="field" rows={3} value={q.reviewNote}
+                    onChange={(e) => q.setReviewNote(e.target.value)}
+                  />
+                </div>
+                <button
+                  type="button" className="btn btn-danger w-full" disabled={q.saving}
+                  onClick={() => void q.onReturnPrev()}
+                >{q.l1Skipped ? '退回工務處長（越級核定的單）' : '退回上一層級（待副部長核定）'}</button>
               </div>
             )}
           </div>

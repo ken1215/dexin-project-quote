@@ -122,6 +122,8 @@ export interface Quote {
   approved_at: string | null
   /** 副部長越過第一關直接核定 */
   l1_skipped: boolean
+  /** 副部長「退回上一層級」的時間（db/30）；狀態再往前推就清空 */
+  returned_at: string | null
   review_note: string
   created_at: string
   updated_at: string
