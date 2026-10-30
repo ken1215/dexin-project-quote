@@ -103,7 +103,7 @@ function SortTh(
 }
 
 export default function QuoteListPage() {
-  const { profile, isManager, isAdmin } = useAuth()
+  const { profile, isManager, isAdmin, isDeptHead } = useAuth()
 
   const [quotes, setQuotes] = useState<Quote[]>([])
   const [totals, setTotals] = useState<Record<string, { total: number; orig: number }>>({})
@@ -271,6 +271,11 @@ export default function QuoteListPage() {
   function canDelete(q: Quote): boolean {
     if (isAdmin) return true
     return !!profile && q.created_by === profile.id && q.status === 'draft'
+  }
+
+  /** 與 useQuoteDraft 的 canReviewL1／canReviewL2 同一套判斷，改一邊要一起改 */
+  function canReview(q: Quote): boolean {
+    return ((isDeptHead || isAdmin) && q.status === 'submitted') || (isAdmin && q.status === 'approved_l1')
   }
 
   /** 只認「目前篩選後看得見」的勾選，避免刪到被篩選條件藏起來的單 */
@@ -603,7 +608,12 @@ export default function QuoteListPage() {
                         {/* 操作格不給 data-label：手機會自動佔滿整行，按鈕改 2 欄排列比較好按 */}
                         <td className="td">
                           <div className="grid w-full grid-cols-2 gap-1.5 sm:flex sm:w-auto sm:flex-wrap">
-                            <Link to={`/quote/${q.id}`} className="btn">編輯</Link>
+                            {/* 輪到我簽核的單給「審查」主鈕；同一頁（QuoteReview），只是不要讓主管點「編輯」去簽核 */}
+                            {canReview(q) ? (
+                              <Link to={`/quote/${q.id}`} className="btn btn-primary">審查</Link>
+                            ) : (
+                              <Link to={`/quote/${q.id}`} className="btn">編輯</Link>
+                            )}
                             <a href={`#/print/${q.id}`} target="_blank" rel="noopener noreferrer" className="btn">列印</a>
                             {/* 議價頁是 adminOnly（處長看得到卻進不去只會撞拒絕畫面）。
                                 副部長可減價定案；部長進去只能看 */}
