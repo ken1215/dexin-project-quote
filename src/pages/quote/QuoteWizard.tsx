@@ -76,6 +76,9 @@ export interface StepItemsProps extends StepTableProps {
   items: PriceItem[]
   /** 已勾的大類（做分類頁籤用），順序同單價庫的 sort */
   categories: Category[]
+  /** 全部 active 品項與大類：關鍵字在已勾大類找不到時改搜全庫（同仁常因大類沒勾而自訂庫裡已有的品項） */
+  allItems: PriceItem[]
+  allCategories: Category[]
   /** 剛按下「加入」的即時回饋，原樣沿用現行的 .row-added／「已加入 ×N」 */
   justAdded: { id: string; qty: number } | null
   onAddItem: (item: PriceItem) => void
@@ -472,6 +475,8 @@ export default function QuoteWizard({ q }: { q: UseQuoteDraft }) {
           {...tableProps}
           items={visibleItems}
           categories={pickedCategories}
+          allItems={items.filter((i) => i.active)}
+          allCategories={categories}
           justAdded={q.justAdded}
           onAddItem={q.addItem}
         />

@@ -94,8 +94,13 @@ db/
 ├─ 01_schema.sql            資料表 + RLS + 觸發器
 ├─ 02_seed.sql              由 scripts/gen_seed.py 產生的初始資料
 ├─ …                        依編號順序執行的變更檔
-└─ 29_nego_discount_display.sql  副部長定案、orig_price 折扣顯示、採購角色下線
-                            （部署順序：db/29 → 前端 → functions deploy admin-users）
+├─ 29_nego_discount_display.sql  副部長定案、orig_price 折扣顯示、採購角色下線
+│                           （部署順序：db/29 → 前端 → functions deploy admin-users）
+├─ 30_return_prev_level.sql 副部長將已核定單退回上一層級
+└─ 31_review_hardening.sql  核可也查零元理由、處長核可後不能再改明細、核定後退回限副部長、抹零上限
+                            （只改規則不動資料；部署順序：前端 → notify-approval → db/31）
+資料庫備份：scripts/backup-db.mjs（唯讀），排程用 scripts/install-backup-task.ps1 建
+                            （每天 12:30，存雲端「工務專案小組\院內工程報價\資料庫備份」，留 90 份）
 supabase/functions/
 ├─ admin-users/             帳號建立／改密碼（前端經 src/lib/adminApi.ts 呼叫）
 └─ notify-approval/         簽核通知信。mail.ts 是「誰收信／信寫什麼」的純函式，

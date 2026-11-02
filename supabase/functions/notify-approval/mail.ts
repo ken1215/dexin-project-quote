@@ -97,6 +97,10 @@ const CREATOR_STATUSES = ['approved', 'rejected']
  */
 const NEVER_NOTIFY_ROLES = ['procurement']
 
+/** 已核定的單被副部長退回上一層級（approved → approved_l1／submitted） */
+const isReturnPrev = (oldStatus: string | undefined, newStatus: string): boolean =>
+  oldStatus === 'approved' && (newStatus === 'approved_l1' || newStatus === 'submitted')
+
 /** 這個人現在能不能收信：啟用中、不是採購、而且主管幫他填了收信地址 */
 const mailableAddress = (p: Profile | undefined): string => {
   if (!p) return ''
@@ -124,6 +128,20 @@ export function resolveRecipients(input: {
   if (newStatus === oldStatus) return []
 
   const out: string[] = []
+
+  // 退回上一層級（db/30，只有副部長能按）：撤回的是「已核定」，所以要通知先前收過核定信的
+  // 開單人與部長；退到處長那關再加處長。副部長本人就是按退回的人，不寄給他。
+  if (isReturnPrev(oldStatus, newStatus)) {
+    const roles = newStatus === 'submitted' ? ['admin_head', 'dept_head'] : ['admin_head']
+    const creator = mailableAddress(profiles.find((p) => p.id === createdBy))
+    if (creator) out.push(creator)
+    for (const p of profiles) {
+      if (!roles.includes(p.role)) continue
+      const addr = mailableAddress(p)
+      if (addr) out.push(addr)
+    }
+    return [...new Set(out)]
+  }
 
   // 兩條規則**各自獨立生效、可以疊加**，不是二選一：
   // 核定（approved）同時符合「通知開單人」與「加發部長備查」，兩邊都要加進來。
@@ -182,13 +200,18 @@ export function buildMail(input: {
    * 從原始文字一路組到底、只編一次，這兩個坑就都不存在。
    */
   subjectSuffix?: string
+  /** 舊狀態；用來辨認「退回上一層級」，那封信要寫明是退回並附理由 */
+  oldStatus?: string
 }): {
   subject: string
   text: string
   html: string
 } {
   const { record, baseUrl } = input
-  const statusText = STATUS_LABEL[record.status] ?? record.status
+  const returned = isReturnPrev(input.oldStatus, record.status)
+  const statusText = returned
+    ? `已核定退回上一層級（${STATUS_LABEL[record.status]}）`
+    : STATUS_LABEL[record.status] ?? record.status
   const quoteNo = orDash(record.quote_no)
 
   // 使用者設定 APP_BASE_URL 時很可能會順手帶結尾斜線，不去掉會組出 https://x//#/quote/...
@@ -209,7 +232,7 @@ export function buildMail(input: {
 
   // 退回理由只在退回時附上。其他狀態的 review_note 是上一輪留下來的舊註記，
   // 夾在核定信裡會讓人以為單子又被退了。
-  if (record.status === 'rejected') {
+  if (record.status === 'rejected' || returned) {
     lines.push(`退回理由：${orDash(record.review_note)}`)
   }
 
@@ -224,7 +247,7 @@ export function buildMail(input: {
   return {
     subject,
     text: lines.join('\n'),
-    html: buildHtml({ record, statusText, quoteNo, link }),
+    html: buildHtml({ record, statusText, quoteNo, link, returned }),
   }
 }
 
@@ -249,8 +272,9 @@ function buildHtml(input: {
   statusText: string
   quoteNo: string
   link: string
+  returned: boolean
 }): string {
-  const { record, statusText, quoteNo, link } = input
+  const { record, statusText, quoteNo, link, returned } = input
 
   // 狀態色：呼應系統裡 StatusTag 的語意——等人動作用藍、完成用綠、退回用警示紅
   const ACCENT: Record<string, string> = {
@@ -259,7 +283,7 @@ function buildHtml(input: {
     approved: '#00A94F',    // CIS 綠：已核定
     rejected: '#C0392B',    // 警示紅：已退回
   }
-  const accent = ACCENT[record.status] ?? '#4B4745'
+  const accent = returned ? ACCENT.rejected : ACCENT[record.status] ?? '#4B4745'
 
   const FONT = "'Microsoft JhengHei','微軟正黑體',-apple-system,'Segoe UI',sans-serif"
   const e = escapeHtml
@@ -276,7 +300,7 @@ function buildHtml(input: {
     row('需求單位', orDash(record.dept)),
     row('目前狀態', statusText),
     // 退回理由只在退回時附上，理由同純文字版
-    record.status === 'rejected' ? row('退回理由', orDash(record.review_note)) : '',
+    record.status === 'rejected' || returned ? row('退回理由', orDash(record.review_note)) : '',
   ].join('')
 
   return `<!doctype html>

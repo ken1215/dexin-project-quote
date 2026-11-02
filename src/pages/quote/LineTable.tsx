@@ -1,4 +1,4 @@
-import { laborListPrice, lineAmount, money } from '../../lib/calc'
+import { CUSTOM_REASONS, laborListPrice, lineAmount, money } from '../../lib/calc'
 import type { Totals } from '../../lib/calc'
 import { CN, discountLabel } from '../../hooks/useQuoteDraft'
 import type { DraftLine, DraftSection, LaborRate, PriceItem } from '../../types'
@@ -43,6 +43,9 @@ export default function LineTable({
   const cols = readOnly ? 7 : 8
   return (
     <div className="min-w-0 space-y-4">
+      <datalist id="custom-reasons-table">
+        {CUSTOM_REASONS.map((r) => <option key={r} value={r} />)}
+      </datalist>
       {sections.map((sec, si) => (
         <div className="card border-l-4 border-l-deep" key={sec.key}>
           <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-ink-200 pb-2">
@@ -201,7 +204,8 @@ export default function LineTable({
                           <input
                             className="field"
                             value={l.is_custom ? l.reason : l.note}
-                            placeholder={l.is_custom ? '為何需臨時項目（必填）' : '備註'}
+                            list={l.is_custom ? 'custom-reasons-table' : undefined}
+                            placeholder={l.is_custom ? '為何需臨時項目（必填，可點選）' : '備註'}
                             onChange={(e) =>
                               onPatchLine?.(sec.key, l.key,
                                 l.is_custom ? { reason: e.target.value } : { note: e.target.value })

@@ -336,4 +336,22 @@ const rec = (o: Partial<QuoteRecord> = {}): QuoteRecord => ({
   )
 }
 
+// ── 退回上一層級（db/30）：寄開單人＋部長（＋退到處長時的處長），不寄按退回的副部長 ──
+assert.deepEqual(sorted(pick('approved_l1', 'approved')), ['ah1@example.com', 'st1@example.com'],
+  '正常核定退一層：通知開單人與部長，副部長本人不收')
+assert.deepEqual(sorted(pick('submitted', 'approved')),
+  ['ah1@example.com', 'dh1@example.com', 'st1@example.com'],
+  '越級核定退回處長：開單人、部長、處長')
+{
+  const rec: QuoteRecord = {
+    id: 'q1', quote_no: 'DX-1', project: 'p', dept: 'd', status: 'approved_l1',
+    created_by: 'st1', review_note: '工資列重算',
+  }
+  const m = buildMail({ record: rec, baseUrl: 'https://x', oldStatus: 'approved' })
+  assert.ok(decodeSubject(m.subject).includes('退回上一層級'), '主旨要寫明退回')
+  assert.ok(m.text.includes('退回理由：工資列重算'), '退回信要附理由')
+  const normal = buildMail({ record: rec, baseUrl: 'https://x', oldStatus: 'submitted' })
+  assert.ok(!normal.text.includes('退回'), '一般送到第二關的信不可寫退回')
+}
+
 console.log('mail.ts 自我檢查全數通過')

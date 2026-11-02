@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useRefData } from '../context/RefDataContext'
-import { calcTotals, laborPrice, sectionsForPersist, validateQuote } from '../lib/calc'
+import { calcTotals, laborPrice, reasonCopiesName, sectionsForPersist, validateQuote } from '../lib/calc'
 import type { Totals } from '../lib/calc'
 import type {
   DraftLine, DraftQuote, DraftSection, LaborRate,
@@ -599,7 +599,8 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
   }
 
   const onSaveDraft = async () => {
-    const bad = dbGuard()
+    // 審核者改的是已送審的單，送審那套檢查（含零元理由）一條都不能少；db/31 核可時也會再擋
+    const bad = canReview ? validateQuote(draft) : dbGuard()
     setIssues(bad)
     if (bad.length) return
     const savedId = await persist(saveStatus)
@@ -607,7 +608,7 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
   }
 
   const onSubmit = async () => {
-    const bad = validateQuote(draft)
+    const bad = [...validateQuote(draft), ...reasonCopiesName(draft)]
     setIssues(bad)
     if (bad.length) return
     const savedId = await persist('submitted')
@@ -629,6 +630,9 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
    */
   const advance = async (next: QuoteStatus, okMsg: string): Promise<boolean> => {
     if (!draft.id) return false
+    const bad = validateQuote(draft)
+    setIssues(bad)
+    if (bad.length) return false
     setErr(null); setNotice(null); setSaving(true)
     const r = await supabase.from('quotes')
       .update({ status: next, updated_at: new Date().toISOString() })

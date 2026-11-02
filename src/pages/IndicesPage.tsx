@@ -204,14 +204,20 @@ export default function IndicesPage() {
     const baseChanged = Number(baseDaily) !== Number(laborBase)
     const discountChanged = Number(discount) !== Number(laborDiscount)
     if (!changedRates.length && !baseChanged && !discountChanged) return
+    setLaborSaved(false)
+    // 這三個數字一存就全站生效，打錯（空白、把 0.8 打成 8）會讓每張新單工資跟著錯，存檔前先擋
+    const bad: string[] = []
+    if (!(Number(baseDaily) > 0)) bad.push('工資牌價須大於 0')
+    if (!(Number(discount) > 0 && Number(discount) <= 1)) bad.push('物管合約折數須介於 0 與 1 之間（例：8 折填 0.8）')
+    if (changedRates.some((r) => !(Number(r.multiplier) > 0))) bad.push('時段係數須大於 0')
+    if (bad.length) { setLaborError(bad.join('；')); return }
     setSavingLabor(true)
     setLaborError(null)
-    setLaborSaved(false)
 
     if (changedRates.length) {
       // 同上，name 是 not null 無 default，只送 {id, multiplier} 會整批失敗
       const { error: upErr } = await supabase.from('labor_rates').upsert(
-        changedRates.map((r) => ({ ...r, multiplier: Number(r.multiplier) || 0 })),
+        changedRates.map((r) => ({ ...r, multiplier: Number(r.multiplier) })),
       )
       if (upErr) {
         setLaborError(upErr.message)
@@ -222,7 +228,7 @@ export default function IndicesPage() {
     if (baseChanged) {
       const { error: upErr } = await supabase
         .from('settings')
-        .upsert({ key: 'labor_base_daily', value: Number(baseDaily) || 0 }, { onConflict: 'key' })
+        .upsert({ key: 'labor_base_daily', value: Number(baseDaily) }, { onConflict: 'key' })
       if (upErr) {
         setLaborError(upErr.message)
         setSavingLabor(false)
@@ -232,7 +238,7 @@ export default function IndicesPage() {
     if (discountChanged) {
       const { error: upErr } = await supabase
         .from('settings')
-        .upsert({ key: 'labor_discount', value: Number(discount) || 1 }, { onConflict: 'key' })
+        .upsert({ key: 'labor_discount', value: Number(discount) }, { onConflict: 'key' })
       if (upErr) {
         setLaborError(upErr.message)
         setSavingLabor(false)

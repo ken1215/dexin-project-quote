@@ -250,8 +250,10 @@ export default function QuoteListPage() {
   /**
    * 預設分頁：一律從「待我處理」開始，載完之後若一張都沒有就落到「進行中」——
    * 不要讓人一進來就看到空畫面。
+   * 看的是不受關鍵字影響的總張數：用篩後張數的話，打字時分頁會自己跳走。
    */
-  const defaultTab: QuoteTab = loading || counts.todo > 0 ? 'todo' : 'active'
+  const hasTodo = useMemo(() => rows.some((r) => matchesTab(r, 'todo', role, userId)), [rows, role, userId])
+  const defaultTab: QuoteTab = loading || hasTodo ? 'todo' : 'active'
   const tab = tabChoice ?? defaultTab
 
   const visible = useMemo(

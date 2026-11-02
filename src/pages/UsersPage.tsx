@@ -495,7 +495,7 @@ export default function UsersPage() {
                 onChange={(e) => setNewPw(e.target.value)} />
             </div>
             <div className="flex gap-2">
-              <button className="btn btn-primary flex-1 sm:flex-none" disabled={newPw.length < 8 || busy === 'pw'}
+              <button className="btn btn-primary flex-1 sm:flex-none" disabled={newPw.length < 6 || busy === 'pw'}
                 onClick={() => void resetPw()}>
                 {busy === 'pw' ? '處理中…' : '確認重設'}
               </button>

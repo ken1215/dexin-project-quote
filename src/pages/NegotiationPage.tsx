@@ -183,6 +183,7 @@ export default function NegotiationPage() {
 
   const applyDiscount = () => {
     if (!discPreview) { setError('折數請填 1～10 之間，例如 9 或 8.5。'); return }
+    if (discPreview.total <= 0) { setError('抹零後合計為 0 元，請改選較小的取整單位。'); return }
     setError(null); setMsg(null)
     const note = `整單 ${discZhe} 折${roundTo > 1 ? `，合計${ROUND_TO.find((x) => x.v === roundTo)?.label}` : ''}`
     setRows((prev) => Object.fromEntries(lines.map((l): [string, RowState] => {
@@ -624,6 +625,9 @@ export default function NegotiationPage() {
                     <dt className="text-deep">定案合計</dt>
                     <dd className="num ml-auto text-deep">{money(discPreview.total)}</dd>
                   </div>
+                  {discPreview.total <= 0 && (
+                    <p className="text-xs text-warn">金額小於抹零單位，抹零後會變 0 元，請改選較小的取整單位。</p>
+                  )}
                 </dl>
               ) : (
                 <p className="mt-2 text-xs text-warn">折數請填 1～10 之間，例如 9 或 8.5。</p>
@@ -631,7 +635,7 @@ export default function NegotiationPage() {
               <button
                 type="button"
                 className="btn mt-3 w-full"
-                disabled={busy || !discPreview}
+                disabled={busy || !discPreview || discPreview.total <= 0}
                 onClick={applyDiscount}
               >
                 套用到定案單價

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { pendingStatusesFor } from '../lib/quoteFilters'
@@ -24,6 +25,14 @@ export function usePendingCount(): number {
   // 查詢範圍的識別字串：換人登入或換角色就換一個 scope，上一個身分查到的張數自動失效
   const scope = role && uid ? `${role}:${uid}` : ''
   const [hit, setHit] = useState<{ scope: string; n: number } | null>(null)
+  // 簽核完回清單、或從別的視窗切回來時重算；原本只在登入時查一次，簽完數字不會動
+  const { pathname } = useLocation()
+  const [focusTick, setFocusTick] = useState(0)
+  useEffect(() => {
+    const onFocus = () => setFocusTick((t) => t + 1)
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [])
 
   useEffect(() => {
     if (!scope || !role || !uid) return
@@ -40,7 +49,7 @@ export function usePendingCount(): number {
       if (!cancelled) setHit({ scope, n: r.error ? 0 : (r.count ?? 0) })
     })()
     return () => { cancelled = true }
-  }, [scope, role, uid])
+  }, [scope, role, uid, pathname, focusTick])
 
   return hit?.scope === scope ? hit.n : 0
 }

@@ -37,7 +37,7 @@ import type { StepItemsProps } from '../QuoteWizard'
  */
 export default function StepItems(props: StepItemsProps) {
   const {
-    items, categories, justAdded, onAddItem, mgmtFeeRate, taxRate, ...table
+    items, categories, allItems, allCategories, justAdded, onAddItem, mgmtFeeRate, taxRate, ...table
   } = props
 
   /* ── 畫面狀態（純 UI，不屬於單據內容） ───────────────────── */
@@ -51,17 +51,21 @@ export default function StepItems(props: StepItemsProps) {
   const activeCat = categories.some((c) => c.id === cat) ? cat : 'all'
   // 只勾一個大類時頁籤沒有意義，整列不出現（少一個要看的東西）
   const showTabs = categories.length > 1
-  const nameOfCat = (id: string): string => categories.find((c) => c.id === id)?.name ?? ''
+  const nameOfCat = (id: string): string => allCategories.find((c) => c.id === id)?.name ?? ''
 
   /* ── 品項庫：容器已篩過「已勾大類 ＋ active」，這裡只再做頁籤與關鍵字 ── */
-  const shown = useMemo(() => {
-    const kwd = kw.trim().toLowerCase()
-    return items.filter((i) => {
-      if (activeCat !== 'all' && i.category_id !== activeCat) return false
-      if (!kwd) return true
-      return `${i.name} ${i.spec}`.toLowerCase().includes(kwd)
-    })
-  }, [items, activeCat, kw])
+  const kwd = kw.trim().toLowerCase()
+  const inPicked = useMemo(() => items.filter((i) => {
+    if (activeCat !== 'all' && i.category_id !== activeCat) return false
+    if (!kwd) return true
+    return `${i.name} ${i.spec}`.toLowerCase().includes(kwd)
+  }), [items, activeCat, kwd])
+  /** 已勾大類裡搜不到 → 改搜全庫（加入時工程大項一樣會自動長出來） */
+  const fromAll = inPicked.length === 0 && kwd !== ''
+  const shown = useMemo(
+    () => (fromAll ? allItems.filter((i) => `${i.name} ${i.spec}`.toLowerCase().includes(kwd)) : inPicked),
+    [fromAll, allItems, kwd, inPicked],
+  )
 
   /**
    * 依 `subgroup` 分組。清單已依 sort 排好，同大類同子分類必為連續區塊
@@ -181,7 +185,13 @@ export default function StepItems(props: StepItemsProps) {
               onChange={(e) => setKw(e.target.value)}
             />
 
-            {items.length === 0 ? (
+            {fromAll && shown.length > 0 && (
+              <p className="mb-2 rounded bg-light px-2 py-1.5 text-[0.75rem] text-deep">
+                勾選的大類裡沒有「{kw.trim()}」，以下是整個單價庫找到的 {shown.length} 項（標示所屬大類）；
+                請優先選用，找不到再用臨時項目。
+              </p>
+            )}
+            {items.length === 0 && !fromAll ? (
               <EmptyState
                 title="這些大類底下沒有可挑的品項"
                 hint="回上一步換一個大類，或用明細籃裡的「＋ 臨時項目」。"
@@ -219,7 +229,7 @@ export default function StepItems(props: StepItemsProps) {
                               colSpan={3}
                             >
                               {/* 「全部」頁籤下好幾個大類混在一起，子分類前面要掛大類才分得出來 */}
-                              {activeCat === 'all' && showTabs
+                              {(activeCat === 'all' && showTabs) || fromAll
                                 ? (
                                     <>
                                       <span className="text-ink-500">{nameOfCat(g.categoryId)}</span>

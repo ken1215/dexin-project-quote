@@ -1,4 +1,4 @@
-import { lineAmount, money } from '../../lib/calc'
+import { CUSTOM_REASONS, lineAmount, money } from '../../lib/calc'
 import type { Totals } from '../../lib/calc'
 import { CN } from '../../hooks/useQuoteDraft'
 import type { DraftLine, DraftSection, LaborRate, PriceItem } from '../../types'
@@ -50,6 +50,9 @@ export default function BasketList({
 }: BasketListProps) {
   return (
     <div className="min-w-0 space-y-3">
+      <datalist id="custom-reasons-basket">
+        {CUSTOM_REASONS.map((r) => <option key={r} value={r} />)}
+      </datalist>
       {sections.map((sec, si) => (
         <div className="card min-w-0 border-l-4 border-l-deep p-3" key={sec.key}>
           {/* ── 組標題：可編輯的大項名稱（沿用 patchSection）────────────
@@ -177,7 +180,8 @@ export default function BasketList({
                   <input
                     className="field mt-1.5 min-h-10 text-[0.75rem]"
                     value={l.is_custom ? l.reason : l.note}
-                    placeholder={l.is_custom ? '為何需臨時項目（必填）' : '備註（選填）'}
+                    list={l.is_custom ? 'custom-reasons-basket' : undefined}
+                    placeholder={l.is_custom ? '為何需臨時項目（必填，可點選）' : '備註（選填）'}
                     aria-label={l.is_custom ? '臨時項目理由' : '備註'}
                     onChange={(e) =>
                       onPatchLine(sec.key, l.key,

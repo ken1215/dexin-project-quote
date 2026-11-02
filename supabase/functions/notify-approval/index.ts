@@ -359,7 +359,7 @@ Deno.serve(async (req) => {
   // 把正常情況記成失敗只會讓真正該查的錯誤被淹沒。
   if (to.length === 0) return json({ sent: 0 })
 
-  const { subject, text, html } = buildMail({ record, baseUrl })
+  const { subject, text, html } = buildMail({ record, baseUrl, oldStatus: oldRecord.status })
   try {
     await sendMail(gmailUser, gmailPassword, to, subject, text, html)
   } catch (e) {

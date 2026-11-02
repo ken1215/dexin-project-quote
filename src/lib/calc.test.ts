@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import {
   calcTotals, concessionPct, discountAndRound, discountText, indexedPrice, laborListPrice, laborPrice, lineAmount,
-  sectionsForPersist, validateQuote,
+  reasonCopiesName, sectionsForPersist, validateQuote,
 } from './calc.ts'
 import type { DraftQuote, DraftSection, LaborRate, MaterialIndex, PriceItem } from '../types.ts'
 
@@ -274,6 +274,14 @@ assert.equal(discountText(-5, -10), '', '負數原價一律不顯示')
   assert.ok(discountText(origTotal, finalTotal).startsWith('-'), '有 orig_price 的定案單一定顯示折扣幅度')
   // 舊單：orig_price 全為 null → 原報價合計等於定案合計 → 不顯示
   assert.equal(discountText(finalTotal, finalTotal), '', '沒有 orig_price 的舊單不顯示折扣幅度')
+}
+
+// 臨時項目理由照抄品名要擋；有寫真理由、或標準品項不擋
+{
+  const copy = line({ is_custom: true, name: 'PVC壓條', reason: ' PVC壓條 ', unit_price: 30, qty: 1 })
+  const ok = line({ is_custom: true, name: 'PVC壓條', reason: '單價庫無此品項', unit_price: 30, qty: 1 })
+  assert.equal(reasonCopiesName(draft([{ key: 'a', title: 't', lines: [copy] }])).length, 1, '照抄品名要擋')
+  assert.equal(reasonCopiesName(draft([{ key: 'a', title: 't', lines: [ok] }])).length, 0, '有寫理由不擋')
 }
 
 console.log('calc.ts 自我檢查全數通過')

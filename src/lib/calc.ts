@@ -155,6 +155,23 @@ export function sectionsForPersist(sections: DraftSection[]): DraftSection[] {
   return sections.filter((s) => s.lines.length > 0)
 }
 
+/**
+ * 臨時項目理由的建議選項（datalist，仍可自由輸入）。
+ * 2026-10 實測 18 筆自訂有 17 筆理由直接照抄品名，這欄等於沒作用；給選項＋擋照抄。
+ */
+export const CUSTOM_REASONS = ['單價庫無此品項', '規格與庫內品項不同', '廠商特殊報價', '業主指定品牌／型號']
+
+/** 理由照抄品名＝沒寫理由。只在送審時擋（核可時不擋，避免舊單卡在審核者手上） */
+export function reasonCopiesName(draft: DraftQuote): string[] {
+  const bad: string[] = []
+  draft.sections.forEach((s) => s.lines.forEach((l) => {
+    if (l.is_custom && l.reason.trim() && l.reason.trim() === l.name.trim()) {
+      bad.push(`臨時項目「${l.name.trim()}」的理由不能照抄品名，請說明為何不用單價庫品項`)
+    }
+  }))
+  return bad
+}
+
 /** 送審前的把關；回傳空陣列代表可以送 */
 export function validateQuote(draft: DraftQuote): string[] {
   const bad: string[] = []
