@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useRefData } from '../context/RefDataContext'
+import { pendingStatusesFor } from '../lib/quoteFilters'
 import { calcTotals, laborPrice, sectionsForPersist, validateQuote } from '../lib/calc'
 import type { Totals } from '../lib/calc'
 import type {
@@ -99,7 +100,7 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
   const navigate = useNavigate()
   // 刻意不取 isManager：唯讀判準改看「是不是這一關的審核者」（見 locked 的說明）。
   // isManager 涵蓋處長＋副部長＋部長，拿它當唯讀閘門正是 approved_l1 那個洞的來源。
-  const { isDeptHead, isAdmin } = useAuth()
+  const { isDeptHead, isAdmin, profile } = useAuth()
   const {
     laborRates, laborBase, laborDiscount, mgmtFeeRate, taxRate, categoryOf,
   } = useRefData()
@@ -646,14 +647,37 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
     return true
   }
 
-  const onApproveL1 = async () => { await advance('approved_l1', '已核可，送行政管理部副部長核定。') }
+  /**
+   * 核可成功後直接跳到下一件待我審的單（2026-11-04 使用者要求）。
+   * 先進先出：取最早建立的那張；沒有就留在原單並告知已清空。
+   * 用的是與「待我處理」徽章同一組狀態（pendingStatusesFor），兩邊口徑不會分岔。
+   */
+  const goNextPending = async (okMsg: string) => {
+    const statuses = profile ? pendingStatusesFor(profile.role) : []
+    if (!statuses.length || !draft.id) { setNotice(okMsg); return }
+    const r = await supabase.from('quotes').select('id, quote_no')
+      .in('status', statuses).neq('id', draft.id)
+      .order('created_at', { ascending: true }).limit(1)
+    const next = r.data?.[0]
+    if (!next) { setNotice(`${okMsg}待審單件已全部處理完。`); return }
+    navigate(`/quote/${next.id}`)
+    window.scrollTo(0, 0)
+    setNotice(`${okMsg}已跳到下一件：${next.quote_no}。`)
+  }
+
+  const onApproveL1 = async () => {
+    const msg = '已核可，送行政管理部副部長核定。'
+    if (await advance('approved_l1', msg)) await goNextPending(msg)
+  }
   const onApproveFinal = async () => {
     const skipping = draft.status === 'submitted'
-    const ok = await advance('approved', skipping
+    const msg = skipping
       ? '已越級核定（未經工務處長），系統已留痕。'
-      : '已核定，副部長可至議價頁減價定案。')
+      : '已核定，副部長可至議價頁減價定案。'
+    const ok = await advance('approved', msg)
     // 只有真的成功才點亮越級標記——失敗時畫面不能謊報
     if (ok && skipping) setL1Skipped(true)
+    if (ok) await goNextPending(msg)
   }
 
   const onReject = async () => {
