@@ -9,7 +9,7 @@ import { useRefData } from '../../context/RefDataContext'
 import { useDraftAutosave } from '../../hooks/useDraftAutosave'
 import { DEPT_OPTIONS, LABOR_SECTION_TITLE } from '../../hooks/useQuoteDraft'
 import type { UseQuoteDraft } from '../../hooks/useQuoteDraft'
-import { reasonCopiesName, validateQuote } from '../../lib/calc'
+import { validateQuote } from '../../lib/calc'
 import type { Totals } from '../../lib/calc'
 import { draftKey } from '../../lib/draftStorage'
 import type {
@@ -312,8 +312,7 @@ export default function QuoteWizard({ q }: { q: UseQuoteDraft }) {
   }
 
   /* ── 完成判定（精靈自算，不要去解析 q.issues 的中文字串） ── */
-  // 要與 onSubmit 同一套；少了 reasonCopiesName 會顯示「檢查通過」卻送不出（2026-11-04）
-  const liveIssues = useMemo(() => [...validateQuote(q.draft), ...reasonCopiesName(q.draft)], [q.draft])
+  const liveIssues = useMemo(() => validateQuote(q.draft), [q.draft])
   const done: boolean[] = [
     q.draft.project.trim() !== '',
     selectedCategoryIds.length > 0,

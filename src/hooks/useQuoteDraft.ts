@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useRefData } from '../context/RefDataContext'
-import { calcTotals, laborPrice, reasonCopiesName, sectionsForPersist, validateQuote } from '../lib/calc'
+import { calcTotals, laborPrice, sectionsForPersist, validateQuote } from '../lib/calc'
 import type { Totals } from '../lib/calc'
 import type {
   DraftLine, DraftQuote, DraftSection, LaborRate,
@@ -608,7 +608,7 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
   }
 
   const onSubmit = async () => {
-    const bad = [...validateQuote(draft), ...reasonCopiesName(draft)]
+    const bad = validateQuote(draft)
     setIssues(bad)
     if (bad.length) return
     const savedId = await persist('submitted')
