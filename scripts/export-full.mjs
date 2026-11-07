@@ -61,12 +61,30 @@ function findPgDump() {
   throw new Error('找不到 pg_dump（需 PostgreSQL 17 以上），安裝指令見本檔開頭註解')
 }
 
+// 錯誤訊息一律先過這裡再印／寫 log：Node 的參數檢查錯誤會把 env 值原樣帶出來（2026-11-08 踩過）
+let SECRET = ''
+const redact = (s) => {
+  let out = String(s).replace(/PGPASSWORD[^\n]*/g, 'PGPASSWORD（內容已遮蔽）')
+  if (SECRET) out = out.split(SECRET).join('***')
+  return out
+}
+
+// 密碼檔可能是 PowerShell `>` 寫出的 UTF-16，也可能寫成 DB_PASSWORD=xxx，都要收
+function decodeText(buf) {
+  if (buf[0] === 0xff && buf[1] === 0xfe) return buf.subarray(2).toString('utf16le')
+  if (buf[0] === 0xfe && buf[1] === 0xff) return Buffer.from(buf.subarray(2)).swap16().toString('utf16le')
+  if (buf.length > 1 && buf.includes(0)) return buf.toString('utf16le')
+  return buf.toString('utf8').replace(/^\uFEFF/, '')
+}
+
 function readPassword() {
   if (process.env.SUPABASE_DB_PASSWORD) return process.env.SUPABASE_DB_PASSWORD
   const f = join(ROOT, '.supabase-db-password.txt')
   if (!existsSync(f)) throw new Error('沒有 DB 密碼：設 SUPABASE_DB_PASSWORD，或放 .supabase-db-password.txt')
-  const line = readFileSync(f, 'utf8').replace(/^\uFEFF/, '').split(/\r?\n/).map((s) => s.trim()).find(Boolean)
+  let line = decodeText(readFileSync(f)).split(/\r?\n/).map((s) => s.trim()).find(Boolean)
   if (!line) throw new Error('.supabase-db-password.txt 是空的')
+  line = line.replace(/^[A-Za-z_][A-Za-z0-9_]*\s*=\s*/, '').replace(/^(['"])(.*)\1$/, '$2')
+  if (!line || /[\0\s]/.test(line)) throw new Error('.supabase-db-password.txt 格式無法辨識（應只有一行密碼）')
   return line
 }
 
@@ -119,7 +137,8 @@ try {
   if (!(major >= MIN_PG_MAJOR)) throw new Error(`pg_dump 版本太舊（${ver}），需要 ${MIN_PG_MAJOR} 以上`)
 
   const url = poolerUrl()
-  const env = { ...process.env, PGPASSWORD: readPassword(), PGSSLMODE: 'require', PGCONNECT_TIMEOUT: '20' }
+  SECRET = readPassword()
+  const env = { ...process.env, PGPASSWORD: SECRET, PGSSLMODE: 'require', PGCONNECT_TIMEOUT: '20' }
   mkdirSync(outDir, { recursive: true })
 
   const dump = (file, args) => {
@@ -180,7 +199,7 @@ try {
   log(`OK ${outDir} ${summary}`)
   console.log(`完整匯出完成：${outDir}\n${summary.replace(/ /g, '\n')}`)
 } catch (e) {
-  const msg = (e.stderr ? String(e.stderr) : e.message).split('\n').find(Boolean) || e.message
+  const msg = redact((e.stderr ? String(e.stderr) : e.message).split('\n').find(Boolean) || e.message)
   log(`FAIL ${msg}`)
   console.error(`完整匯出失敗：${msg}`)
   // 失敗的半成品資料夾不留，免得被當成可用備份
