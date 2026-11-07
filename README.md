@@ -101,6 +101,9 @@ db/
                             （只改規則不動資料；部署順序：前端 → notify-approval → db/31）
 資料庫備份：scripts/backup-db.mjs（唯讀），排程用 scripts/install-backup-task.ps1 建
                             （每天 12:30，存雲端「工務專案小組\院內工程報價\資料庫備份」，留 90 份）
+完整匯出：scripts/export-full.mjs（pg_dump 結構＋資料＋auth 帳號，供 NAS 自架備援還原）
+                            （每天 12:40，存「資料庫備份\完整匯出」，留 30 份；需 PostgreSQL 17 pg_dump
+                             與 .supabase-db-password.txt；還原注意事項寫在每份的 manifest.json）
 supabase/functions/
 ├─ admin-users/             帳號建立／改密碼（前端經 src/lib/adminApi.ts 呼叫）
 └─ notify-approval/         簽核通知信。mail.ts 是「誰收信／信寫什麼」的純函式，
