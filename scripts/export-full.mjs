@@ -28,7 +28,7 @@
 import { execFileSync, execSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import {
-  appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync,
+  appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync,
 } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -76,6 +76,15 @@ function poolerUrl() {
   const url = readFileSync(f, 'utf8').trim()
   if (/:[^:@/]+@/.test(url.replace(/^postgresql:\/\//, ''))) throw new Error('pooler-url 內含密碼，請改用不含密碼的版本')
   return url
+}
+
+// ponytail: 不用 fs.cpSync——Node 24 在 Google Drive 虛擬槽（H:）上 cpSync 會整個行程崩潰（0xC0000409，無錯誤訊息）
+function copyDir(from, to) {
+  mkdirSync(to, { recursive: true })
+  for (const e of readdirSync(from, { withFileTypes: true })) {
+    if (e.isDirectory()) copyDir(join(from, e.name), join(to, e.name))
+    else copyFileSync(join(from, e.name), join(to, e.name))
+  }
 }
 
 const sha256 = (file) => createHash('sha256').update(readFileSync(file)).digest('hex')
@@ -138,7 +147,7 @@ try {
   // 原始碼快照：Edge Function 與 db 腳本（含 gitignore 的 db/14 印章）一起帶走，還原時不必回頭找 repo
   const src = join(outDir, 'source')
   for (const d of ['db', join('supabase', 'functions'), 'functions']) {
-    if (existsSync(join(ROOT, d))) cpSync(join(ROOT, d), join(src, d), { recursive: true })
+    if (existsSync(join(ROOT, d))) copyDir(join(ROOT, d), join(src, d))
   }
 
   let commit = 'unknown'
