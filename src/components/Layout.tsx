@@ -3,13 +3,30 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useRefData } from '../context/RefDataContext'
 import ChangePasswordDialog from './ChangePasswordDialog'
+import BrandLockup from './ui/BrandLockup'
 import BrandMark from './ui/BrandMark'
 import { usePendingCount } from '../hooks/usePendingCount'
 import { ROLE_LABEL } from '../types'
 
+/** 桌機導覽：目前頁＝主藍 3px 底線＋深藍粗字（德新 CIS 的選單指示） */
 const link = ({ isActive }: { isActive: boolean }) =>
-  'rounded px-3 py-2 text-sm transition ' +
-  (isActive ? 'bg-white/20 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white')
+  'whitespace-nowrap border-b-[3px] px-3 py-2 text-sm transition ' +
+  (isActive ? 'border-bright font-bold text-deep' : 'border-transparent text-ink-700 hover:text-deep')
+
+/** 手機選單是直排，指示線改畫在左側 */
+const mobileLink = ({ isActive }: { isActive: boolean }) =>
+  'border-l-[3px] px-3 py-2.5 text-sm transition ' +
+  (isActive ? 'border-bright bg-light/40 font-bold text-deep' : 'border-transparent text-ink-700 hover:text-deep')
+
+/** 頁首頂端的品牌色條：主藍 7 ： 新芽綠 2（純裝飾） */
+function BrandBar() {
+  return (
+    <div aria-hidden="true" className="flex h-1">
+      <span className="flex-[7] bg-bright" />
+      <span className="flex-[2] bg-sprout" />
+    </div>
+  )
+}
 
 export default function Layout() {
   const { profile, isManager, signOut } = useAuth()
@@ -23,86 +40,88 @@ export default function Layout() {
   // 手機選單點完就收——不然換頁後選單還蓋在畫面上
   useEffect(() => { setMenuOpen(false) }, [pathname])
 
-  const nav = (
+  const nav = (cls: typeof link) => (
     <>
-      {/* 「開新單」從導覽移到右側主 CTA，這裡只留清單入口＋待我處理徽章 */}
-      <NavLink to="/" end className={link}>
+      {/* 「開新單」是右側主 CTA，這裡只留清單入口＋待我處理徽章 */}
+      <NavLink to="/" end className={cls}>
         報價單
         {pending > 0 && (
-          <span className="ml-1.5 rounded-full bg-sprout px-1.5 text-[0.6875rem] font-semibold text-ink-900">
+          <span className="num ml-1.5 rounded-full bg-sprout px-1.5 text-[0.6875rem] font-semibold text-ink-900">
             {pending}
           </span>
         )}
       </NavLink>
-      {/* 維護頁自成一群，與上面的作業頁用一條分隔線隔開 */}
       {isManager && (
         <>
-          <span className="mx-1 hidden self-center text-white/30 lg:inline">|</span>
-          <NavLink to="/catalog" className={link}>單價維護</NavLink>
-          <NavLink to="/indices" className={link}>物價指數</NavLink>
+          <NavLink to="/catalog" className={cls}>單價維護</NavLink>
+          <NavLink to="/indices" className={cls}>物價指數</NavLink>
           {/* 帳號管理：副部長管全部，處長只管得動同仁（把關在 RLS 與 Edge Function） */}
-          <NavLink to="/users" className={link}>人員權限</NavLink>
+          <NavLink to="/users" className={cls}>人員權限</NavLink>
         </>
       )}
     </>
   )
 
+  /** 姓名・角色＋改密碼／登出。主 CTA 不在這組裡——它在頁首列上永遠可見，手機也是，不會出現兩顆。 */
+  const quiet = 'btn whitespace-nowrap border-transparent bg-transparent px-2 text-ink-500 hover:border-ink-200'
   const account = (
     <>
-      {/* 主要動作：開單是這套系統的主線，從導覽列升級成整條 header 唯一的實心按鈕。
-          放在 account 群組開頭，桌機列與漢堡選單各渲染一次（兩者永遠只有一個可見）。 */}
-      <Link to="/quote/new" className="btn border-white bg-white text-deep hover:bg-light hover:text-deep">
-        ＋ 開新單
-      </Link>
-      <span className="text-white/85">
+      <span className="whitespace-nowrap text-[0.8125rem] text-ink-500">
         {profile?.full_name || '—'}
-        <span className="ml-1.5 rounded-full bg-white/20 px-2 py-0.5 text-[0.6875rem]">
-          {ROLE_LABEL[profile?.role ?? 'staff']}
-        </span>
+        <span className="lg:hidden xl:inline">・{ROLE_LABEL[profile?.role ?? 'staff']}</span>
       </span>
-      <button onClick={() => setPwOpen(true)} className="btn border-white/35 bg-white/15 text-white hover:border-white hover:text-white">
-        改密碼
-      </button>
-      <button onClick={() => void signOut()} className="btn border-white/35 bg-white/15 text-white hover:border-white hover:text-white">
-        登出
-      </button>
+      <button type="button" onClick={() => setPwOpen(true)} className={quiet}>改密碼</button>
+      <button type="button" onClick={() => void signOut()} className={quiet}>登出</button>
     </>
   )
 
   return (
-    <>
-      <header className="no-print sticky top-0 z-20 bg-deep text-white">
-        <div className="flex items-center gap-3 px-3 py-2 sm:px-5 sm:py-2.5">
-          <BrandMark />
-          <h1 className="truncate text-[0.9375rem] font-semibold tracking-wide sm:text-[1.0625rem]">
-            {/* 手機沒有橫向空間放全名，留下認得出來的短名 */}
-            <span className="sm:hidden">德新報價系統</span>
-            <span className="hidden sm:inline">德新物業專案工程報價系統</span>
-          </h1>
+    // 欄式外框：內容少的頁面頁尾也貼在視窗底部
+    <div className="flex min-h-dvh flex-col">
+      {/* 2026-11-12 定案：頁首改白底＋德新橫式標誌組合，頂端 4px 品牌色條 */}
+      <header className="no-print sticky top-0 z-20 border-b border-ink-200 bg-white">
+        <BrandBar />
+        <div className="mx-auto flex max-w-[1280px] items-center gap-2 px-3 py-2 sm:gap-4 sm:px-5 sm:py-2.5">
+          <Link to="/" className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3 max-sm:shrink" aria-label="德新物業 工務報價系統 首頁">
+            <span className="sm:hidden"><BrandLockup size="sm" /></span>
+            <span className="hidden sm:inline-flex"><BrandLockup size="md" /></span>
+            {/* 窄手機（<420px）放不下系統名，與其截成「工…」不如整段收起；標誌組合本身已足以辨識 */}
+            <span aria-hidden="true" className="hidden h-6 w-px shrink-0 bg-ink-200 min-[420px]:block sm:h-7.5" />
+            <span className="hidden min-w-0 truncate whitespace-nowrap text-[0.8125rem] min-[420px]:inline font-bold text-ink-900 sm:text-[0.9375rem]">
+              工務報價系統
+            </span>
+          </Link>
           {version && (
-            <span className="hidden text-xs text-white/70 lg:inline">單價庫 {version}</span>
+            <span className="hidden whitespace-nowrap text-xs text-ink-500 2xl:inline">單價庫 {version}</span>
           )}
 
-          <nav className="ml-2 hidden flex-wrap gap-1 lg:flex">{nav}</nav>
-          <div className="ml-auto hidden items-center gap-3 text-sm lg:flex">{account}</div>
+          <nav aria-label="主選單" className="ml-2 hidden gap-1 self-stretch lg:flex lg:items-end">
+            {nav(link)}
+          </nav>
+          <div className="ml-auto hidden items-center gap-1 lg:flex">{account}</div>
 
-          {/* 手機／平板：收進漢堡選單。aria-expanded 讓螢幕報讀器知道開合狀態 */}
+          {/* 主要動作：整條頁首唯一的實心按鈕，桌機與手機都在同一個位置、只渲染一次 */}
+          <Link to="/quote/new" className="btn btn-primary ml-auto shrink-0 lg:ml-0">＋ 開新單</Link>
+
+          {/* 手機／平板：其餘導覽收進選單。aria-expanded 讓螢幕報讀器知道開合狀態 */}
           <button
             type="button"
-            className="btn ml-auto border-white/35 bg-white/15 text-white lg:hidden"
+            className="btn shrink-0 px-2.5 lg:hidden"
             aria-expanded={menuOpen}
             aria-controls="main-nav"
+            aria-label={menuOpen ? '關閉選單' : '開啟選單'}
             onClick={() => setMenuOpen((v) => !v)}
           >
-            {menuOpen ? '✕ 關閉' : '☰ 選單'}
+            {menuOpen ? '✕' : '☰'}
           </button>
         </div>
 
         {menuOpen && (
-          <div id="main-nav" className="border-t border-white/20 px-3 pb-3 lg:hidden">
-            <nav className="flex flex-col py-1">{nav}</nav>
-            <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-white/20 pt-2 text-sm">
+          <div id="main-nav" className="border-t border-ink-200 px-3 pb-3 lg:hidden">
+            <nav aria-label="主選單" className="flex flex-col py-1">{nav(mobileLink)}</nav>
+            <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-ink-200 pt-2">
               {account}
+              {version && <span className="w-full text-xs text-ink-500">單價庫 {version}</span>}
             </div>
           </div>
         )}
@@ -116,9 +135,19 @@ export default function Layout() {
         </div>
       )}
 
-      <main className="mx-auto max-w-[1280px] px-3 py-3 pb-16 sm:px-5 sm:py-4">
+      <main className="mx-auto w-full max-w-[1280px] flex-1 px-3 py-4 pb-16 sm:px-5 sm:py-6">
         <Outlet />
       </main>
-    </>
+
+      <footer className="no-print border-t border-ink-200 bg-white">
+        <div className="mx-auto flex max-w-[1280px] flex-wrap items-center justify-between gap-2 px-3 py-4 text-xs text-ink-500 sm:px-5">
+          <span className="flex items-center gap-2">
+            <BrandMark size={18} className="opacity-90" />
+            立德新股份有限公司（德新物業）・工務處
+          </span>
+          <span className="font-brand tracking-[0.2em] text-bright">LANDSEED PROPERTY</span>
+        </div>
+      </footer>
+    </div>
   )
 }
