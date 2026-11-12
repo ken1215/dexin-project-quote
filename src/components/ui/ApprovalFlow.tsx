@@ -1,4 +1,4 @@
-import { compactLine, formatStamp } from '../../lib/approvalFlow'
+import { compactLine, formatStamp, visibleSteps } from '../../lib/approvalFlow'
 import type { Flow, FlowStep } from '../../lib/approvalFlow'
 
 /**
@@ -81,6 +81,7 @@ export default function ApprovalFlow(
   { flow: Flow; names?: Record<string, string>; variant?: 'full' | 'compact'; className?: string },
 ) {
   /* ── 精簡版：清單「狀態」欄，放在 StatusTag 正下方 ─────────── */
+  const steps = visibleSteps(flow)
   if (variant === 'compact') {
     const line = compactLine(flow, names)
     const tone = line?.tone === 'warn' ? 'text-warn' : line?.tone === 'skipped' ? 'text-alert-d' : 'text-ink-500'
@@ -92,7 +93,7 @@ export default function ApprovalFlow(
         className={`inline-flex flex-col items-start gap-1 ${className}`}
       >
         <span aria-hidden="true" className="flex gap-[3px]">
-          {flow.steps.map((st) => (
+          {steps.map((st) => (
             <span key={st.key} className={`h-1.5 w-6 rounded-full sm:w-5.5 ${SEG[lookOf(st)]}`} />
           ))}
         </span>
@@ -112,8 +113,8 @@ export default function ApprovalFlow(
         </span>
       </div>
 
-      <ol aria-label="簽核流程" className="sm:grid sm:grid-cols-4">
-        {flow.steps.map((st, i) => {
+      <ol aria-label="簽核流程" className={'sm:grid ' + (steps.length === 4 ? 'sm:grid-cols-4' : 'sm:grid-cols-3')}>
+        {steps.map((st, i) => {
           const look = lookOf(st)
           const name = st.byId ? names[st.byId] : undefined
           const when = formatStamp(st.at)
@@ -130,7 +131,7 @@ export default function ApprovalFlow(
                 >
                   {mark(look, i + 1)}
                 </span>
-                <Connector look={look} last={i === flow.steps.length - 1} />
+                <Connector look={look} last={i === steps.length - 1} />
               </div>
               <div className="flex min-w-0 flex-col gap-0.5 pb-3.5 sm:pr-2 sm:pb-0">
                 <span className={`text-[0.8125rem] font-bold ${TITLE[look]}`}>

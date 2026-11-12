@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useRefData } from '../context/RefDataContext'
 import { calcTotals, discountText, laborListPrice, lineAmount, money } from '../lib/calc'
-import { buildApprovalFlow, type FlowStep } from '../lib/approvalFlow'
+import { buildApprovalFlow, visibleSteps, type FlowStep } from '../lib/approvalFlow'
 import BrandMark from '../components/ui/BrandMark'
 import {
   EVIDENCE_LABEL, STATUS_LABEL,
@@ -680,7 +680,7 @@ export default function PrintPage() {
    */
   const flow = buildApprovalFlow(quote)
   /** 簽核紀錄的「議價定案」格：真的議價過（已定案／舊制議價中）才印，待議價時不佔一格 */
-  const trailSteps = flow.steps.filter((s) => s.key !== 'close' || s.state === 'done' || flow.legacy)
+  const trailSteps = visibleSteps(flow)
   const [, fL1, fL2] = flow.steps
   const trailAt = (st: FlowStep): string => {
     if (st.key === 'submit') {

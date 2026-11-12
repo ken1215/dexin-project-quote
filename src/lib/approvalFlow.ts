@@ -118,11 +118,19 @@ export function buildApprovalFlow(q: FlowInput): Flow {
     : s === 'rejected' ? '已退回開單人，待修正重送'
     : s === 'submitted' ? (returned ? '副部長退回，待工務處長核可' : '待工務處長核可')
     : s === 'approved_l1' ? (returned ? '副部長退回重審' : '處長已核可，待副部長核定')
-    : s === 'approved' ? (skipped ? '副部長越級核定（未經處長），待議價定案' : '兩關已核定，待議價定案')
+    : s === 'approved' ? (skipped ? '副部長越級核定（未經處長）' : '兩關已核定')
     : s === 'negotiating' ? '議價中（舊制）'
     : '已定案'
 
   return { steps: [submit, l1, l2, close], note, summary, legacy: s === 'negotiating' }
+}
+
+/**
+ * 畫面與列印實際要顯示的關卡（使用者 2026-11-12）：「定案」關只在真的議價過
+ * （已定案，或舊制議價中）才出現；其餘一律只顯示前三關，不掛「待議價定案」。
+ */
+export function visibleSteps(flow: Flow): FlowStep[] {
+  return flow.steps.filter((st) => st.key !== 'close' || st.state === 'done' || flow.legacy)
 }
 
 /* ── 時間 ─────────────────────────────────────────────────────

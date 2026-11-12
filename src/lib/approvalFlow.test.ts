@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert/strict'
 import {
-  buildApprovalFlow, compactLine, formatStamp, formatStampDate,
+  buildApprovalFlow, compactLine, formatStamp, formatStampDate, visibleSteps,
   type FlowInput, type StepState,
 } from './approvalFlow.ts'
 import type { QuoteStatus } from '../types.ts'
@@ -43,7 +43,7 @@ assert.deepEqual(states({ status: 'closed', ...stamped }), ['done', 'done', 'don
   assert.equal(f.steps[2].at, T_L2)
   assert.equal(f.steps[3].byId, null)
   assert.equal(f.steps[3].at, null, '還沒定案，定案關不得有時間')
-  assert.equal(f.summary, '兩關已核定，待議價定案')
+  assert.equal(f.summary, '兩關已核定')
   assert.equal(f.legacy, false)
   assert.equal(f.note, null)
 }
@@ -69,7 +69,17 @@ assert.equal(buildApprovalFlow(input({ status: 'closed', ...stamped })).summary,
   assert.equal(f.steps[1].byId, null, '越級時第一關的殘留簽核人不得採用')
   assert.equal(f.steps[1].caption, '越級・未經處長')
   assert.equal(f.steps[2].caption, '越級核定')
-  assert.equal(f.summary, '副部長越級核定（未經處長），待議價定案')
+  assert.equal(f.summary, '副部長越級核定（未經處長）')
+}
+
+// ── 2b. 顯示的關卡：定案關只在議價過（已定案／舊制議價中）才出現 ──
+{
+  const keys = (o: Partial<FlowInput>) => visibleSteps(buildApprovalFlow(input(o))).map((s) => s.key)
+  for (const s of ['draft', 'rejected', 'submitted', 'approved_l1', 'approved'] as QuoteStatus[]) {
+    assert.deepEqual(keys({ status: s, ...stamped }), ['submit', 'l1', 'l2'], `${s} 不顯示定案關`)
+  }
+  assert.deepEqual(keys({ status: 'closed', ...stamped }), ['submit', 'l1', 'l2', 'close'])
+  assert.deepEqual(keys({ status: 'negotiating', ...stamped }), ['submit', 'l1', 'l2', 'close'])
 }
 assert.deepEqual(
   states({ status: 'closed', l1_skipped: true, ...stamped }), ['done', 'skipped', 'done', 'done'],
