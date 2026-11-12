@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert/strict'
 import {
-  isTodo, matchesTab, pendingStatusesFor, sortQuotes,
+  canReviewStatus, isOwnerEditable, isTodo, matchesTab, pendingStatusesFor, sortQuotes,
   type QuoteRowLike,
 } from './quoteFilters.ts'
 import type { QuoteStatus } from '../types.ts'
@@ -60,6 +60,35 @@ assert.equal(matchesTab(row({ status: 'closed' }), 'done', 'manager', 'me'), tru
   assert.deepEqual(sortQuotes(rows, 'quote_date', 'asc').map((r) => r.id), ['b', 'c', 'a'])
   assert.deepEqual(sortQuotes(rows, 'quote_no', 'desc').map((r) => r.id), ['a', 'c', 'b'])
   assert.deepEqual(rows.map((r) => r.id), ['a', 'b', 'c'], 'sortQuotes 不得就地改動輸入陣列')
+}
+
+// ── 5. 停用帳號沒有待辦（進單後也沒有審核按鈕，兩邊口徑要一致）────
+assert.deepEqual(pendingStatusesFor('dept_head', false), [])
+assert.deepEqual(pendingStatusesFor('manager', false), [])
+assert.deepEqual(pendingStatusesFor('staff', false), [])
+assert.equal(isTodo(row({ status: 'submitted' }), 'dept_head', 'me', false), false)
+assert.equal(matchesTab(row({ status: 'submitted' }), 'todo', 'dept_head', 'me', false), false)
+assert.equal(matchesTab(row({ status: 'submitted' }), 'active', 'dept_head', 'me', false), true)
+
+// ── 6. 輪到誰簽：清單「審查」鈕與單據頁共用 ──────────────────────
+{
+  const head = { isDeptHead: true, isAdmin: false }
+  const vp = { isDeptHead: false, isAdmin: true }
+  const staff = { isDeptHead: false, isAdmin: false }
+  assert.equal(canReviewStatus('submitted', head), true)
+  assert.equal(canReviewStatus('approved_l1', head), false, '處長不能簽第二關')
+  assert.equal(canReviewStatus('submitted', vp), true, '副部長可代核或越級')
+  assert.equal(canReviewStatus('approved_l1', vp), true)
+  for (const s of ALL) {
+    assert.equal(canReviewStatus(s, staff), false, `同仁不能簽 ${s}`)
+    if (s !== 'submitted' && s !== 'approved_l1') {
+      assert.equal(canReviewStatus(s, vp), false, `${s} 沒有可簽的關卡`)
+    }
+    // 有人能簽的狀態，在啟用的核決層一定也算待辦——徽章與按鈕不得分岔
+    if (canReviewStatus(s, vp)) assert.equal(pendingStatusesFor('manager').includes(s), true)
+    if (canReviewStatus(s, head)) assert.equal(pendingStatusesFor('dept_head').includes(s), true)
+  }
+  assert.deepEqual(ALL.filter(isOwnerEditable), ['draft', 'rejected'])
 }
 
 console.log('quoteFilters.ts 自我檢查全數通過')

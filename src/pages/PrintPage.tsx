@@ -4,8 +4,10 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useRefData } from '../context/RefDataContext'
 import { calcTotals, discountText, laborListPrice, lineAmount, money } from '../lib/calc'
+import { buildApprovalFlow, type FlowStep } from '../lib/approvalFlow'
+import BrandMark from '../components/ui/BrandMark'
 import {
-  EVIDENCE_LABEL,
+  EVIDENCE_LABEL, STATUS_LABEL,
   type DraftSection, type EvidenceKind, type Quote, type QuoteLine,
   type QuoteSection, type QuoteStatus,
 } from '../types'
@@ -13,29 +15,49 @@ import {
 /* ═══════════════════════════════════════════════════════════════
    立德新股份有限公司(德新物業) → 聯新國際醫院　工程報價單（列印／轉 PDF 版）
    版面依聯新國際醫療集團 CIS：深藍 #0054A7、亮藍 #008CD6、
-   CIS 綠 #00A94F、淺藍 #D3EDFB，墨色 5 階，金額一律 tabular-nums。
+   CIS 綠 #009C42、淺藍 #D3EDFB，墨色 5 階，金額一律 tabular-nums。
    用色克制——整份文件只有「合計」列是滿版深藍，其餘靠淺藍底與細線。
+   2026-11-12 依德新 CIS 設計稿換抬頭：品牌色條、德新標誌組合＋公司全名、宋體「工程報價單」、
+   雙框狀態章含日期；總表頁加「簽核紀錄」，簽章欄改三格（製表／工務處長核可／副部長核定）。
+   ⚠️ 不印工資成本與加成係數；報價專用章的顯示條件（STAMPED_STATUS＋載入邏輯）不得改動。
    ═══════════════════════════════════════════════════════════════ */
 
 /** 大項項次用中文數字 */
 const CN = ['壹', '貳', '參', '肆', '伍', '陸', '柒', '捌', '玖', '拾']
 const cnNo = (i: number): string => CN[i] ?? String(i + 1)
 
-/** 右上角狀態印章：外框式，不填色（填色會蓋住底下的表頭資訊） */
-const STAMP: Record<QuoteStatus, { label: string; cls: string }> = {
-  draft: { label: '草　稿', cls: 'border-ink-500 text-ink-500' },
-  submitted: { label: '待處長核可', cls: 'border-alert text-alert' },
-  approved_l1: { label: '待副部長核定', cls: 'border-alert text-alert' },
-  approved: { label: '已核定', cls: 'border-green text-green' },
-  negotiating: { label: '議價中', cls: 'border-bright text-bright' },
+/**
+ * 右上角狀態印章：外框式，不填色（填色會蓋住底下的表頭資訊）。
+ *
+ * 文字一律取自 types.ts 的 STATUS_LABEL——以前這裡自己再寫一份，改狀態文字要改兩處。
+ * 唯一的例外是 closed：紙本上蓋的是「定案版」（這份文件的版別），不是流程狀態「已定案」，
+ * 這是刻意的；預覽工具列的小標籤則跟清單一樣顯示 STATUS_LABEL。
+ * 「草稿」兩個字要拉開字距，用 wide 的 letter-spacing 做，不在字串裡塞全形空白。
+ */
+const STAMP: Record<QuoteStatus, { label: string; cls: string; wide?: boolean }> = {
+  draft: { label: STATUS_LABEL.draft, cls: 'border-ink-500 text-ink-500', wide: true },
+  submitted: { label: STATUS_LABEL.submitted, cls: 'border-alert text-alert' },
+  approved_l1: { label: STATUS_LABEL.approved_l1, cls: 'border-alert text-alert' },
+  approved: { label: STATUS_LABEL.approved, cls: 'border-green text-green' },
+  negotiating: { label: STATUS_LABEL.negotiating, cls: 'border-bright text-bright' },
   closed: { label: '定案版', cls: 'border-deep text-deep' },
-  rejected: { label: '已退回', cls: 'border-warn text-warn' },
+  rejected: { label: STATUS_LABEL.rejected, cls: 'border-warn text-warn' },
 }
 
 /** 會蓋報價專用章的狀態——全都是「副部長已核定」之後的狀態。
     draft / submitted / approved_l1 / rejected 一律不蓋：
     只過了第一關的單就蓋章，等於處長可以自己放行對外文件。 */
 const STAMPED_STATUS: readonly QuoteStatus[] = ['approved', 'negotiating', 'closed']
+
+/** 簽核紀錄的關卡圓點：完成＝墨黑實心 ✓；目前＝深藍框；越級＝橘虛線「越」；退回＝紅底「退」 */
+const TRAIL_DOT: Record<FlowStep['state'], string> = {
+  done: 'bg-ink-900 text-white',
+  current: 'border-[1.5px] border-deep bg-white text-deep',
+  todo: 'border border-ink-200 bg-white text-ink-500',
+  skipped: 'border border-dashed border-alert bg-white text-alert-d',
+  rejected: 'bg-warn text-white',
+}
+const TRAIL_MARK: Partial<Record<FlowStep['state'], string>> = { done: '✓', skipped: '越', rejected: '退' }
 
 /** 佐證來源類別的標籤配色 */
 const EV_TAG: Record<EvidenceKind, string> = {
@@ -110,13 +132,43 @@ function toText(v: unknown, fallback: string): string {
   return fallback
 }
 
-/** ISO 時間戳取日期部分（依本機時區，避免 UTC 直接切字串時差一天）；無法解析回傳空字串 */
-function dateOnly(v: string | null): string {
-  if (!v) return ''
-  const d = new Date(v)
-  if (Number.isNaN(d.getTime())) return ''
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+/* 戳記是資料庫 now()（UTC）。紙本上的日期固定台北時區，出差時在別的時區列印也不會差一天。 */
+const TW = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+})
+function twParts(iso: string | null | undefined): Record<string, string> | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return null
+  const out: Record<string, string> = {}
+  for (const x of TW.formatToParts(d)) out[x.type] = x.value
+  return out
+}
+/** 「2026-11-10」；sep 換成「.」就是章面用的「2026.11.10」。無法解析回空字串 */
+function twDate(iso: string | null | undefined, sep = '-'): string {
+  const p = twParts(iso)
+  return p ? [p.year, p.month, p.day].join(sep) : ''
+}
+/** 「2026-11-10 14:30」 */
+function twDateTime(iso: string | null | undefined): string {
+  const p = twParts(iso)
+  return p ? `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}` : ''
+}
+
+/**
+ * 狀態章上的日期：這張單「走到目前狀態」的那一天。只用該狀態下確定有效的戳記
+ * （與 lib/approvalFlow.ts 同一套採用規則）；送審沒有時間欄位、草稿沒有日期，就不印。
+ */
+function stampDateOf(q: Quote): string {
+  switch (q.status) {
+    case 'approved_l1': return twDate(q.approved_l1_at, '.')
+    case 'approved':
+    case 'negotiating': return twDate(q.approved_at, '.')
+    case 'closed':
+    case 'rejected': return twDate(q.updated_at, '.')
+    default: return ''
+  }
 }
 
 /** 去掉小數尾巴的 0：3.00 → 3；0.65 → 0.65 */
@@ -134,6 +186,8 @@ const SHEET =
 const TH = 'border border-ink-200 bg-light px-2 py-1.5 text-[11.5px] font-bold text-ink-700'
 const TD = 'border border-ink-200 px-2 py-1 text-[12px] text-ink-900'
 const TD_MUTED = 'border border-ink-200 px-2 py-1 text-[11px] text-ink-700'
+/** 總表頁專用表頭格：設計稿的暖灰底（ink-50 不在列印冷墨還原清單內，所以印出來就是暖灰） */
+const TH_SUM = 'border border-ink-200 bg-ink-50 px-2 py-1.5 text-[11.5px] font-bold text-ink-900'
 
 /* ── 頁別 ───────────────────────────────────────────────────────
    單位回報：每頁頁首都只寫「工程標單」，分不出哪張是確認金額的頁。
@@ -165,10 +219,11 @@ const KIND: Record<PageKind, { badge: string; badgeCls: string; hint: string; hi
 /* ── 一張紙：頁首 + 內容 + 頁尾頁碼 ───────────────────────────── */
 
 function Sheet(
-  { kind, quote, stamp, catalogVersion, feeRate, busRate, page, total, children }: {
+  { kind, quote, stamp, stampDate, catalogVersion, feeRate, busRate, page, total, children }: {
     kind: PageKind
     quote: Quote
-    stamp: { label: string; cls: string }
+    stamp: { label: string; cls: string; wide?: boolean }
+    stampDate: string
     catalogVersion: string
     feeRate: number
     busRate: number
@@ -179,17 +234,30 @@ function Sheet(
 ) {
   return (
     <section className={SHEET}>
+      {/* 品牌色條：主藍 7 ： 新芽綠 2。螢幕上貼齊模擬紙張的上緣；列印時留白交給 @page，色條放在版心頂端 */}
+      <div
+        aria-hidden="true"
+        className="-mx-[12mm] -mt-[14mm] mb-[8mm] flex h-[6px] print:mx-0 print:mt-0 print:mb-[5mm]"
+      >
+        <span className="flex-[7] bg-bright" />
+        <span className="flex-[2] bg-sprout" />
+      </div>
       <SheetHeader
         kind={kind}
         quote={quote}
         stamp={stamp}
+        stampDate={stampDate}
         catalogVersion={catalogVersion}
         feeRate={feeRate}
         busRate={busRate}
       />
       <div className="flex-1">{children}</div>
-      <footer className="mt-6 border-t border-ink-200 pt-1.5 text-center text-[10px] tracking-[0.2em] text-ink-500">
-        {KIND[kind].badge}　·　第 {page} 頁 / 共 {total} 頁
+      <footer className="mt-6 flex items-center justify-between gap-4 border-t border-ink-200 pt-1.5 text-[10px] text-ink-500">
+        <span className="flex items-center gap-1.5">
+          <BrandMark size={13} />
+          立德新股份有限公司（德新物業）
+        </span>
+        <span className="tracking-[0.15em]">{KIND[kind].badge}・第 {page} 頁／共 {total} 頁</span>
       </footer>
     </section>
   )
@@ -199,7 +267,7 @@ function Sheet(
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline gap-2 border-b border-ink-200 pb-[3px]">
-      <span className="w-[5.5em] shrink-0 text-[10px] tracking-wide text-ink-500">{label}</span>
+      <span className="w-[6.8em] shrink-0 text-[10.5px] tracking-wide text-ink-500">{label}</span>
       <span className="text-[12px] text-ink-900">{value || '—'}</span>
     </div>
   )
@@ -207,10 +275,11 @@ function Field({ label, value }: { label: string; value: string }) {
 
 /** 每一頁都要出現的頁首 */
 function SheetHeader(
-  { kind, quote, stamp, catalogVersion, feeRate, busRate }: {
+  { kind, quote, stamp, stampDate, catalogVersion, feeRate, busRate }: {
     kind: PageKind
     quote: Quote
-    stamp: { label: string; cls: string }
+    stamp: { label: string; cls: string; wide?: boolean }
+    stampDate: string
     catalogVersion: string
     feeRate: number
     busRate: number
@@ -219,30 +288,35 @@ function SheetHeader(
   return (
     <header>
       <div className="flex items-end justify-between gap-4">
-        <div>
-          <div className="text-[19px] font-bold leading-tight tracking-[0.16em] text-deep">
-            立德新股份有限公司(德新物業)
+        {/* 德新物業橫式標誌組合＋公司全名（列印時根字級被釘成 11.5px，這裡一律用 px） */}
+        <div className="flex flex-col gap-[5px]">
+          <div className="flex items-center gap-[9px]">
+            <BrandMark size={36} />
+            <div className="flex flex-col leading-none">
+              <span className="font-serif text-[21px] font-black tracking-[0.12em] text-ink-900">德新物業</span>
+              <span className="mt-[5px] font-brand text-[9px] font-medium tracking-[0.3em] text-bright">
+                LANDSEED PROPERTY
+              </span>
+            </div>
           </div>
-          <div className="mt-[3px] text-[10.5px] tracking-[0.14em] text-ink-500">
-            德新物業 · 工務處
-          </div>
+          <span className="text-[11px] tracking-[0.08em] text-ink-700">立德新股份有限公司（德新物業）・工務處</span>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="text-right">
-            <div className="text-[10px] tracking-[0.3em] text-ink-500">工程報價單</div>
-            <span className={'mt-[2px] inline-block rounded-sm border px-3 py-[3px] text-[14px] font-bold tracking-[0.2em] ' + KIND[kind].badgeCls}>
+        <div className="flex flex-col items-end gap-[5px]">
+          <div className="flex items-center gap-2">
+            <span className="font-serif text-[23px] font-black tracking-[0.2em] text-ink-900">工程報價單</span>
+            <span className={'inline-block rounded-sm border px-2 py-[2px] text-[11.5px] font-bold tracking-[0.15em] ' + KIND[kind].badgeCls}>
               {KIND[kind].badge}
             </span>
           </div>
           <span className="text-[11px] text-ink-700">
-            單號　<span className="num text-ink-900">{quote.quote_no || '—'}</span>
+            單號　<span className="num font-semibold text-ink-900">{quote.quote_no || '—'}</span>
           </span>
         </div>
       </div>
 
-      {/* 深藍粗線 + 淺藍細線，做出雙線層次 */}
-      <div className="mt-2 h-[2px] w-full bg-deep" />
-      <div className="mt-[2px] h-[1px] w-full bg-light" />
+      {/* 深藍粗線 + 新芽綠細線，做出雙線層次 */}
+      <div className="mt-3 h-[2px] w-full bg-deep" />
+      <div className="mt-[2px] h-[1px] w-full bg-sprout" />
 
       <div className="mt-3 flex items-start gap-4">
         <div className="grid flex-1 grid-cols-2 gap-x-6 gap-y-[5px]">
@@ -255,13 +329,20 @@ function SheetHeader(
           <Field label="工程管理費" value={`${pct(feeRate)}%`} />
           <Field label="營業稅率" value={`${pct(busRate)}%`} />
         </div>
-        <div
-          className={
-            'mt-1 shrink-0 rotate-[-8deg] rounded-lg border-2 px-3 py-[5px] text-center ' +
-            'text-[14px] font-bold tracking-[0.18em] opacity-80 ' + stamp.cls
-          }
-        >
-          {stamp.label}
+        {/* 雙框狀態章：外框粗、內框細，章面帶日期。外框式不填色，不蓋住底下的表頭資訊 */}
+        <div className="flex h-[24mm] w-[33mm] shrink-0 items-center justify-center">
+          <div className={'rotate-[-8deg] rounded-[10px] border-[2.5px] p-[3px] opacity-85 ' + stamp.cls}>
+            <div className={'flex flex-col items-center gap-[2px] rounded-[7px] border px-3 py-[5px] ' + stamp.cls}>
+              <span className="whitespace-nowrap font-serif text-[16px] font-black tracking-[0.18em]">
+                {stamp.wide
+                  ? <span className="inline-flex gap-[1em]">{[...stamp.label].map((ch) => <span key={ch}>{ch}</span>)}</span>
+                  : stamp.label}
+              </span>
+              {stampDate && (
+                <span className="num text-[9.5px] font-semibold tracking-[0.08em]">{stampDate}</span>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -390,6 +471,25 @@ export default function PrintPage() {
     })()
     return () => { alive = false }
   }, [needStamp])
+
+  /* 簽章欄自動帶入姓名（製表人、工務處長）。
+     ponytail: profiles 的 RLS 只讓本人與核決層讀得到——同仁列印時處長姓名查不到就留白給手簽，
+     要同仁端也帶得出來，得另開一支 security definer 的 RPC。 */
+  const [names, setNames] = useState<Record<string, string>>({})
+  const creatorId = quote?.created_by ?? null
+  const l1Id = quote?.approved_l1_by ?? null
+  const l2Id = quote?.approved_by ?? null
+  useEffect(() => {
+    const ids = [creatorId, l1Id, l2Id].filter((x): x is string => Boolean(x))
+    if (!ids.length) { setNames({}); return }
+    let alive = true
+    void (async () => {
+      const { data } = await supabase.from('profiles').select('id, full_name').in('id', ids)
+      if (!alive) return
+      setNames(Object.fromEntries((data ?? []).map((p: { id: string; full_name: string }) => [p.id, p.full_name])))
+    })()
+    return () => { alive = false }
+  }, [creatorId, l1Id, l2Id])
 
   /** 把 DB 形狀轉成 calcTotals 吃的 draft 形狀——金額公式只有 calc.ts 那一份 */
   const draftSections: DraftSection[] = useMemo(
@@ -549,7 +649,6 @@ export default function PrintPage() {
   const stamp = STAMP[quote.status]
   /** 兩道條件都成立才蓋章：狀態在已核可之後 ＋ 印章圖真的拿到了 */
   const showStamp = needStamp && Boolean(stampSrc)
-  const approvedDate = dateOnly(quote.approved_at)
   /** 申請單位存的是「工務處-姓名」，製表欄直接取後半的人名；只寫單位名就留白給手簽 */
   const makerName = /[-－]/.test(quote.dept ?? '')
     ? (quote.dept.split(/[-－]/).pop() ?? '').trim()
@@ -571,7 +670,31 @@ export default function PrintPage() {
   /** 總表 1 頁 + 明細頁 + 有工率資料時再 1 頁 */
   const withProd = showProd && prodRows.length > 0
   const totalPages = 1 + sectionPages.length + (withProd ? 1 : 0)
-  const sheetProps = { quote, stamp, catalogVersion, feeRate, busRate, total: totalPages }
+  const sheetProps = {
+    quote, stamp, stampDate: stampDateOf(quote), catalogVersion, feeRate, busRate, total: totalPages,
+  }
+  /**
+   * 簽核紀錄四格與簽章欄的日期。關卡狀態一律走 lib/approvalFlow.ts 的推導——
+   * 資料庫在整單退回時不清舊戳記，自己讀欄位會把上一輪的簽核印成這一輪的。
+   * 只印職稱（列印頁不另查人名）；送審沒有時間欄位，只印報價日期。
+   */
+  const flow = buildApprovalFlow(quote)
+  const [, fL1, fL2] = flow.steps
+  const trailAt = (st: FlowStep): string => {
+    if (st.key === 'submit') {
+      return st.state === 'rejected' && st.at ? `已退回 ${twDateTime(st.at)}` : `報價日期 ${quote.quote_date || '—'}`
+    }
+    const when = twDateTime(st.at)
+    if (st.state === 'done' && when) return when
+    return st.caption || '—'
+  }
+  const l1Date = fL1.state === 'done' ? twDate(fL1.at) : ''
+  /** 製表：建立人姓名優先，查不到退回申請單位「工務處-姓名」的後半 */
+  const makerFull = names[quote.created_by] || makerName
+  /** 處長：只有這一輪真的核可過（不是越級、不是上一輪殘留）才帶名字 */
+  const l1Name = fL1.state === 'done' && fL1.byId ? names[fL1.byId] ?? '' : ''
+  const l2Name = fL2.state === 'done' && fL2.byId ? names[fL2.byId] ?? '' : ''
+  const l2Date = fL2.state === 'done' ? twDate(fL2.at) : ''
 
   return (
     <div className="print-preview min-h-screen bg-ink-50 py-6 print:bg-white print:py-0">
@@ -601,7 +724,7 @@ export default function PrintPage() {
         <span className="flex w-full flex-wrap items-center gap-2 text-xs text-ink-500 sm:ml-auto sm:w-auto">
           單號 <span className="num text-ink-900">{quote.quote_no || '—'}</span>
           <span className={'rounded-full border px-2 py-[1px] text-[11px] ' + stamp.cls}>
-            {stamp.label.replace('　', '')}
+            {STATUS_LABEL[quote.status]}
           </span>
           <span>單價庫 {catalogVersion}</span>
         </span>
@@ -612,18 +735,18 @@ export default function PrintPage() {
         <table className="mt-4 w-full border-collapse">
           <thead>
             <tr>
-              <th className={TH + ' w-[8%]'}>項次</th>
-              <th className={TH}>工程項目及說明</th>
-              <th className={TH + ' w-[8%]'}>單位</th>
-              <th className={TH + ' w-[8%]'}>數量</th>
-              <th className={TH + ' w-[16%]'}>單價</th>
-              <th className={TH + ' w-[17%]'}>複價</th>
+              <th className={TH_SUM + ' w-[8%]'}>項次</th>
+              <th className={TH_SUM + ' text-left'}>工程項目及說明</th>
+              <th className={TH_SUM + ' w-[8%]'}>單位</th>
+              <th className={TH_SUM + ' w-[8%]'}>數量</th>
+              <th className={TH_SUM + ' w-[16%] text-right'}>單價</th>
+              <th className={TH_SUM + ' w-[17%] text-right'}>複價</th>
             </tr>
           </thead>
           <tbody>
             {totals.sections.map((s, i) => (
               <tr key={s.key}>
-                <td className={TD + ' text-center'}>{cnNo(i)}</td>
+                <td className={TD + ' text-center font-serif font-bold'}>{cnNo(i)}</td>
                 <td className={TD}>{s.title}</td>
                 <td className={TD + ' text-center'}>LOT</td>
                 <td className={TD + ' num'}>1</td>
@@ -632,7 +755,7 @@ export default function PrintPage() {
               </tr>
             ))}
             <tr>
-              <td className={TD + ' text-center'}>{cnNo(totals.sections.length)}</td>
+              <td className={TD + ' text-center font-serif font-bold'}>{cnNo(totals.sections.length)}</td>
               <td className={TD}>工程管理費（{pct(feeRate)}%）</td>
               <td className={TD + ' text-center'}>LOT</td>
               <td className={TD + ' num'}>1</td>
@@ -674,10 +797,10 @@ export default function PrintPage() {
 
         {/* 定案單：原報價 → 定案、折扣幅度，一眼看出這張單讓了多少（使用者 2026-10-06 要求） */}
         {discount && (
-          <div className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 border-l-4 border-green bg-light/40 px-4 py-2 text-[11.5px] text-ink-700">
+          <div className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 border-l-4 border-sprout bg-sprout/10 px-4 py-2 text-[11.5px] text-ink-700">
             <span>原報價合計 <span className="num text-ink-500 line-through">{money(origTotals.total)}</span></span>
             <span>→ 定案合計 <span className="num font-bold text-deep">{money(totals.total)}</span></span>
-            <span className="font-bold text-green">折扣幅度 {discount}</span>
+            <span className="font-bold text-ink-900">折扣幅度 {discount}</span>
           </div>
         )}
 
@@ -711,46 +834,89 @@ export default function PrintPage() {
           </div>
         )}
 
-        {/* ── 簽核欄 ──
-            要蓋章時把簽名格加高到 27mm（實體章 34×29.7mm 才容得下），
-            印章以 absolute 疊在「工務處主管核可」這一格內，下緣壓過簽名線。 */}
-        <div className="mt-10 grid grid-cols-3 gap-8">
-          {['製表', '工務處主管核可', '日期'].map((t) => {
-            const isApproval = t === '工務處主管核可'
-            const isMaker = t === '製表'
-            return (
-              <div key={t}>
-                <div className="text-[10px] tracking-wide text-ink-500">{t}</div>
-                <div
-                  className={
-                    'relative border-b border-ink-700 ' + (showStamp ? 'h-[27mm]' : 'mt-8')
-                  }
-                >
-                  {isMaker && makerName && (
-                    <div className="absolute bottom-[1mm] left-0 w-full text-center text-[12.5px] text-ink-900">
-                      {makerName}
-                    </div>
-                  )}
-                  {isApproval && showStamp && stampSrc && (
-                    <img
-                      src={stampSrc}
-                      alt=""
-                      className={
-                        'pointer-events-none absolute left-1/2 -bottom-[4mm] w-[34mm] ' +
-                        'h-auto -translate-x-1/2 opacity-[0.88]'
-                      }
-                      onError={() => setStampSrc(null)}
-                    />
-                  )}
+        {/* ── 簽核紀錄：系統留存的四關，與下方簽章欄對應 ── */}
+        <section className="mt-4 break-inside-avoid">
+          <div className="flex items-center gap-2">
+            <span aria-hidden="true" className="h-[12px] w-[3px] bg-bright" />
+            <span className="text-[12px] font-bold tracking-[0.08em] text-ink-900">簽核紀錄</span>
+            <span className="text-[10.5px] text-ink-500">系統留存，與下方簽章對應</span>
+          </div>
+          <ol className="mt-1.5 grid grid-cols-4 border border-ink-200">
+            {flow.steps.map((st, i) => (
+              <li key={st.key} className={'flex flex-col gap-[2px] px-2.5 py-1.5 ' + (i > 0 ? 'border-l border-ink-200' : '')}>
+                <span className="flex items-center gap-1.5">
+                  <span className={'inline-flex h-[14px] w-[14px] shrink-0 items-center justify-center rounded-full text-[9px] font-bold ' + TRAIL_DOT[st.state]}>
+                    {TRAIL_MARK[st.state] ?? String(i + 1)}
+                  </span>
+                  <span className="text-[11.5px] font-bold text-ink-900">{st.key === 'close' ? '議價定案' : st.title}</span>
+                </span>
+                <span className="text-[11px] text-ink-700">
+                  {st.actor}{st.key === 'submit' && makerFull ? ` ${makerFull}` : ''}{st.key === 'l1' && l1Name ? ` ${l1Name}` : ''}{st.key === 'l2' && l2Name ? ` ${l2Name}` : ''}
+                </span>
+                <span className={'text-[10.5px] ' + (st.state === 'skipped' ? 'text-alert-d' : st.state === 'rejected' ? 'text-warn' : 'text-ink-500')}>
+                  {trailAt(st)}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        {/* ── 簽章欄：製表／工務處長核可／副部長核定 ──
+            三格都在簽名線上帶入姓名；報價專用章放在「副部長核定」核定日期下方，不壓字
+            （蓋章條件＝STAMPED_STATUS＋印章圖真的載到，未改）。 */}
+        <div className="mt-6 grid grid-cols-3 gap-8 break-inside-avoid">
+          <div>
+            <div className="text-[10.5px] tracking-[0.08em] text-ink-500">製表</div>
+            <div className="relative h-[18mm] border-b border-ink-700">
+              {makerFull && (
+                <div className="absolute bottom-[1mm] left-0 w-full text-center text-[12.5px] text-ink-900">
+                  {makerFull}
                 </div>
-                {isApproval && showStamp && approvedDate && (
-                  <div className="mt-[7mm] text-center text-[10px] text-ink-500">
-                    核可日期：<span className="num">{approvedDate}</span>
-                  </div>
-                )}
+              )}
+            </div>
+          </div>
+          <div>
+            <div className="text-[10.5px] tracking-[0.08em] text-ink-500">工務處長核可</div>
+            <div className="relative h-[18mm] border-b border-ink-700">
+              {l1Name && (
+                <div className="absolute bottom-[1mm] left-0 w-full text-center text-[12.5px] text-ink-900">
+                  {l1Name}
+                </div>
+              )}
+            </div>
+            {l1Date && (
+              <div className="mt-1 text-center text-[10px] text-ink-500">
+                核可日期 <span className="num">{l1Date}</span>
               </div>
-            )
-          })}
+            )}
+            {fL1.state === 'skipped' && (
+              <div className="mt-1 text-center text-[10px] text-alert-d">越級核定・未經處長</div>
+            )}
+          </div>
+          <div>
+            <div className="text-[10.5px] tracking-[0.08em] text-ink-500">副部長核定</div>
+            <div className="relative h-[18mm] border-b border-ink-700">
+              {l2Name && (
+                <div className="absolute bottom-[1mm] left-0 w-full text-center text-[12.5px] text-ink-900">
+                  {l2Name}
+                </div>
+              )}
+            </div>
+            {l2Date && (
+              <div className="mt-1 text-center text-[10px] text-ink-500">
+                核定日期 <span className="num">{l2Date}</span>
+              </div>
+            )}
+            {/* ponytail: 章寬 28mm（實體章 34mm 縮 0.82）以免總表擠出 A4；印出來太小再放大並檢查頁數 */}
+            {showStamp && stampSrc && (
+              <img
+                src={stampSrc}
+                alt="報價專用章"
+                className="pointer-events-none mx-auto mt-1.5 block h-auto w-[28mm] opacity-[0.88]"
+                onError={() => setStampSrc(null)}
+              />
+            )}
+          </div>
         </div>
       </Sheet>
 

@@ -22,8 +22,12 @@ const DONE: QuoteStatus[] = ['approved', 'negotiating', 'closed']
  * 同仁是「還沒送出的」與「被退回要改的」；處長是第一關；核決層是第二關，
  * 越級時第一關也算他的（處長請假不卡單）。
  * header 徽章與清單分頁共用這一份定義，不要各算各的。
+ *
+ * active＝帳號是否啟用。停用帳號進單後沒有任何審核按鈕（AuthContext 的
+ * isDeptHead／isAdmin 都要求 active），所以徽章與「待我處理」也不該算他的待辦。
  */
-export function pendingStatusesFor(role: Role): QuoteStatus[] {
+export function pendingStatusesFor(role: Role, active = true): QuoteStatus[] {
+  if (!active) return []
   switch (role) {
     case 'staff': return ['draft', 'rejected']
     case 'dept_head': return ['submitted']
@@ -33,18 +37,38 @@ export function pendingStatusesFor(role: Role): QuoteStatus[] {
   }
 }
 
-export function isTodo(row: QuoteRowLike, role: Role, userId: string): boolean {
-  if (!pendingStatusesFor(role).includes(row.status)) return false
+export function isTodo(row: QuoteRowLike, role: Role, userId: string, active = true): boolean {
+  if (!pendingStatusesFor(role, active).includes(row.status)) return false
   // 同仁只看自己的；主管的待辦是整個處室的單，不分建立者
   if (role === 'staff') return row.created_by === userId
   return true
 }
 
+/**
+ * 「這張單現在輪不輪得到我簽」的唯一出處——清單的「審查」主鈕與
+ * useQuoteDraft 的 canReviewL1／canReviewL2 都呼叫這裡，不要各寫一份。
+ * 旗標取自 AuthContext（已含 active 判斷）：
+ *   第一關 submitted：工務處長；副部長／部長也可（代核或越級）
+ *   第二關 approved_l1：只有副部長／部長
+ */
+export interface ReviewerFlags { isDeptHead: boolean; isAdmin: boolean }
+
+export function canReviewStatus(status: QuoteStatus, who: ReviewerFlags): boolean {
+  if (status === 'submitted') return who.isDeptHead || who.isAdmin
+  if (status === 'approved_l1') return who.isAdmin
+  return false
+}
+
+/** 開單人還能改內容的狀態（草稿、被退回）；其餘點進去都是唯讀審閱頁 */
+export function isOwnerEditable(status: QuoteStatus): boolean {
+  return status === 'draft' || status === 'rejected'
+}
+
 export function matchesTab(
-  row: QuoteRowLike, tab: QuoteTab, role: Role, userId: string,
+  row: QuoteRowLike, tab: QuoteTab, role: Role, userId: string, active = true,
 ): boolean {
   switch (tab) {
-    case 'todo': return isTodo(row, role, userId)
+    case 'todo': return isTodo(row, role, userId, active)
     case 'active': return ACTIVE.includes(row.status)
     case 'done': return DONE.includes(row.status)
     case 'all': return true

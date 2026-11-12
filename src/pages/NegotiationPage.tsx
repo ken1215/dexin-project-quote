@@ -4,7 +4,9 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useRefData } from '../context/RefDataContext'
 import { calcTotals, concessionPct, discountAndRound, discountText, evidenceSentence, money } from '../lib/calc'
+import { buildApprovalFlow } from '../lib/approvalFlow'
 import Alert from '../components/ui/Alert'
+import ApprovalFlow from '../components/ui/ApprovalFlow'
 import ConfirmPanel from '../components/ui/ConfirmPanel'
 import EmptyState from '../components/ui/EmptyState'
 import PageHeader from '../components/ui/PageHeader'
@@ -53,6 +55,8 @@ export default function NegotiationPage() {
   const { items, indexOf, evidenceOf, mgmtFeeRate, taxRate } = useRefData()
 
   const [quote, setQuote] = useState<Quote | null>(null)
+  /** 簽核人 id → 姓名（關卡列用）。本頁只有副部長／部長進得來，profiles 的 RLS 查得到 */
+  const [names, setNames] = useState<Record<string, string>>({})
   const [sections, setSections] = useState<QuoteSection[]>([])
   const [lines, setLines] = useState<QuoteLine[]>([])
   const [negos, setNegos] = useState<Negotiation[]>([])
@@ -98,6 +102,18 @@ export default function NegotiationPage() {
       rationale: DEFAULT_RATIONALE,
     }])))
     setLoading(false)
+
+    // 關卡列的人名：查不到、查失敗都只是退回顯示職稱，不擋議價
+    const qd = q.data as Quote
+    const who = [...new Set(
+      [qd.created_by, qd.approved_l1_by, qd.approved_by].filter((x): x is string => Boolean(x)),
+    )]
+    if (who.length) {
+      const pr = await supabase.from('profiles').select('id, full_name').in('id', who)
+      const map: Record<string, string> = {}
+      for (const p of (pr.data ?? []) as { id: string; full_name: string }[]) map[p.id] = p.full_name
+      setNames(map)
+    }
   }, [id])
 
   useEffect(() => { void load() }, [load])
@@ -295,11 +311,12 @@ export default function NegotiationPage() {
           <>
             {/* PageHeader 的 actions 容器沒有 items-center，標籤自己包一層才不會被拉伸 */}
             <span className="flex min-w-0 items-center gap-2">
-              <span className="tag min-w-0 max-w-full truncate">{quote.quote_no}</span>
-              <StatusTag status={quote.status} />
+              <span className="tag num min-w-0 max-w-full truncate border border-ink-200 bg-white text-ink-700">{quote.quote_no}</span>
+              <StatusTag status={quote.status} l1Skipped={quote.l1_skipped} />
             </span>
             <Link to={`/quote/${quote.id}`} className="btn">回單據</Link>
-            <Link to={`/print/${quote.id}`} className="btn">列印</Link>
+            {/* 與清單頁一致：列印預覽一律開新分頁，議價做到一半不會被帶離本頁 */}
+            <a href={`#/print/${quote.id}`} target="_blank" rel="noopener noreferrer" className="btn">列印</a>
           </>
         )}
       />
@@ -320,6 +337,9 @@ export default function NegotiationPage() {
           </div>
         </div>
       </div>
+
+      {/* 簽核關卡：定案前最後一站，越級／退回都要看得到 */}
+      <ApprovalFlow flow={buildApprovalFlow(quote)} names={names} />
 
       {/* 整單的四個關鍵數字。改版前分散在頁首、右欄試算表與兩處低於底價提示，
           同一個數字最多出現三次；收斂成一排 Stat，右欄只留金額組成。 */}

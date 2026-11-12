@@ -21,6 +21,8 @@ import { pendingStatusesFor } from '../lib/quoteFilters'
 export function usePendingCount(): number {
   const { profile, session } = useAuth()
   const role = profile?.role
+  // 停用帳號沒有待辦：進單後沒有任何審核按鈕，徽章不該叫他去處理
+  const active = profile?.active ?? false
   const uid = session?.user.id
   // 查詢範圍的識別字串：換人登入或換角色就換一個 scope，上一個身分查到的張數自動失效
   const scope = role && uid ? `${role}:${uid}` : ''
@@ -36,7 +38,7 @@ export function usePendingCount(): number {
 
   useEffect(() => {
     if (!scope || !role || !uid) return
-    const statuses = pendingStatusesFor(role)
+    const statuses = pendingStatusesFor(role, active)
     if (!statuses.length) return
 
     let cancelled = false
@@ -49,7 +51,7 @@ export function usePendingCount(): number {
       if (!cancelled) setHit({ scope, n: r.error ? 0 : (r.count ?? 0) })
     })()
     return () => { cancelled = true }
-  }, [scope, role, uid, pathname, focusTick])
+  }, [scope, role, uid, active, pathname, focusTick])
 
   return hit?.scope === scope ? hit.n : 0
 }

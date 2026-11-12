@@ -2,14 +2,14 @@
 
 /* ═══════════════════════════════════════════════════════════
    聯新國際醫療集團 CIS — 色票與字型
-   深藍 #0054A7 / 亮藍 #008CD6 / CIS 綠 #00A94F / 淺藍 #D3EDFB
+   深藍 #0054A7 / 亮藍 #008CD6 / CIS 綠 #009C42 / 淺藍 #D3EDFB
    Ink 5 階墨色；中文 微軟正黑體、英數 Inter（tabular-nums）
    ═══════════════════════════════════════════════════════════ */
 @theme {
   --color-deep:   #0054A7;
   --color-deep-d: #00468C;
   --color-bright: #008CD6;
-  --color-green:  #00A94F;
+  --color-green:  #009C42;
   /* 德新新芽綠 376C。只做裝飾（標誌、步驟列已完成段、加入回饋），
      不得當文字色——白底對比僅 1.98:1。 */
   --color-sprout: #8FC31F;
@@ -18,17 +18,25 @@
   /* 墨階＝德新墨黑 426C 系的暖調。列印版面在 @media print 裡釘回原本的冷墨。 */
   --color-ink-900: #3E3A39;
   --color-ink-700: #4B4745;
-  --color-ink-500: #78736E;
-  --color-ink-200: #DEDCD8;
-  --color-ink-50:  #F6F5F2;
+  /* ink-500 當小字：白底 5.7:1、ink-50 底 5.2:1（門檻 4.5:1） */
+  --color-ink-500: #6B6662;
+  --color-ink-200: #E2E0DC;
+  --color-ink-50:  #F7F6F3;
 
   --color-warn:    #C0392B;
   --color-warn-bg: #FDF3F2;
   --color-alert:   #D35400;
+  /* alert 的文字用深階：#D35400 當小字在白底只有 3.9:1，這個是 5.6:1。
+     線條、虛線框、底色仍用 alert；「越級」這類 12px 以下的字用 alert-d。 */
+  --color-alert-d: #B34700;
 
   --font-sans: "Microsoft JhengHei", "微軟正黑體", "Inter", -apple-system,
                "Segoe UI", "Noto Sans TC", sans-serif;
   --font-num:  "Inter", "Segoe UI", "Microsoft JhengHei", sans-serif;
+  /* 德新 CIS 的標題字與英文字標（index.html 由 Google Fonts 載入，display=swap）。
+     院內網路可能擋 Google Fonts——擋了就落到後面的系統字，只是字形不同，版面不會破。 */
+  --font-serif: "Noto Serif TC", "Source Han Serif TC", "PMingLiU", "MingLiU", serif;
+  --font-brand: "Jost", "Inter", "Segoe UI", sans-serif;
 }
 
 html {
@@ -63,11 +71,17 @@ body {
 @layer components {
   .btn {
     @apply inline-flex items-center justify-center gap-1 rounded-md border border-ink-200
-           bg-white px-3 py-1.5 text-sm text-ink-700 transition
-           hover:border-bright hover:text-deep disabled:opacity-40 disabled:cursor-not-allowed;
+           bg-white px-3 py-1.5 text-sm font-medium text-ink-700 transition
+           hover:border-bright hover:text-deep disabled:opacity-40 disabled:cursor-not-allowed
+           focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bright;
   }
   .btn-primary {
     @apply border-deep bg-deep text-white hover:bg-deep-d hover:text-white hover:border-deep-d;
+  }
+  /* 次要但仍是「該列主動作」的按鈕（清單的編輯／檢視）：白底深藍字＋淡藍框，
+     比一般 .btn 醒目、又不搶 .btn-primary（每個畫面只留一顆實心）。 */
+  .btn-outline {
+    @apply border-deep/35 text-deep hover:border-deep hover:text-deep;
   }
   .btn-danger {
     @apply border-warn/40 text-warn hover:border-warn hover:text-warn;
@@ -78,14 +92,19 @@ body {
            disabled:bg-ink-50 disabled:text-ink-500 read-only:bg-ink-50 read-only:text-ink-500;
   }
   .label { @apply mb-1 block text-xs text-ink-500; }
-  .card  { @apply rounded-lg border border-ink-200 bg-white p-4; }
+  .card  { @apply rounded-lg border border-ink-200 bg-white p-4 sm:p-5; }
   .card-title {
     @apply mb-3 border-b border-ink-200 pb-2 text-[0.9375rem] font-semibold text-deep;
   }
-  .tag { @apply inline-block rounded-full bg-light px-2 py-0.5 text-[0.6875rem] text-deep; }
+  /* 狀態字在窄欄不得折成兩行（whitespace-nowrap）；設計稿定案為 4px 小圓角方標 */
+  .tag {
+    @apply inline-block whitespace-nowrap rounded bg-light px-2 py-0.5 text-[0.6875rem]
+           font-medium text-deep;
+  }
   .chip {
-    @apply inline-flex items-center rounded-full border border-ink-200 bg-white px-3 py-1
-           text-sm text-ink-700 transition hover:border-bright hover:text-deep;
+    @apply inline-flex items-center rounded-full border border-ink-200 bg-white px-3.5 py-1
+           text-sm text-ink-700 transition hover:border-bright hover:text-deep
+           focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bright;
   }
   .chip-on { @apply border-deep bg-deep text-white hover:border-deep hover:text-white; }
   .stat { @apply rounded-lg border border-ink-200 bg-white px-4 py-3; }

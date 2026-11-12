@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import Alert from '../../components/ui/Alert'
+import ApprovalFlow from '../../components/ui/ApprovalFlow'
 import PageHeader from '../../components/ui/PageHeader'
 import StatusTag from '../../components/ui/StatusTag'
 import Stepper from '../../components/ui/Stepper'
@@ -9,6 +10,7 @@ import { useRefData } from '../../context/RefDataContext'
 import { useDraftAutosave } from '../../hooks/useDraftAutosave'
 import { DEPT_OPTIONS, LABOR_SECTION_TITLE } from '../../hooks/useQuoteDraft'
 import type { UseQuoteDraft } from '../../hooks/useQuoteDraft'
+import { buildApprovalFlow } from '../../lib/approvalFlow'
 import { validateQuote } from '../../lib/calc'
 import type { Totals } from '../../lib/calc'
 import { draftKey } from '../../lib/draftStorage'
@@ -403,13 +405,22 @@ export default function QuoteWizard({ q }: { q: UseQuoteDraft }) {
         index="02"
         eyebrow="QUOTE"
         title="開立報價單"
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            {q.draft.quote_no && <span className="tag">{q.draft.quote_no}</span>}
+        meta={(
+          <>
+            {q.draft.quote_no && (
+              <span className="tag num border border-ink-200 bg-white text-ink-700">{q.draft.quote_no}</span>
+            )}
             <StatusTag status={q.draft.status} l1Skipped={q.l1Skipped} />
-          </div>
-        }
+          </>
+        )}
       />
+
+      {/* 簽核關卡：只有已存檔的單才顯示——新單四關全灰，沒有資訊量。
+          被退回的單，退回意見在這張卡片的下緣（原本獨立的 Alert 已併入）。
+          no-print：這是螢幕上的進度提示，Ctrl+P 防呆同下方步驟導引。 */}
+      {q.draft.id && q.flowInput && (
+        <ApprovalFlow className="no-print" flow={buildApprovalFlow(q.flowInput)} names={q.names} />
+      )}
 
       <Stepper
         steps={STEPS}
@@ -421,7 +432,7 @@ export default function QuoteWizard({ q }: { q: UseQuoteDraft }) {
 
       {/* 步驟導引是螢幕上的操作提示，印出來只是雜訊（列印走 PrintPage，這裡是 Ctrl+P 的防呆）。
           要隱藏一律掛 no-print，不在 @media print 裡新增規則——那一區的 A4 標單版面已定版。 */}
-      <div className="text-ink-700 no-print">
+      <div className="text-[0.8125rem] text-ink-700 no-print">
         <span className="mr-2 font-semibold text-deep">第 {step} 步</span>
         {STEP_HINT[step - 1]}
       </div>
@@ -438,9 +449,6 @@ export default function QuoteWizard({ q }: { q: UseQuoteDraft }) {
         </Alert>
       )}
       {q.notice && <Alert kind="success">{q.notice}</Alert>}
-      {q.draft.status === 'rejected' && q.reviewNote && (
-        <Alert kind="warn" title="退回意見">{q.reviewNote}</Alert>
-      )}
       {restored && showRestore && (
         <Alert kind="warn" title="找到未儲存的草稿">
           <div className="mb-2">

@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useRefData } from '../context/RefDataContext'
-import { pendingStatusesFor } from '../lib/quoteFilters'
+import { canReviewStatus, isOwnerEditable, pendingStatusesFor } from '../lib/quoteFilters'
+import type { FlowInput } from '../lib/approvalFlow'
 import { calcTotals, laborPrice, sectionsForPersist, validateQuote } from '../lib/calc'
 import type { Totals } from '../lib/calc'
 import type {
@@ -20,6 +21,26 @@ export const CN = ['壹', '貳', '參', '肆', '伍', '陸', '柒', '捌', '玖'
 export const LABOR_SECTION_TITLE = '人工費用'
 
 const uid = (): string => crypto.randomUUID()
+
+/**
+ * 簽核動作寫回後要一併讀回的欄位。戳記、越級標記、退回時間都是資料庫 trigger 寫的，
+ * 前端只送 status——不讀回來的話畫面會停在上一輪的值（例如核可後「副部長退回」還掛著）。
+ */
+const FLOW_COLS = 'id, status, approved_l1_by, approved_l1_at, approved_by, approved_at, '
+  + 'l1_skipped, returned_at, created_by, updated_at, review_note'
+
+const pickFlow = (r: FlowInput): FlowInput => ({
+  status: r.status,
+  l1_skipped: Boolean(r.l1_skipped),
+  returned_at: r.returned_at ?? null,
+  approved_l1_by: r.approved_l1_by ?? null,
+  approved_l1_at: r.approved_l1_at ?? null,
+  approved_by: r.approved_by ?? null,
+  approved_at: r.approved_at ?? null,
+  created_by: r.created_by,
+  updated_at: r.updated_at,
+  review_note: r.review_note ?? '',
+})
 
 /** 取本機日期（不要用 toISOString，那是 UTC 會差一天） */
 /** 申請單位候選：取自歷史報價單「聯絡人」欄實際寫法，依出現次數排序。非清單內的可直接手動輸入 */
@@ -67,7 +88,13 @@ const toDraftLine = (l: QuoteLine): DraftLine => ({
 export interface UseQuoteDraft {
   draft: DraftQuote; loading: boolean; saving: boolean
   err: string | null; notice: string | null; issues: string[]
-  reviewNote: string; l1Skipped: boolean; returnedAt: string | null
+  /** 退回意見輸入框的內容（只是輸入中的草稿；已存進資料庫的意見看 flowInput.review_note） */
+  reviewNote: string
+  l1Skipped: boolean; returnedAt: string | null
+  /** 簽核關卡列的資料來源（lib/approvalFlow）；新單尚未存檔時為 null */
+  flowInput: FlowInput | null
+  /** 簽核人 id → 姓名。同仁端受 profiles RLS 限制只查得到本人，關卡列就只顯示職稱 */
+  names: Record<string, string>
   locked: boolean; frozen: boolean
   canReviewL1: boolean; canReviewL2: boolean; canReview: boolean
   totals: Totals
@@ -111,11 +138,16 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
   const [err, setErr] = useState<string | null>(null)
   const [issues, setIssues] = useState<string[]>([])
   const [notice, setNotice] = useState<string | null>(null)
+  /**
+   * 退回意見輸入框。載入時一律清空——以前拿資料庫的 review_note 預填，
+   * 結果（1）上方顯示的「退回意見」會跟著審核者打字一起變，
+   * （2）直接按退回會把上一次的舊理由原封不動再送一次。
+   * 已存檔的意見改由 flowBase.review_note 提供，只在簽核動作成功後更新。
+   */
   const [reviewNote, setReviewNote] = useState('')
-  /** 這張單是否由副部長越過工務處長直接核定（戳記在資料庫，這裡只負責顯示） */
-  const [l1Skipped, setL1Skipped] = useState(false)
-  /** 副部長退回上一層級的時間；有值時畫面顯示退回意見 */
-  const [returnedAt, setReturnedAt] = useState<string | null>(null)
+  /** 資料庫裡這張單的簽核欄位快照（載入時、每次簽核動作成功後以回傳值更新） */
+  const [flowBase, setFlowBase] = useState<FlowInput | null>(null)
+  const [nameMap, setNameMap] = useState<Record<string, string>>({})
   /**
    * 剛按下「加入」的品項與加完的累計數量，用來給即時回饋。
    * 手機上明細區在螢幕外，不給回饋的話按了完全看不出有沒有進去；
@@ -128,7 +160,7 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
 
   /* ── 載入既有單據 ───────────────────────────────────────── */
   useEffect(() => {
-    if (!id) { setDraft(emptyDraft()); setReviewNote(''); setL1Skipped(false); setReturnedAt(null); setLoading(false); return }
+    if (!id) { setDraft(emptyDraft()); setReviewNote(''); setFlowBase(null); setNameMap({}); setLoading(false); return }
     let cancelled = false
     setLoading(true)
     setErr(null)
@@ -169,10 +201,21 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
             }))
           : [blankSection()],
       })
-      setReviewNote(quote.review_note)
-      setL1Skipped(quote.l1_skipped)
-      setReturnedAt(quote.returned_at ?? null)
+      setReviewNote('')
+      setFlowBase(pickFlow(quote))
       setLoading(false)
+
+      // 關卡列要顯示的人名。profiles 的 RLS 是「本人或主管」，同仁端只會拿回自己那一列，
+      // 屬預期（關卡列退回只顯示職稱），所以查不到、查失敗都不報錯。
+      const who = [...new Set(
+        [quote.created_by, quote.approved_l1_by, quote.approved_by].filter((x): x is string => Boolean(x)),
+      )]
+      if (!who.length) { setNameMap({}); return }
+      const pr = await supabase.from('profiles').select('id, full_name').in('id', who)
+      if (cancelled) return
+      const map: Record<string, string> = {}
+      for (const p of (pr.data ?? []) as { id: string; full_name: string }[]) map[p.id] = p.full_name
+      setNameMap(map)
     })()
     return () => { cancelled = true }
   }, [id])
@@ -186,12 +229,29 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
   const frozen = draft.status === 'approved'
     || draft.status === 'negotiating' || draft.status === 'closed'
   // 退回(rejected)單開放建立者修改重送（存檔時狀態會改回 draft，見 saveStatus）
-  const editableByOwner = draft.status === 'draft' || draft.status === 'rejected'
+  const editableByOwner = isOwnerEditable(draft.status)
+  // 「輪到誰簽」的判斷只有 lib/quoteFilters 的 canReviewStatus 一份，清單的「審查」鈕也用它
+  const canReview = canReviewStatus(draft.status, { isDeptHead, isAdmin })
   /** 第一關：工務處長核可待審單（副部長也看得到這組按鈕，可選擇越級核定） */
-  const canReviewL1 = (isDeptHead || isAdmin) && draft.status === 'submitted'
+  const canReviewL1 = canReview && draft.status === 'submitted'
   /** 第二關：副部長核定處長已過的單 */
-  const canReviewL2 = isAdmin && draft.status === 'approved_l1'
-  const canReview = canReviewL1 || canReviewL2
+  const canReviewL2 = canReview && draft.status === 'approved_l1'
+
+  /* ── 簽核關卡列的資料 ───────────────────────────────────── */
+  // 狀態一律以 draft.status 為準：存檔／送審只改得到 draft.status（persist 不經過 flowBase），
+  // 兩邊各記一份會在「退回單存檔轉回草稿」這種路徑上分岔。
+  const flowInput = useMemo<FlowInput | null>(
+    () => (flowBase && draft.id ? { ...flowBase, status: draft.status } : null),
+    [flowBase, draft.id, draft.status],
+  )
+  /** 是否由副部長越過工務處長直接核定（原始欄位值；要不要顯示越級由 approvalFlow／StatusTag 依狀態決定） */
+  const l1Skipped = flowBase?.l1_skipped ?? false
+  const returnedAt = flowBase?.returned_at ?? null
+  // 我自己剛簽的那一關：戳記上的 id 是我，但載入當時還沒簽、名字不在查詢結果裡
+  const names = useMemo<Record<string, string>>(
+    () => (profile ? { ...nameMap, [profile.id]: profile.full_name } : nameMap),
+    [nameMap, profile],
+  )
   /**
    * 唯讀判準是「**我現在是不是這一關的審核者**」，不是「我是不是主管」。
    *
@@ -629,6 +689,14 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
    * quotes_transition_guard trigger 蓋，前端不寫——前端寫得進去就代表偽造得了。
    * 合法性也在 trigger 裡擋，這裡送錯狀態會直接收到資料庫的錯誤。
    */
+  /** 簽核動作成功後，以資料庫回傳的那一列同步畫面上的狀態與簽核欄位 */
+  const syncFlow = (row: FlowInput) => {
+    const f = pickFlow(row)
+    setFlowBase(f)
+    patchDraft({ status: f.status })
+    setReviewNote('')
+  }
+
   const advance = async (next: QuoteStatus, okMsg: string): Promise<boolean> => {
     if (!draft.id) return false
     const bad = validateQuote(draft)
@@ -637,12 +705,14 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
     setErr(null); setNotice(null); setSaving(true)
     const r = await supabase.from('quotes')
       .update({ status: next, updated_at: new Date().toISOString() })
-      .eq('id', draft.id).select('id')
+      .eq('id', draft.id).select(FLOW_COLS)
     setSaving(false)
     if (r.error) { setErr(`核可失敗：${r.error.message}`); return false }
     // RLS 擋下時 Supabase 不報錯只回 0 筆，所以要看實際影響筆數
     if (!r.data?.length) { setErr('核可失敗：權限不足，或此單狀態已被他人變更。'); return false }
-    patchDraft({ status: next })
+    // 戳記、越級標記、returned_at 的清除都是 trigger 做的——用資料庫回傳值更新畫面，
+    // 不要自己猜（以前只改 status，「副部長退回上一層級」的提示在核可後還掛著）。
+    syncFlow(r.data[0] as unknown as FlowInput)
     setNotice(okMsg)
     return true
   }
@@ -653,7 +723,7 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
    * 用的是與「待我處理」徽章同一組狀態（pendingStatusesFor），兩邊口徑不會分岔。
    */
   const goNextPending = async (okMsg: string) => {
-    const statuses = profile ? pendingStatusesFor(profile.role) : []
+    const statuses = profile ? pendingStatusesFor(profile.role, profile.active) : []
     if (!statuses.length || !draft.id) { setNotice(okMsg); return }
     const r = await supabase.from('quotes').select('id, quote_no')
       .in('status', statuses).neq('id', draft.id)
@@ -674,10 +744,8 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
     const msg = skipping
       ? '已越級核定（未經工務處長），系統已留痕。'
       : '已核定，副部長可至議價頁減價定案。'
-    const ok = await advance('approved', msg)
-    // 只有真的成功才點亮越級標記——失敗時畫面不能謊報
-    if (ok && skipping) setL1Skipped(true)
-    if (ok) await goNextPending(msg)
+    // 越級標記由資料庫 trigger 蓋、advance 以回傳值同步——失敗時畫面不會謊報
+    if (await advance('approved', msg)) await goNextPending(msg)
   }
 
   const onReject = async () => {
@@ -688,11 +756,11 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
       status: 'rejected',
       review_note: reviewNote.trim(),
       updated_at: new Date().toISOString(),
-    }).eq('id', draft.id).select('id')
+    }).eq('id', draft.id).select(FLOW_COLS)
     setSaving(false)
     if (r.error) { setErr(`退回失敗：${r.error.message}`); return }
     if (!r.data?.length) { setErr('退回失敗：權限不足，或此單狀態已被他人變更。'); return }
-    patchDraft({ status: 'rejected' })
+    syncFlow(r.data[0] as unknown as FlowInput)
     setNotice('已退回開單人。')
   }
 
@@ -710,13 +778,11 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
       status: prev,
       review_note: reviewNote.trim(),
       updated_at: new Date().toISOString(),
-    }).eq('id', draft.id).select('id, returned_at')
+    }).eq('id', draft.id).select(FLOW_COLS)
     setSaving(false)
     if (r.error) { setErr(`退回失敗：${r.error.message}`); return }
     if (!r.data?.length) { setErr('退回失敗：權限不足，或此單狀態已被他人變更。'); return }
-    patchDraft({ status: prev })
-    setL1Skipped(false)
-    setReturnedAt(r.data[0].returned_at)
+    syncFlow(r.data[0] as unknown as FlowInput)
     setNotice(prev === 'submitted' ? '已退回工務處長重新核可。' : '已退回至待副部長核定。')
   }
 
@@ -724,6 +790,7 @@ export function useQuoteDraft(id?: string): UseQuoteDraft {
     draft, loading, saving,
     err, notice, issues,
     reviewNote, l1Skipped, returnedAt,
+    flowInput, names,
     locked, frozen,
     canReviewL1, canReviewL2, canReview,
     totals,
