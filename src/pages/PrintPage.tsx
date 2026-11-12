@@ -679,6 +679,8 @@ export default function PrintPage() {
    * 只印職稱（列印頁不另查人名）；送審沒有時間欄位，只印報價日期。
    */
   const flow = buildApprovalFlow(quote)
+  /** 簽核紀錄的「議價定案」格：真的議價過（已定案／舊制議價中）才印，待議價時不佔一格 */
+  const trailSteps = flow.steps.filter((s) => s.key !== 'close' || s.state === 'done' || flow.legacy)
   const [, fL1, fL2] = flow.steps
   const trailAt = (st: FlowStep): string => {
     if (st.key === 'submit') {
@@ -841,8 +843,8 @@ export default function PrintPage() {
             <span className="text-[12px] font-bold tracking-[0.08em] text-ink-900">簽核紀錄</span>
             <span className="text-[10.5px] text-ink-500">系統留存，與下方簽章對應</span>
           </div>
-          <ol className="mt-1.5 grid grid-cols-4 border border-ink-200">
-            {flow.steps.map((st, i) => (
+          <ol className={'mt-1.5 grid border border-ink-200 ' + (trailSteps.length === 4 ? 'grid-cols-4' : 'grid-cols-3')}>
+            {trailSteps.map((st, i) => (
               <li key={st.key} className={'flex flex-col gap-[2px] px-2.5 py-1.5 ' + (i > 0 ? 'border-l border-ink-200' : '')}>
                 <span className="flex items-center gap-1.5">
                   <span className={'inline-flex h-[14px] w-[14px] shrink-0 items-center justify-center rounded-full text-[9px] font-bold ' + TRAIL_DOT[st.state]}>
